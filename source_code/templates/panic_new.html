@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>恐慌清洗指数 - 加密货币数据分析 v2.2</title>
+    <title>恐慌清洗指数 - 加密货币数据分析 v2.3</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <style>
         * {
@@ -1349,22 +1349,25 @@
                 return `${dt.getMonth()+1}/${dt.getDate()} ${dt.getHours().toString().padStart(2, '0')}:${dt.getMinutes().toString().padStart(2, '0')}`;
             });
             
+            // 1小时爆仓金额数据
             const amounts = pageData.map(d => d.hour_1_amount);
+            // 24小时爆仓金额数据
+            const amounts24h = pageData.map(d => d.hour_24_amount);
             
-            // 计算平均值
+            // 计算1小时爆仓的平均值
             const avgAmount = (amounts.reduce((a, b) => a + b, 0) / amounts.length).toFixed(2);
             
-            // 计算24小时最大值
-            const max24hAmount = Math.max(...amounts);
-            const max24hIndex = amounts.indexOf(max24hAmount);
+            // 计算24小时爆仓金额的最大值（这才是我们要标记的）
+            const max24hAmount = Math.max(...amounts24h);
+            const max24hIndex = amounts24h.indexOf(max24hAmount);
             const max24hTime = times[max24hIndex];
             
             console.log('📊 图表数据:', {
                 dataPoints: amounts.length,
-                max: max24hAmount,
-                maxIndex: max24hIndex,
-                maxTime: max24hTime,
-                avg: avgAmount
+                '1H爆仓平均值': avgAmount,
+                '24H爆仓最大值': max24hAmount,
+                '24H最大值索引': max24hIndex,
+                '24H最大值时间': max24hTime
             });
             
             // 获取时间范围
@@ -1391,18 +1394,24 @@
                     },
                     formatter: function(params) {
                         const p = params[0];
-                        const amount = p.value;
+                        const amount = p.value;  // 这是1小时爆仓金额
                         const color = amount > avgAmount ? '#ef4444' : amount < avgAmount * 0.8 ? '#10b981' : '#fbbf24';
-                        const isMax = amount === max24hAmount;
+                        const currentIndex = p.dataIndex;
+                        const is24hMax = currentIndex === max24hIndex;  // 检查是否是24H最大值位置
+                        const amount24h = amounts24h[currentIndex];  // 获取该点的24小时爆仓金额
+                        
                         return `<div style="padding: 8px;">
                             <div style="font-weight: 600; margin-bottom: 5px;">${p.name}</div>
                             <div style="color: ${color}; font-size: 16px; font-weight: 600;">
-                                💥 ${amount} 万美元${isMax ? ' 🔥' : ''}
+                                💥 1H爆仓: ${amount} 万美元
+                            </div>
+                            <div style="font-size: 13px; color: #60a5fa; margin-top: 3px;">
+                                📊 24H爆仓: ${amount24h.toFixed(2)} 万美元${is24hMax ? ' 🔥' : ''}
                             </div>
                             <div style="font-size: 11px; color: #9ca3af; margin-top: 5px;">
-                                平均值: ${avgAmount} 万美元
+                                1H平均: ${avgAmount} 万美元
                             </div>
-                            ${isMax ? '<div style="font-size: 11px; color: #ef4444; margin-top: 3px; font-weight: 600;">📌 24小时最大值</div>' : ''}
+                            ${is24hMax ? '<div style="font-size: 12px; color: #ef4444; margin-top: 5px; font-weight: 700; background: rgba(239, 68, 68, 0.2); padding: 3px 6px; border-radius: 3px;">🔥 24小时爆仓最大值！</div>' : ''}
                         </div>`;
                     }
                 },
