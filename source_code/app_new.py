@@ -1588,6 +1588,11 @@ def panic_page():
     """恐慌清洗指数页面"""
     return render_template('panic_new.html')
 
+@app.route('/extreme-tracking')
+def extreme_tracking_page():
+    """极值追踪系统页面"""
+    return render_template('extreme_tracking.html')
+
 @app.route('/api/panic/latest')
 def api_panic_latest():
     """恐慌清洗指数最新数据API - 从JSONL读取"""

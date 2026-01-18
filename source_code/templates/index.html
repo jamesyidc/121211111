@@ -639,6 +639,32 @@
                 </div>
                 <a href="/telegram-dashboard" class="module-btn" id="tg-manage-btn" style="background: linear-gradient(135deg, #228be6 0%, #1d4ed8 100%); position: relative; z-index: 10;">管理面板</a>
             </div>
+            
+            <!-- 极值追踪系统 -->
+            <div class="module-card" onclick="location.href='/extreme-tracking'" style="background: linear-gradient(135deg, rgba(220, 38, 38, 0.95) 0%, rgba(185, 28, 28, 0.95) 100%); border: 2px solid #dc2626;">
+                <div class="module-icon">⚠️</div>
+                <h2>极值追踪系统</h2>
+                <p>自动捕捉市场极值事件，追踪27币快照，记录1h/3h/6h/12h/24h价格变化</p>
+                <div class="module-stats">
+                    <div class="module-stats-row">
+                        <span class="stats-label">快照总数:</span>
+                        <span class="stats-value" id="extreme-total-snapshots">-</span>
+                    </div>
+                    <div class="module-stats-row">
+                        <span class="stats-label">活跃快照:</span>
+                        <span class="stats-value" id="extreme-active-snapshots" style="color: #fbbf24;">-</span>
+                    </div>
+                    <div class="module-stats-row">
+                        <span class="stats-label">已完成:</span>
+                        <span class="stats-value" id="extreme-completed-snapshots" style="color: #10b981;">-</span>
+                    </div>
+                    <div class="module-stats-row">
+                        <span class="stats-label">触发类型:</span>
+                        <span class="stats-value" id="extreme-trigger-types" style="font-size: 0.8em;">-</span>
+                    </div>
+                </div>
+                <a href="/extreme-tracking" class="module-btn" style="background: linear-gradient(135deg, #b91c1c 0%, #dc2626 100%);">查看追踪 🔥</a>
+            </div>
         </div>
         
         
@@ -787,6 +813,35 @@
                     <div style="color: rgba(255,255,255,0.5); font-size: 0.8rem; line-height: 1.5;">
                         每30秒检测TXT文件更新，实时追踪数据源
                     </div>
+                </div>
+                
+                <!-- 极值追踪系统API -->
+                <div style="background: rgba(0, 0, 0, 0.2); border-radius: 12px; padding: 25px; border-left: 4px solid #dc2626;">
+                    <h3 style="color: #dc2626; font-size: 1.3rem; margin-bottom: 15px;">⚠️ 极值追踪系统</h3>
+                    <div style="margin-bottom: 15px;">
+                        <div style="color: rgba(255,255,255,0.7); font-size: 0.9rem; margin-bottom: 8px;">GET 快照列表</div>
+                        <code style="display: block; background: rgba(0,0,0,0.4); padding: 10px; border-radius: 6px; color: #4ade80; font-size: 0.85rem; overflow-x: auto;">
+                            /api/extreme-tracking/snapshots
+                        </code>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <div style="color: rgba(255,255,255,0.7); font-size: 0.9rem; margin-bottom: 8px;">GET 单个快照详情</div>
+                        <code style="display: block; background: rgba(0,0,0,0.4); padding: 10px; border-radius: 6px; color: #4ade80; font-size: 0.85rem; overflow-x: auto;">
+                            /api/extreme-tracking/snapshot/&lt;snapshot_id&gt;
+                        </code>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <div style="color: rgba(255,255,255,0.7); font-size: 0.9rem; margin-bottom: 8px;">GET 统计数据</div>
+                        <code style="display: block; background: rgba(0,0,0,0.4); padding: 10px; border-radius: 6px; color: #4ade80; font-size: 0.85rem; overflow-x: auto;">
+                            /api/extreme-tracking/stats
+                        </code>
+                    </div>
+                    <div style="color: rgba(255,255,255,0.5); font-size: 0.8rem; line-height: 1.5;">
+                        自动捕捉5种极值事件，追踪27币快照，记录1h/3h/6h/12h/24h价格变化，4小时冷却期
+                    </div>
+                    <a href="/extreme-tracking" style="display: inline-block; margin-top: 15px; padding: 8px 16px; background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); color: white; text-decoration: none; border-radius: 6px; font-size: 0.9rem; transition: transform 0.2s;">
+                        查看详情 →
+                    </a>
                 </div>
             </div>
             
@@ -1215,6 +1270,55 @@
             })
             .catch(err => {
                 console.error('获取Google Drive检测器状态失败:', err);
+            });
+        
+        // 加载最新文件名
+        fetch('/api/gdrive-detector/txt-files')
+            .then(res => res.json())
+            .then(response => {
+                if (response.success && response.files && response.files.length > 0) {
+                    const latestFileEl = document.getElementById('gdrive-latest-file');
+                    latestFileEl.textContent = response.files[0];
+                }
+            })
+            .catch(err => {
+                console.error('获取最新文件名失败:', err);
+            });
+        
+        // 加载极值追踪系统统计数据
+        fetch('/api/extreme-tracking/stats')
+            .then(res => res.json())
+            .then(response => {
+                if (response.success && response.stats) {
+                    const stats = response.stats;
+                    
+                    // 更新快照总数
+                    document.getElementById('extreme-total-snapshots').textContent = stats.total_snapshots || 0;
+                    
+                    // 更新活跃快照数
+                    document.getElementById('extreme-active-snapshots').textContent = stats.active_snapshots || 0;
+                    
+                    // 更新已完成快照数
+                    document.getElementById('extreme-completed-snapshots').textContent = stats.completed_snapshots || 0;
+                    
+                    // 更新触发类型
+                    const triggerTypes = stats.trigger_types || {};
+                    const triggerList = Object.entries(triggerTypes).map(([type, count]) => {
+                        const typeNames = {
+                            '2h_peak': '2h峰值',
+                            '27coins_high': '27币↑',
+                            '27coins_low': '27币↓',
+                            '24h_peak': '24h峰值',
+                            '1h_liquidation_high': '爆仓'
+                        };
+                        return `${typeNames[type] || type}: ${count}`;
+                    }).join(', ');
+                    
+                    document.getElementById('extreme-trigger-types').textContent = triggerList || '暂无';
+                }
+            })
+            .catch(err => {
+                console.error('获取极值追踪统计数据失败:', err);
             });
         
         // 加载最新文件名
