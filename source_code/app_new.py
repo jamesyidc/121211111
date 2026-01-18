@@ -14428,10 +14428,6 @@ def api_extreme_market_alerts_stats():
         })
 
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=False)
-
-
 # ==================== 极值追踪系统 API ====================
 
 @app.route('/api/extreme-tracking/snapshots')
@@ -14604,5 +14600,6 @@ def api_extreme_tracking_stats():
         })
 
 
+# ==================== Flask App 启动入口 ====================
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
