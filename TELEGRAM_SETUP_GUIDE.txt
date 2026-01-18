@@ -1,0 +1,268 @@
+================================================================
+Telegram告警配置快速指南
+================================================================
+
+🔔 为爆仓金额监控配置Telegram通知
+
+================================================================
+一、创建Telegram Bot
+================================================================
+
+1️⃣ 打开Telegram，搜索 @BotFather
+
+2️⃣ 发送命令创建bot:
+   /newbot
+
+3️⃣ 按提示设置:
+   - Bot名称: Liquidation Alert Bot (或任意名称)
+   - Bot用户名: liquidation_alert_bot (必须以_bot结尾)
+
+4️⃣ 获取Bot Token:
+   创建成功后，BotFather会返回类似这样的token:
+   ```
+   123456789:ABCdefGHIjklMNOpqrsTUVwxyz-1234567890
+   ```
+   ⚠️ 保存这个token，后面需要用到
+
+================================================================
+二、获取Chat ID
+================================================================
+
+方法1: 个人聊天
+------------------
+1️⃣ 搜索 @userinfobot
+2️⃣ 点击Start
+3️⃣ 发送任意消息
+4️⃣ Bot会返回你的信息，包含chat_id:
+   ```
+   Id: 123456789
+   ```
+
+方法2: 群组聊天
+------------------
+1️⃣ 创建一个Telegram群组
+2️⃣ 将你的bot添加到群组
+3️⃣ 在群组中发送一条消息 @your_bot_name
+4️⃣ 访问以下URL获取chat_id:
+   ```
+   https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates
+   ```
+5️⃣ 在返回的JSON中查找 "chat":{"id":-123456789,...}
+   群组的chat_id通常是负数
+
+================================================================
+三、创建配置文件
+================================================================
+
+1️⃣ 创建configs目录（如果不存在）:
+   ```bash
+   cd /home/user/webapp
+   mkdir -p configs
+   ```
+
+2️⃣ 创建telegram_config.json文件:
+   ```bash
+   nano configs/telegram_config.json
+   ```
+
+3️⃣ 填入配置内容:
+   ```json
+   {
+     "bot_token": "123456789:ABCdefGHIjklMNOpqrsTUVwxyz-1234567890",
+     "chat_id": "123456789"
+   }
+   ```
+   
+   替换为你自己的:
+   - bot_token: 从BotFather获取的token
+   - chat_id: 从userinfobot获取的chat_id
+
+4️⃣ 保存并退出:
+   - 按 Ctrl+O 保存
+   - 按 Ctrl+X 退出
+
+================================================================
+四、测试配置
+================================================================
+
+1️⃣ 测试脚本:
+   ```bash
+   cd /home/user/webapp
+   python3 << 'EOF'
+   import json
+   import requests
+   
+   # 读取配置
+   config = json.load(open('configs/telegram_config.json'))
+   bot_token = config['bot_token']
+   chat_id = config['chat_id']
+   
+   # 发送测试消息
+   url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+   data = {
+       'chat_id': chat_id,
+       'text': '🔔 Telegram配置测试成功！\n爆仓金额监控已启用。',
+       'parse_mode': 'Markdown'
+   }
+   
+   response = requests.post(url, data=data)
+   result = response.json()
+   
+   if result.get('ok'):
+       print("✅ 测试消息发送成功！")
+       print("请检查Telegram是否收到消息")
+   else:
+       print("❌ 发送失败:")
+       print(result)
+   EOF
+   ```
+
+2️⃣ 检查Telegram:
+   - 你应该会收到一条测试消息
+   - 如果没收到，检查bot_token和chat_id是否正确
+
+================================================================
+五、启动监控服务
+================================================================
+
+1️⃣ 使用PM2启动（推荐）:
+   ```bash
+   cd /home/user/webapp
+   pm2 start ecosystem.liquidation_alert.config.js
+   pm2 save
+   ```
+
+2️⃣ 查看状态:
+   ```bash
+   pm2 status liquidation-alert-monitor
+   ```
+
+3️⃣ 查看日志:
+   ```bash
+   pm2 logs liquidation-alert-monitor --lines 50
+   ```
+
+4️⃣ 停止服务:
+   ```bash
+   pm2 stop liquidation-alert-monitor
+   ```
+
+5️⃣ 重启服务:
+   ```bash
+   pm2 restart liquidation-alert-monitor
+   ```
+
+================================================================
+六、验证告警功能
+================================================================
+
+1️⃣ 手动触发测试（可选）:
+   ```bash
+   cd /home/user/webapp
+   python3 source_code/liquidation_alert_monitor.py
+   ```
+   
+   观察输出:
+   - 如果1小时爆仓金额 > 3000万，会发送告警
+   - 否则显示 "✅ 爆仓金额正常"
+
+2️⃣ 查看告警记录:
+   ```bash
+   cat /home/user/webapp/data/liquidation_alert_records.json | python3 -m json.tool
+   ```
+
+3️⃣ 等待真实告警:
+   - 监控服务会每分钟检查一次
+   - 当爆仓金额超过3000万时自动发送
+   - 30分钟内不会重复告警（冷却机制）
+
+================================================================
+七、配置示例
+================================================================
+
+示例1: 个人账号
+```json
+{
+  "bot_token": "5678901234:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw",
+  "chat_id": "987654321"
+}
+```
+
+示例2: 群组通知
+```json
+{
+  "bot_token": "5678901234:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw",
+  "chat_id": "-987654321"
+}
+```
+注意: 群组的chat_id是负数
+
+示例3: 多个接收者（需要修改脚本支持）
+```json
+{
+  "bot_token": "5678901234:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw",
+  "chat_ids": ["987654321", "-987654322"]
+}
+```
+
+================================================================
+八、常见问题
+================================================================
+
+❌ 问题1: "Unauthorized" 错误
+解决: bot_token不正确，检查是否从BotFather复制完整
+
+❌ 问题2: "Chat not found" 错误
+解决: chat_id不正确，或bot还未与用户/群组建立会话
+     解决方法: 在Telegram中给bot发送 /start 命令
+
+❌ 问题3: 群组中bot不回复
+解决: 
+1. 确保bot是群组成员
+2. 确保bot有发送消息的权限
+3. chat_id使用负数（群组）
+
+❌ 问题4: 配置文件格式错误
+解决: 
+```bash
+# 验证JSON格式
+python3 -m json.tool configs/telegram_config.json
+```
+
+================================================================
+九、安全建议
+================================================================
+
+🔒 保护你的配置:
+1. 不要将telegram_config.json提交到Git
+2. 设置文件权限: chmod 600 configs/telegram_config.json
+3. 定期更新bot_token（通过@BotFather）
+4. 不要在公开场合分享bot_token
+
+================================================================
+十、告警消息示例
+================================================================
+
+你将收到类似这样的消息:
+
+```
+🚨 爆仓金额告警 🚨
+
+💥 1小时爆仓金额: 3456.78 万美元
+⚠️ 告警阈值: 3000 万美元
+📈 超出比例: 15.2%
+
+⏰ 数据时间: 2026-01-18 21:30:00
+📍 告警时间: 2026-01-18 21:31:05
+
+🔗 查看详情: https://5000-i4rq388xy9v1hw2uaz7ln-8f57ffe2.sandbox.novita.ai/panic
+
+---
+系统自动监控告警
+```
+
+================================================================
+
+✅ 配置完成后，你将在爆仓金额超过3000万美元时收到Telegram通知！
+
+================================================================
