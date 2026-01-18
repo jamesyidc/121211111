@@ -41,7 +41,7 @@ from v1v2_jsonl_manager import V1V2JSONLManager
 from crypto_index_jsonl_manager import CryptoIndexJSONLManager
 
 price_speed_manager = PriceSpeedJSONLManager()
-v1v2_manager = V1V2JSONLManager()
+v1v2_manager = V1V2JSONLManager(data_dir='/home/user/webapp/data/v1v2_jsonl')
 crypto_index_manager = CryptoIndexJSONLManager()
 
 # K线图服务URL配置
