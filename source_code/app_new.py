@@ -14430,3 +14430,176 @@ def api_extreme_market_alerts_stats():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
+
+
+# ==================== 极值追踪系统 API ====================
+
+@app.route('/api/extreme-tracking/snapshots')
+def api_extreme_tracking_snapshots():
+    """获取极值追踪快照列表"""
+    try:
+        import json
+        from pathlib import Path
+        
+        snapshots_file = Path('/home/user/webapp/data/extreme_tracking/extreme_snapshots.jsonl')
+        
+        if not snapshots_file.exists():
+            return jsonify({
+                'success': True,
+                'data': [],
+                'message': '暂无快照数据'
+            })
+        
+        # 读取所有快照
+        snapshots = []
+        with open(snapshots_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.strip():
+                    snapshots.append(json.loads(line))
+        
+        # 按时间倒序排序
+        snapshots.sort(key=lambda x: x.get('trigger_time', 0), reverse=True)
+        
+        # 获取查询参数
+        limit = request.args.get('limit', type=int, default=None)
+        status = request.args.get('status', type=str, default=None)  # active/completed
+        
+        # 过滤状态
+        if status:
+            snapshots = [s for s in snapshots if s.get('status') == status]
+        
+        # 限制数量
+        if limit:
+            snapshots = snapshots[:limit]
+        
+        return jsonify({
+            'success': True,
+            'data': snapshots,
+            'count': len(snapshots)
+        })
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+
+@app.route('/api/extreme-tracking/snapshot/<snapshot_id>')
+def api_extreme_tracking_snapshot_detail(snapshot_id):
+    """获取单个快照的详细信息"""
+    try:
+        import json
+        from pathlib import Path
+        
+        snapshots_file = Path('/home/user/webapp/data/extreme_tracking/extreme_snapshots.jsonl')
+        
+        if not snapshots_file.exists():
+            return jsonify({
+                'success': False,
+                'message': '快照文件不存在'
+            })
+        
+        # 查找指定快照
+        with open(snapshots_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.strip():
+                    snapshot = json.loads(line)
+                    if snapshot.get('snapshot_id') == snapshot_id:
+                        return jsonify({
+                            'success': True,
+                            'data': snapshot
+                        })
+        
+        return jsonify({
+            'success': False,
+            'message': f'未找到快照: {snapshot_id}'
+        })
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+
+@app.route('/api/extreme-tracking/stats')
+def api_extreme_tracking_stats():
+    """获取极值追踪统计信息"""
+    try:
+        import json
+        from pathlib import Path
+        from collections import Counter
+        
+        snapshots_file = Path('/home/user/webapp/data/extreme_tracking/extreme_snapshots.jsonl')
+        
+        if not snapshots_file.exists():
+            return jsonify({
+                'success': True,
+                'stats': {
+                    'total_snapshots': 0,
+                    'active_snapshots': 0,
+                    'completed_snapshots': 0,
+                    'trigger_types': {}
+                }
+            })
+        
+        # 读取所有快照
+        snapshots = []
+        with open(snapshots_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.strip():
+                    snapshots.append(json.loads(line))
+        
+        # 统计信息
+        total_count = len(snapshots)
+        active_count = len([s for s in snapshots if s.get('status') == 'active'])
+        completed_count = len([s for s in snapshots if s.get('status') == 'completed'])
+        
+        # 统计触发类型
+        trigger_types = Counter()
+        for snapshot in snapshots:
+            for trigger in snapshot.get('triggers', []):
+                trigger_types[trigger.get('type', 'unknown')] += 1
+        
+        # 计算平均价格变化（已完成的快照）
+        completed_snapshots = [s for s in snapshots if s.get('status') == 'completed']
+        avg_changes = {
+            '1h': 0, '3h': 0, '6h': 0, '12h': 0, '24h': 0
+        }
+        
+        if completed_snapshots:
+            for period in avg_changes.keys():
+                changes = [
+                    s['tracking'][period]['total_change']
+                    for s in completed_snapshots
+                    if s.get('tracking', {}).get(period)
+                ]
+                if changes:
+                    avg_changes[period] = sum(changes) / len(changes)
+        
+        stats = {
+            'total_snapshots': total_count,
+            'active_snapshots': active_count,
+            'completed_snapshots': completed_count,
+            'trigger_types': dict(trigger_types),
+            'average_price_changes': avg_changes
+        }
+        
+        return jsonify({
+            'success': True,
+            'stats': stats
+        })
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+

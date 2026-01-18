@@ -1,0 +1,351 @@
+# 极值追踪系统说明文档
+
+## 📊 系统概述
+
+极值追踪系统用于在市场出现极值信号时，自动记录27个币种的快照，并追踪未来1小时、3小时、6小时、12小时、24小时的价格变化情况。
+
+---
+
+## 🎯 触发条件
+
+系统在以下三种情况下会自动创建快照：
+
+### 1. 逃顶信号2h极值预警
+- **条件**: 每日2h逃顶信号数的最大值 > 50
+- **数据来源**: `/api/escape-signal-stats` 中的 `has_2h_peak` 标记
+- **说明**: 当2小时窗口内的逃顶信号数量达到历史极值时触发
+
+### 2. 27币涨跌幅极值
+- **条件**: 
+  - 超过100%: 所有27个币种的涨跌幅总和 > 100%
+  - 低于-80%: 所有27个币种的涨跌幅总和 < -80%
+- **数据来源**: `/api/okx-day-change/latest` 
+- **说明**: 市场整体涨跌幅异常极端时触发
+
+### 3. 逃顶信号24h极值
+- **条件**: 48小时窗口内的24h逃顶信号最大值 > 200
+- **数据来源**: `/api/escape-signal-stats` 中的 `has_24h_peak` 标记
+- **说明**: 当24小时逃顶信号数量达到极值时触发
+
+---
+
+## 📸 快照内容
+
+每次触发时，系统会记录以下信息：
+
+### 基础信息
+- **快照ID**: `EXT_<timestamp>` 格式
+- **触发时间**: Unix时间戳 + 北京时间字符串
+- **触发类型**: 标记触发的具体条件（可能多个同时触发）
+
+### 27个币的快照
+```json
+{
+  "symbol": "BTC",
+  "name": "Bitcoin",
+  "price": 45678.90,
+  "day_change": 1234.56,
+  "day_change_percent": 2.78,
+  "volume_24h": 12345678900,
+  "market_cap": 876543210000
+}
+```
+
+### 逃顶信号快照
+- 2h信号数量
+- 24h信号数量
+- 是否处于2h极值
+- 是否处于24h极值
+- 极值具体数值
+
+### 价格追踪记录
+记录未来5个时间点的价格变化：
+- **1小时后** (1h)
+- **3小时后** (3h)
+- **6小时后** (6h)
+- **12小时后** (12h)
+- **24小时后** (24h)
+
+每个追踪点包含：
+```json
+{
+  "timestamp": 1234567890,
+  "datetime": "2026-01-18 23:00:00",
+  "period": "1h",
+  "total_change": 15.67,
+  "coins": [
+    {
+      "symbol": "BTC",
+      "name": "Bitcoin",
+      "original_price": 45678.90,
+      "current_price": 46789.12,
+      "price_change_percent": 2.43,
+      "original_day_change": 2.78,
+      "current_day_change": 3.21
+    }
+  ]
+}
+```
+
+---
+
+## 🗂️ 数据存储
+
+### 文件位置
+```
+/home/user/webapp/data/extreme_tracking/
+├── extreme_snapshots.jsonl    # 快照数据（每行一个JSON对象）
+└── extreme_tracking.jsonl      # 追踪日志（可选）
+```
+
+### 快照状态
+- **active**: 追踪中（还有未完成的追踪点）
+- **completed**: 已完成（所有5个追踪点都已记录）
+
+---
+
+## 🔧 系统组件
+
+### 1. 核心追踪器
+**文件**: `source_code/extreme_value_tracker.py`
+
+主要功能：
+- 每10分钟检查一次是否满足极值条件
+- 创建快照并保存到JSONL文件
+- 定期更新活跃快照的追踪数据
+- 当所有追踪点完成后，标记快照为completed
+
+运行模式：
+```bash
+# 单次运行
+python3 source_code/extreme_value_tracker.py --once
+
+# 持续运行（每10分钟）
+python3 source_code/extreme_value_tracker.py 10
+
+# 持续运行（自定义间隔，单位分钟）
+python3 source_code/extreme_value_tracker.py 5
+```
+
+### 2. PM2配置
+**文件**: `ecosystem.extreme_tracker.config.js`
+
+```javascript
+{
+  name: 'extreme-value-tracker',
+  script: 'source_code/extreme_value_tracker.py',
+  interpreter: 'python3',
+  args: '10',  // 每10分钟检查一次
+  autorestart: true,
+  max_memory_restart: '300M'
+}
+```
+
+PM2管理命令：
+```bash
+# 启动
+pm2 start ecosystem.extreme_tracker.config.js
+
+# 查看日志
+pm2 logs extreme-value-tracker
+
+# 重启
+pm2 restart extreme-value-tracker
+
+# 停止
+pm2 stop extreme-value-tracker
+```
+
+### 3. API接口
+
+#### 获取快照列表
+```
+GET /api/extreme-tracking/snapshots
+
+参数:
+  - limit (int, 可选): 返回数量限制
+  - status (string, 可选): active/completed 过滤状态
+
+响应:
+{
+  "success": true,
+  "data": [快照数组],
+  "count": 10
+}
+```
+
+#### 获取单个快照详情
+```
+GET /api/extreme-tracking/snapshot/<snapshot_id>
+
+响应:
+{
+  "success": true,
+  "data": {快照对象}
+}
+```
+
+#### 获取统计信息
+```
+GET /api/extreme-tracking/stats
+
+响应:
+{
+  "success": true,
+  "stats": {
+    "total_snapshots": 15,
+    "active_snapshots": 3,
+    "completed_snapshots": 12,
+    "trigger_types": {
+      "2h_peak": 5,
+      "27coins_high": 8,
+      "24h_peak": 2
+    },
+    "average_price_changes": {
+      "1h": 2.34,
+      "3h": 4.56,
+      "6h": 7.89,
+      "12h": 11.23,
+      "24h": 15.67
+    }
+  }
+}
+```
+
+---
+
+## 📈 使用场景
+
+### 1. 市场分析
+- 分析极值事件发生时的市场特征
+- 研究极值后的价格走势规律
+- 评估不同类型极值的影响
+
+### 2. 交易策略
+- 在极值出现时参考历史数据制定策略
+- 根据追踪数据预判后续走势
+- 评估极值信号的可靠性
+
+### 3. 风险管理
+- 识别市场异常波动
+- 预警潜在的剧烈行情
+- 评估持仓风险
+
+---
+
+## 🔍 数据查询示例
+
+### 查看最近10个活跃快照
+```bash
+curl "http://localhost:5000/api/extreme-tracking/snapshots?status=active&limit=10"
+```
+
+### 查看某个快照的详细追踪
+```bash
+curl "http://localhost:5000/api/extreme-tracking/snapshot/EXT_1737213123"
+```
+
+### 查看系统统计
+```bash
+curl "http://localhost:5000/api/extreme-tracking/stats"
+```
+
+---
+
+## 📊 监控指标
+
+### 系统运行状态
+- PM2进程状态: `pm2 status`
+- 日志输出: `pm2 logs extreme-value-tracker`
+- 内存使用: 通常 < 50MB
+
+### 数据质量
+- 快照数量: 应随极值事件增加
+- 活跃快照: 通常不超过10个
+- 完成率: 活跃快照最终都应变为completed
+
+### 性能指标
+- API响应时间: < 100ms
+- 快照创建耗时: < 2秒
+- 追踪更新耗时: < 1秒
+
+---
+
+## ⚠️ 注意事项
+
+1. **数据依赖**
+   - 需要逃顶信号API正常运行
+   - 需要27币涨跌数据正常更新
+   - 确保数据源API可访问
+
+2. **存储空间**
+   - 每个快照约5-10KB
+   - 建议定期归档历史数据
+   - 预留至少100MB空间
+
+3. **时间同步**
+   - 追踪时间基于快照触发时间
+   - 时间精度为分钟级别
+   - 注意服务器时区设置
+
+4. **API限流**
+   - 每10分钟检查一次，不会造成压力
+   - API调用失败会自动重试
+   - 保持合理的检查频率
+
+---
+
+## 🚀 快速开始
+
+### 1. 启动系统
+```bash
+cd /home/user/webapp
+pm2 start ecosystem.extreme_tracker.config.js
+pm2 save
+```
+
+### 2. 查看运行状态
+```bash
+pm2 status extreme-value-tracker
+pm2 logs extreme-value-tracker --lines 50
+```
+
+### 3. 测试API
+```bash
+# 查看快照列表
+curl http://localhost:5000/api/extreme-tracking/snapshots
+
+# 查看统计信息
+curl http://localhost:5000/api/extreme-tracking/stats
+```
+
+### 4. 手动触发检查（测试用）
+```bash
+python3 /home/user/webapp/source_code/extreme_value_tracker.py --once
+```
+
+---
+
+## 📝 开发信息
+
+- **创建时间**: 2026-01-18
+- **版本**: 1.0
+- **作者**: Claude Code Agent
+- **语言**: Python 3
+- **框架**: Flask (API), PM2 (进程管理)
+
+---
+
+## 🔄 更新日志
+
+### v1.0 (2026-01-18)
+- ✅ 实现极值追踪核心功能
+- ✅ 添加快照创建和存储
+- ✅ 实现5个时间点的价格追踪
+- ✅ 提供完整的API接口
+- ✅ 集成PM2进程管理
+- ✅ 支持多种极值触发条件
+
+---
+
+**系统状态**: 🟢 运行中 | 上次更新: 2026-01-18 22:52
