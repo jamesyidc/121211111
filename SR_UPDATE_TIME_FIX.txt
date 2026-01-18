@@ -1,0 +1,210 @@
+====================================
+✅ Support-Resistance 更新时间问题 - 已修复
+====================================
+修复完成时间: 2026-01-18 00:24 (UTC+8)
+
+🔍 问题发现
+----------
+用户反馈：页面显示"最后更新: 2026-01-17 19:10:04"（昨天的数据）
+当前时间：2026-01-18 00:24
+数据延迟：超过5小时
+
+❌ 原因分析：
+1. support_resistance_levels.jsonl 文件未实时更新
+2. 更新脚本 update_support_resistance_jsonl.py 需要手动运行
+3. 没有自动化机制定期更新 levels 数据
+4. API返回的 update_time 来自 levels 文件的 record_time_beijing
+
+✅ 解决方案
+----------
+### 1. 立即更新数据
+运行 `update_support_resistance_jsonl.py`，成功更新27个币种的支撑压力线数据：
+- 更新前: 2026-01-17 19:10:04
+- 更新后: 2026-01-18 00:22:31
+- 更新耗时: ~23秒
+
+### 2. 创建自动更新服务
+创建 `sr_levels_auto_updater.py`：
+- 每5分钟自动更新一次
+- 使用PM2管理，自动重启
+- 实时更新support_resistance_levels.jsonl
+
+### 3. 服务部署
+```bash
+pm2 start sr_levels_auto_updater.py --name sr-levels-updater --interpreter python3
+```
+
+📊 数据流架构
+----------
+```
+OKX API (实时价格)
+    ↓
+update_support_resistance_jsonl.py (计算支撑压力线)
+    ↓
+support_resistance_levels.jsonl (每5分钟)
+    ↓
+API: /api/support-resistance/latest
+    ↓
+前端页面显示
+```
+
+### 两个数据源的区别
+1. **support_resistance_levels.jsonl**
+   - 存储：支撑压力线计算结果
+   - 更新：每5分钟（新增自动更新器）
+   - 用途：主表格数据、"最后更新"时间
+
+2. **support_resistance_snapshots.jsonl**
+   - 存储：每分钟快照记录
+   - 更新：每1分钟（support-resistance-snapshot服务）
+   - 用途：全局趋势图、历史数据
+
+📈 服务状态
+----------
+### PM2服务列表（共13个服务在线）
+1. ✅ **sr-levels-updater** (ID: 13) - **新增！**
+   - 功能: 支撑压力线数据自动更新
+   - 频率: 每5分钟
+   - 状态: online
+
+2. ✅ support-resistance-snapshot (ID: 2)
+   - 功能: 快照数据采集
+   - 频率: 每1分钟
+   - 状态: online
+
+3. ✅ escape-auto-updater (ID: 12)
+   - 功能: 逃顶信号数据自动更新
+   - 频率: 每5分钟
+   - 状态: online
+
+4. ✅ flask-app (ID: 11)
+   - 功能: Web服务
+   - 状态: online
+
+5-13. ✅ 其他采集服务（coin-price-tracker等）
+
+🎯 修复前后对比
+----------
+### ❌ 修复前
+- 最后更新: 2026-01-17 19:10:04
+- 数据延迟: 5小时+
+- 更新方式: 手动运行脚本
+- 用户体验: 数据陈旧，不可靠
+
+### ✅ 修复后
+- 最后更新: 2026-01-18 00:22:31（实时）
+- 数据延迟: <5分钟
+- 更新方式: 全自动（PM2管理）
+- 用户体验: 数据新鲜，可靠
+
+📊 验证结果
+----------
+### API测试
+```bash
+curl /api/support-resistance/latest
+```
+返回：
+- ✅ Success: True
+- ✅ Update time: 2026-01-18 00:22:31
+- ✅ Coins: 27个
+
+### 数据文件检查
+```bash
+tail -1 support_resistance_levels.jsonl
+```
+- ✅ Symbol: TAOUSDT
+- ✅ Update time: 2026-01-18 00:22:31
+- ✅ 所有27个币种已更新
+
+🎨 页面效果
+----------
+✅ **主表格"最后更新"时间**: 2026-01-18 00:22:31
+✅ **数据实时性**: 延迟<5分钟
+✅ **27个币种数据**: 全部最新
+✅ **支撑压力线**: 基于当前价格计算
+✅ **位置百分比**: 实时准确
+
+🔧 技术细节
+----------
+### 更新脚本功能
+`update_support_resistance_jsonl.py` 执行以下操作：
+
+1. 从OKX API获取27个币种的实时价格
+2. 计算7天和48小时的支撑压力线
+3. 计算当前价格在区间中的位置百分比
+4. 保存到 support_resistance_levels.jsonl
+5. 记录 record_time_beijing 字段
+
+### 自动更新器逻辑
+```python
+while True:
+    run_update_script()  # 运行更新脚本
+    time.sleep(300)      # 等待5分钟
+```
+
+### 为什么选择5分钟？
+- ⚖️ 平衡：实时性 vs API请求频率
+- 🔥 热度：支撑压力线不需要秒级更新
+- 💰 成本：避免过度请求OKX API
+- 🎯 效果：5分钟延迟对用户影响很小
+
+💡 运维管理
+----------
+### 查看自动更新器状态
+```bash
+pm2 status sr-levels-updater
+pm2 logs sr-levels-updater --lines 50
+```
+
+### 查看最新数据
+```bash
+# 查看levels最新记录
+tail -5 data/support_resistance_jsonl/support_resistance_levels.jsonl
+
+# 查看snapshots最新记录
+tail -5 data/support_resistance_jsonl/support_resistance_snapshots.jsonl
+```
+
+### 手动触发更新
+```bash
+python3 update_support_resistance_jsonl.py
+```
+
+🌐 访问地址
+----------
+https://5000-i4rq388xy9v1hw2uaz7ln-8f57ffe2.sandbox.novita.ai/support-resistance
+
+🎉 最终结果
+----------
+✅ **问题彻底解决！**
+
+1. ✅ 立即更新了陈旧数据（从昨天19:10到今天00:22）
+2. ✅ 创建了自动更新服务（每5分钟）
+3. ✅ PM2管理，服务稳定运行
+4. ✅ 页面显示实时更新时间
+5. ✅ 数据延迟从5小时+降低到5分钟内
+
+📊 系统完整性
+----------
+现在整个Support-Resistance系统包含：
+
+**数据采集层：**
+- ✅ support-resistance-snapshot（每1分钟采集快照）
+- ✅ sr-levels-updater（每5分钟更新支撑压力线）
+
+**数据存储层：**
+- ✅ support_resistance_snapshots.jsonl（快照历史）
+- ✅ support_resistance_levels.jsonl（最新支撑压力线）
+- ✅ support_resistance.db（SQLite备份）
+
+**API服务层：**
+- ✅ /api/support-resistance/latest（最新数据）
+- ✅ /api/support-resistance/signals-computed（全局趋势）
+- ✅ /api/support-resistance/snapshots（每日时间轴）
+
+**前端展示层：**
+- ✅ 主表格（27币种实时监控）
+- ✅ 全局趋势图（历史数据）
+- ✅ 每日时间轴（当日快照）
+
+✅ **系统现在完全自动化，数据实时更新，无需人工干预！**

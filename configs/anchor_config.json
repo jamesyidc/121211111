@@ -1,0 +1,44 @@
+{
+  "anchor_config": {
+    "excluded_coins": [
+      "BTC",
+      "ETH",
+      "LTC",
+      "ETC"
+    ],
+    "description": "锚点单配置",
+    "excluded_reason": "BTC、ETH、LTC和ETC不作为锚点单的标的币种",
+    "rules": {
+      "check_add_position": true,
+      "add_position_trigger": -10.0,
+      "min_amount_handling": "dynamic",
+      "prevent_duplicate_minutes": 5
+    },
+    "target_coins": [
+      "CFX",
+      "FIL",
+      "CELO",
+      "UNI",
+      "CRV",
+      "LDO"
+    ],
+    "target_coins_description": "优先开仓的目标币种（按市值和成交量排序）",
+    "last_updated": "2025-12-29",
+    "updated_by": "GenSpark AI Developer"
+  },
+  "monitor": {
+    "profit_target": 40.0,
+    "loss_limit": -10.0,
+    "check_interval": 60,
+    "alert_cooldown": 30,
+    "only_short_positions": false,
+    "trade_mode": "real"
+  },
+  "telegram": {
+    "bot_token": "8437045462:AAFePnwdC21cqeWhZISMQHGGgjmroVqE2H0",
+    "chat_id": "-1003227444260"
+  },
+  "database": {
+    "path": "/home/user/webapp/anchor_system.db"
+  }
+}

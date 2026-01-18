@@ -1,0 +1,97 @@
+@app.route('/api/support-resistance/latest')
+def api_support_resistance_latest():
+    """获取最新的支撑压力线数据（从 JSONL）"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp')
+        from support_resistance_jsonl_manager import SupportResistanceJSONLManager
+        
+        manager = SupportResistanceJSONLManager()
+        
+        # 获取所有币种的最新数据
+        latest_levels = manager.get_all_latest_levels()
+        
+        if not latest_levels:
+            return jsonify({
+                'success': False,
+                'message': 'No data available'
+            })
+        
+        # 获取最新时间（用于显示"最后更新"）
+        update_time = None
+        for level in latest_levels:
+            time_str = level.get('record_time_beijing') or level.get('record_time')
+            if time_str:
+                update_time = time_str
+                break
+        
+        # 格式化数据
+        coins_data = []
+        scenario_1_coins = []
+        scenario_2_coins = []
+        
+        for level in latest_levels:
+            symbol = level.get('symbol', '')
+            
+            # 转换为 OKX 格式（BTCUSDT -> BTC-USDT-SWAP）
+            if symbol.endswith('USDT'):
+                okx_symbol = f"{symbol[:-4]}-USDT-SWAP"
+            else:
+                okx_symbol = symbol
+            
+            current_price = level.get('current_price', 0)
+            support_1 = level.get('support_line_1', 0)
+            support_2 = level.get('support_line_2', 0)
+            resistance_1 = level.get('resistance_line_1', 0)
+            resistance_2 = level.get('resistance_line_2', 0)
+            position_7d = level.get('position_7d', 0)
+            position_48h = level.get('position_48h', 0)
+            
+            # 判断告警场景
+            alert_7d_low = level.get('alert_7d_low', 0) or (1 if position_7d <= 10 else 0)
+            alert_7d_high = level.get('alert_7d_high', 0) or (1 if position_7d >= 90 else 0)
+            alert_48h_low = level.get('alert_48h_low', 0) or (1 if position_48h <= 10 else 0)
+            alert_48h_high = level.get('alert_48h_high', 0) or (1 if position_48h >= 90 else 0)
+            
+            coin_info = {
+                'symbol': okx_symbol,
+                'current_price': current_price,
+                'support_1': support_1,
+                'support_2': support_2,
+                'resistance_1': resistance_1,
+                'resistance_2': resistance_2,
+                'position_s2_r1': position_7d,
+                'position_s1_r2': position_48h,
+                'position_s1_r2_upper': position_48h,
+                'position_s1_r1': position_7d,
+                'alert_scenario_1': alert_7d_low,
+                'alert_scenario_2': alert_7d_high,
+                'alert_scenario_3': alert_48h_low,
+                'alert_scenario_4': alert_48h_high
+            }
+            
+            coins_data.append(coin_info)
+            
+            # 添加到场景列表
+            if alert_7d_low:
+                scenario_1_coins.append(coin_info)
+            if alert_7d_high:
+                scenario_2_coins.append(coin_info)
+        
+        return jsonify({
+            'success': True,
+            'update_time': update_time or '未知',
+            'coins': coins_data,
+            'scenario_1_coins': scenario_1_coins,
+            'scenario_2_coins': scenario_2_coins,
+            'data_source': 'JSONL',
+            'timezone': 'Beijing Time (UTC+8)'
+        })
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'message': str(e),
+            'traceback': traceback.format_exc()
+        })

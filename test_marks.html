@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>测试标记点数据</title>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <h1>空单盈利/亏损标记点测试</h1>
+    <div id="result"></div>
+    
+    <script>
+    async function testMarks() {
+        const response = await fetch('/api/anchor-profit/history?limit=10080');
+        const data = await response.json();
+        const items = data.data || [];
+        
+        const marks = {};
+        let shortProfitMarks = [];
+        let shortLossMarks = [];
+        let lastShortProfitHour = null;
+        let lastShortLossHour = null;
+        
+        items.forEach((item, index) => {
+            const dt = item.datetime;
+            const hour = dt.substring(0, 13);
+            const stats = item.stats?.short || {};
+            const shortProfit120 = stats.gte_120 || 0;
+            const shortLoss = stats.loss || 0;
+            
+            // 空单盈利≥120%且数量≥3
+            if (shortProfit120 >= 3 && hour !== lastShortProfitHour) {
+                shortProfitMarks.push({
+                    time: dt,
+                    value: shortProfit120,
+                    index: index
+                });
+                lastShortProfitHour = hour;
+            }
+            
+            // 空单亏损≥3
+            if (shortLoss >= 3 && hour !== lastShortLossHour) {
+                shortLossMarks.push({
+                    time: dt,
+                    value: shortLoss,
+                    index: index
+                });
+                lastShortLossHour = hour;
+            }
+        });
+        
+        const result = document.getElementById('result');
+        result.innerHTML = `
+            <h2>数据范围</h2>
+            <p>总记录数: ${items.length}</p>
+            <p>最早时间: ${items[0]?.datetime}</p>
+            <p>最新时间: ${items[items.length-1]?.datetime}</p>
+            
+            <h2>空单盈利≥120%标记点 (${shortProfitMarks.length}个)</h2>
+            <ul>
+                ${shortProfitMarks.map(m => `<li>${m.time} - 数量: ${m.value}, 索引: ${m.index}</li>`).join('')}
+            </ul>
+            
+            <h2>空单亏损标记点 (${shortLossMarks.length}个)</h2>
+            <ul>
+                ${shortLossMarks.map(m => `<li>${m.time} - 数量: ${m.value}, 索引: ${m.index}</li>`).join('')}
+            </ul>
+        `;
+    }
+    
+    testMarks();
+    </script>
+</body>
+</html>

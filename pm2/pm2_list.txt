@@ -1,0 +1,29 @@
+┌────┬──────────────────────────────────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name                                     │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼──────────────────────────────────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 23 │ anchor-maintenance-daemon                │ default     │ N/A     │ fork    │ 741918   │ 21h    │ 15   │ online    │ 0%       │ 12.1mb   │ user     │ disabled │
+│ 21 │ anchor-opener-daemon                     │ default     │ N/A     │ fork    │ 682454   │ 26h    │ 2    │ online    │ 0%       │ 12.1mb   │ user     │ disabled │
+│ 18 │ anchor-system                            │ default     │ N/A     │ fork    │ 972030   │ 54m    │ 15   │ online    │ 0%       │ 32.4mb   │ user     │ disabled │
+│ 8  │ collector-monitor                        │ default     │ N/A     │ fork    │ 838      │ 5D     │ 0    │ online    │ 0%       │ 12.8mb   │ user     │ disabled │
+│ 22 │ conditional-order-monitor                │ default     │ N/A     │ fork    │ 579579   │ 38h    │ 0    │ online    │ 0%       │ 27.1mb   │ user     │ disabled │
+│ 25 │ count-monitor                            │ default     │ N/A     │ fork    │ 968191   │ 70m    │ 0    │ online    │ 0%       │ 30.6mb   │ user     │ disabled │
+│ 7  │ crypto-index-collector                   │ default     │ N/A     │ fork    │ 983230   │ 4m     │ 1450 │ online    │ 0%       │ 31.6mb   │ user     │ disabled │
+│ 0  │ flask-app                                │ default     │ N/A     │ fork    │ 980889   │ 15m    │ 268  │ online    │ 200%     │ 463.4mb  │ user     │ disabled │
+│ 2  │ fund-monitor-collector                   │ default     │ N/A     │ fork    │ 832      │ 5D     │ 0    │ online    │ 0%       │ 29.7mb   │ user     │ disabled │
+│ 14 │ gdrive-auto-trigger                      │ default     │ N/A     │ fork    │ 1533     │ 5D     │ 15   │ online    │ 0%       │ 34.7mb   │ user     │ disabled │
+│ 15 │ gdrive-detector                          │ default     │ N/A     │ fork    │ 56089    │ 4D     │ 5    │ online    │ 0%       │ 59.8mb   │ user     │ disabled │
+│ 13 │ gdrive-monitor                           │ default     │ N/A     │ fork    │ 843      │ 5D     │ 0    │ online    │ 0%       │ 30.5mb   │ user     │ disabled │
+│ 24 │ long-position-daemon                     │ default     │ N/A     │ fork    │ 690090   │ 25h    │ 1    │ online    │ 0%       │ 12.5mb   │ user     │ disabled │
+│ 9  │ panic-wash-collector                     │ default     │ N/A     │ fork    │ 839      │ 5D     │ 0    │ online    │ 0%       │ 28.3mb   │ user     │ disabled │
+│ 20 │ position-sync-fast                       │ default     │ N/A     │ fork    │ 787324   │ 17h    │ 2    │ online    │ 0%       │ 27.8mb   │ user     │ disabled │
+│ 6  │ position-system-collector                │ default     │ N/A     │ fork    │ 983219   │ 4m     │ 1450 │ online    │ 0%       │ 31.5mb   │ user     │ disabled │
+│ 10 │ price-comparison-collector               │ default     │ N/A     │ fork    │ 840      │ 5D     │ 0    │ online    │ 0%       │ 49.8mb   │ user     │ disabled │
+│ 17 │ sar-bias-trend-collector                 │ default     │ N/A     │ fork    │ 153250   │ 3D     │ 2    │ online    │ 0%       │ 43.4mb   │ user     │ disabled │
+│ 16 │ sar-slope-collector                      │ default     │ N/A     │ fork    │ 14057    │ 4D     │ 2    │ online    │ 0%       │ 32.7mb   │ user     │ disabled │
+│ 4  │ support-resistance-collector             │ default     │ N/A     │ fork    │ 743009   │ 20h    │ 4    │ online    │ 0%       │ 28.5mb   │ user     │ disabled │
+│ 5  │ support-resistance-snapshot-collector    │ default     │ N/A     │ fork    │ 835      │ 5D     │ 0    │ online    │ 0%       │ 12.6mb   │ user     │ disabled │
+│ 12 │ sync-indicators-daemon                   │ default     │ N/A     │ fork    │ 842      │ 5D     │ 0    │ online    │ 0%       │ 9.6mb    │ user     │ disabled │
+│ 11 │ telegram-notifier                        │ default     │ N/A     │ fork    │ 841      │ 5D     │ 0    │ online    │ 100%     │ 32.1mb   │ user     │ disabled │
+│ 3  │ v1v2-collector                           │ default     │ N/A     │ fork    │ 865      │ 5D     │ 1    │ online    │ 0%       │ 28.3mb   │ user     │ disabled │
+│ 1  │ websocket-collector                      │ default     │ N/A     │ fork    │ 0        │ 0      │ 30   │ errored   │ 0%       │ 0b       │ user     │ disabled │
+└────┴──────────────────────────────────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘

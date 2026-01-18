@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Profit Chart Debug</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+</head>
+<body>
+<div id="debugInfo" style="margin: 20px; padding: 10px; background: #f0f0f0;"></div>
+<div id="chart" style="width: 1200px; height: 600px; margin: 20px;"></div>
+
+<script>
+async function test() {
+    const debugEl = document.getElementById('debugInfo');
+    
+    try {
+        debugEl.innerHTML += '<p>Loading data...</p>';
+        const response = await fetch('/api/anchor-profit/history?limit=10080');
+        const result = await response.json();
+        
+        debugEl.innerHTML += `<p>✅ Data loaded: ${result.data.length} records</p>`;
+        
+        if (result.data.length === 0) {
+            debugEl.innerHTML += '<p>⚠️ No data available</p>';
+            return;
+        }
+        
+        const latestData = result.data[result.data.length - 1];
+        debugEl.innerHTML += `<p>Latest data: ${latestData.datetime}</p>`;
+        debugEl.innerHTML += `<p>Latest timestamp: ${latestData.timestamp}</p>`;
+        debugEl.innerHTML += `<p>Stats: ${JSON.stringify(latestData.stats)}</p>`;
+        
+        // 计算今天的数据范围
+        const now = new Date();
+        const startOfDay = new Date(now);
+        startOfDay.setHours(0, 0, 0, 0);
+        const startTimestamp = Math.floor(startOfDay.getTime() / 1000);
+        
+        const endOfDay = new Date(now);
+        endOfDay.setHours(23, 59, 59, 999);
+        const endTimestamp = Math.floor(endOfDay.getTime() / 1000);
+        
+        debugEl.innerHTML += `<p>Today range: ${startTimestamp} ~ ${endTimestamp}</p>`;
+        debugEl.innerHTML += `<p>Today range (readable): ${new Date(startTimestamp * 1000)} ~ ${new Date(endTimestamp * 1000)}</p>`;
+        
+        // 过滤今天的数据
+        const todayData = result.data.filter(d => {
+            return d.timestamp >= startTimestamp && d.timestamp <= endTimestamp;
+        });
+        
+        debugEl.innerHTML += `<p>✅ Today's data count: ${todayData.length}</p>`;
+        
+        if (todayData.length === 0) {
+            debugEl.innerHTML += '<p>⚠️ No data for today!</p>';
+            
+            // 找最新数据的日期
+            const latestDate = new Date(latestData.timestamp * 1000);
+            debugEl.innerHTML += `<p>Latest data date: ${latestDate.toISOString()}</p>`;
+            
+            const daysDiff = Math.floor((now.setHours(0,0,0,0) - latestDate.setHours(0,0,0,0)) / (1000*60*60*24));
+            debugEl.innerHTML += `<p>Days difference: ${daysDiff}</p>`;
+            return;
+        }
+        
+        // 绘制图表
+        const chart = echarts.init(document.getElementById('chart'));
+        
+        const times = todayData.map(d => {
+            const dt = new Date(d.timestamp * 1000);
+            return `${dt.getHours().toString().padStart(2, '0')}:${dt.getMinutes().toString().padStart(2, '0')}`;
+        });
+        
+        const long_gte120Data = todayData.map(d => d.stats?.long?.gte_120 || 0);
+        const short_gte120Data = todayData.map(d => d.stats?.short?.gte_120 || 0);
+        
+        chart.setOption({
+            title: {
+                text: '多空单盈利统计（测试）',
+                left: 'center'
+            },
+            tooltip: {
+                trigger: 'axis'
+            },
+            legend: {
+                data: ['多单盈利≥120%', '空单盈利≥120%'],
+                top: 30
+            },
+            xAxis: {
+                type: 'category',
+                data: times
+            },
+            yAxis: {
+                type: 'value'
+            },
+            series: [
+                {
+                    name: '多单盈利≥120%',
+                    type: 'line',
+                    data: long_gte120Data,
+                    itemStyle: { color: '#10b981' }
+                },
+                {
+                    name: '空单盈利≥120%',
+                    type: 'line',
+                    data: short_gte120Data,
+                    itemStyle: { color: '#ef4444' }
+                }
+            ]
+        });
+        
+        debugEl.innerHTML += '<p>✅ Chart rendered successfully!</p>';
+        
+    } catch (error) {
+        debugEl.innerHTML += `<p>❌ Error: ${error.message}</p>`;
+        console.error(error);
+    }
+}
+
+test();
+</script>
+</body>
+</html>

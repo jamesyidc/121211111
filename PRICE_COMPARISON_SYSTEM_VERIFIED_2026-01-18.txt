@@ -1,0 +1,226 @@
+================================================================
+比价系统修复与验证报告
+================================================================
+
+修复时间: 2026-01-18 20:53
+修复状态: ✅ 完成并验证
+
+================================================================
+一、问题回顾
+================================================================
+
+1. 页面问题
+   - 比价系统页面无法显示数据
+   - API返回的字段与前端期望不匹配
+   - 所有数据字段显示为 None 或 --
+
+2. 根本原因
+   - JSONL数据文件使用的字段名与前端不一致
+   - 数据文件字段: highest_price, lowest_price, last_price, last_update_time
+   - 前端期望字段: high_price, low_price, current_price, snapshot_time
+   - 缺少计算字段: decline (距离最高点的跌幅), rise_from_low (距离最低点的涨幅)
+
+================================================================
+二、修复内容
+================================================================
+
+✅ 修改文件: source_code/price_comparison_jsonl_manager.py
+
+修复点:
+1. get_all_coins() 方法字段映射
+   - highest_price → high_price (添加)
+   - lowest_price → low_price (添加)
+   - last_price → current_price (添加)
+   - last_update_time → snapshot_time (添加)
+   
+2. 计算新增字段
+   - decline = ((current_price - high_price) / high_price) * 100
+     计算当前价格距离最高价的跌幅百分比
+     
+   - rise_from_low = ((current_price - low_price) / low_price) * 100
+     计算当前价格距离最低价的涨幅百分比
+
+3. 保持向后兼容
+   - 保留原始字段名 (highest_price, lowest_price, last_price, last_update_time)
+   - 添加新字段名 (high_price, low_price, current_price, snapshot_time)
+   - 确保新旧字段都可用
+
+================================================================
+三、验证结果
+================================================================
+
+✅ API测试结果
+
+1. GET /api/price-comparison/list
+   ✓ HTTP Status: 200
+   ✓ Success: True
+   ✓ Total coins: 27
+   ✓ Data source: JSONL
+   
+   示例数据 (BTC):
+   - 当前价格: $95,049.90
+   - 最高价格: $125,370.21
+   - 最低价格: $81,359.06
+   - 距离最高: -24.18%
+   - 距离最低: +16.83%
+   - 更新时间: 2026-01-17 19:09:54
+
+2. GET /api/price-comparison/breakthrough-stats
+   ✓ HTTP Status: 200
+   ✓ Success: True
+   
+   突破统计:
+   - 今天: 创新高 0, 创新低 0
+   - 3天:  创新高 0, 创新低 105
+   - 7天:  创新高 0, 创新低 105
+
+3. GET /api/price-comparison/breakthrough-logs
+   ✓ HTTP Status: 200
+   ✓ Success: True
+   ✓ Log entries: 105 (最近7天)
+   
+   最近事件示例:
+   - APT: 创新低 at $1.747 (2026-01-17 01:25:41)
+   - APT: 创新低 at $1.749 (2026-01-17 01:25:05)
+   - APT: 创新低 at $1.750 (2026-01-16 23:49:13)
+
+✅ 页面测试结果
+   ✓ 页面加载正常
+   ✓ 无JavaScript错误
+   ✓ 页面标题: 比价系统 - 加密货币数据监控
+   ✓ 页面加载时间: 9.88秒
+   ✓ 所有表格数据正常显示
+
+================================================================
+四、数据说明
+================================================================
+
+1. 监控币种: 27个
+   包括: BTC, ETH, XRP, BNB, SOL, LTC, DOGE, SUI, TRX, TON, 
+         ADA, LINK, AVAX, UNI, MATIC, DOT, NEAR, APT, ICP, 
+         FIL, IMX, STX, CRV, LDO, CFX, TAO 等
+
+2. 价格数据
+   - 最高价格 (high_price): 历史监控期间的最高价
+   - 最低价格 (low_price): 历史监控期间的最低价
+   - 当前价格 (current_price): 最近一次采集的价格
+   - 最高计次 (highest_count): 触及最高价的次数
+   - 最低计次 (lowest_count): 触及最低价的次数
+
+3. 占比数据
+   - 最高占比 (highest_ratio): (最高价 - 最低价) / 最低价 * 100
+   - 最低占比 (lowest_ratio): (最高价 - 最低价) / 最低价 * 100
+   
+4. 新增计算字段
+   - decline: 当前价距离最高价的跌幅百分比 (负值)
+   - rise_from_low: 当前价距离最低价的涨幅百分比 (正值)
+
+5. 更新时间
+   - 最后更新: 2026-01-17 19:09:54
+   - 注意: 数据可能是昨天的，需要检查数据采集器
+
+================================================================
+五、页面功能
+================================================================
+
+✅ 统计卡片
+1. 突破事件统计 (6个卡片)
+   - 当天创新高/创新低
+   - 3天创新高/创新低
+   - 7天创新高/创新低
+
+2. 监控统计 (4个卡片)
+   - 监控币种数量
+   - 创新高预警 (计次为0的币种)
+   - 创新低预警 (计次为0的币种)
+   - 最后更新时间
+
+✅ 创新高/创新低日志
+   - 支持筛选: 1天/3天/7天/30天
+   - 支持类型筛选: 全部/仅创新高/仅创新低
+   - 显示字段: 时间、币名、事件、价格、之前价格、变化
+
+✅ 币种比价监控表格
+   - 币名、最高价格、最高计次
+   - 最低价格、最低计次
+   - 最高占比、最低占比
+   - 最后更新时间
+
+✅ 自动刷新
+   - 每30秒自动刷新数据
+   - 手动刷新按钮
+
+================================================================
+六、后续建议
+================================================================
+
+1. 数据更新检查 ⚠️
+   - 当前数据更新时间: 2026-01-17 19:09:54
+   - 数据已经过时 (距今超过12小时)
+   - 需要检查价格比较数据采集器是否正常运行
+
+2. PM2进程检查
+   需要确认以下进程是否在线:
+   - price-comparison-collector (价格比较数据采集)
+   - price-tracker-updater (价格跟踪更新)
+   
+   检查命令: pm2 status | grep price
+
+3. 数据文件监控
+   数据文件位置: data/price_comparison_jsonl/
+   - latest_price_baseline.jsonl (最新基准价格)
+   - price_breakthrough_events.jsonl (突破事件记录)
+   - price_comparison_stats.jsonl (统计数据)
+   - summary.json (汇总信息)
+
+4. 建议优化
+   - 添加数据新鲜度告警 (超过1小时未更新)
+   - 在页面显示数据更新时间戳
+   - 添加数据采集状态监控
+   - 考虑添加手动触发采集的功能
+
+================================================================
+七、相关文件
+================================================================
+
+修改的文件:
+- source_code/price_comparison_jsonl_manager.py
+  (get_all_coins方法字段映射和计算)
+
+页面文件:
+- source_code/templates/price_comparison.html
+  (前端页面，未修改)
+
+API接口 (source_code/app_new.py):
+- GET  /price-comparison (页面路由)
+- GET  /api/price-comparison/list (币种列表)
+- POST /api/price-comparison/update (更新价格)
+- GET  /api/price-comparison/breakthrough-stats (突破统计)
+- GET  /api/price-comparison/breakthrough-logs (突破日志)
+
+数据文件:
+- data/price_comparison_jsonl/latest_price_baseline.jsonl
+- data/price_comparison_jsonl/price_breakthrough_events.jsonl
+- data/price_comparison_jsonl/price_comparison_stats.jsonl
+- data/price_comparison_jsonl/summary.json
+
+================================================================
+八、访问地址
+================================================================
+
+🌐 页面URL: 
+https://5000-i4rq388xy9v1hw2uaz7ln-8f57ffe2.sandbox.novita.ai/price-comparison
+
+📊 API测试:
+curl https://5000-i4rq388xy9v1hw2uaz7ln-8f57ffe2.sandbox.novita.ai/api/price-comparison/list
+
+================================================================
+
+✅ 修复完成！比价系统现在可以正常显示数据。
+
+但请注意：
+⚠️ 数据更新时间为昨天 (2026-01-17 19:09:54)
+⚠️ 需要检查数据采集器是否正常运行
+⚠️ 建议重启相关采集进程或手动触发数据更新
+
+================================================================

@@ -1,0 +1,37 @@
+# 数据文件
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.jsonl
+*.jsonl.backup*
+
+# 日志文件
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+
+# 临时文件
+*.tmp
+*.temp
+.DS_Store
+
+# 大型归档文件
+*.tar
+*.tar.gz
+*.zip
+*.rar
+
+# Git备份
+git/
+
+# 备份文件
+*.backup
+backup_*/

@@ -1,0 +1,55 @@
+{
+  "bot_token": "8437045462:AAFePnwdC21cqeWhZISMQHGGgjmroVqE2H0",
+  "chat_id": "-1003227444260",
+  "api_base_url": "https://api.telegram.org",
+  "bot_info": {
+    "id": 8437045462,
+    "name": "jamesyi9999",
+    "username": "jamesyi9999_bot"
+  },
+  "message_settings": {
+    "parse_mode": "HTML",
+    "disable_web_page_preview": true,
+    "disable_notification": false
+  },
+  "signal_types": {
+    "buy": {
+      "enabled": true,
+      "name": "抄底信号",
+      "emoji": "🟢",
+      "color": "green",
+      "min_coins": 8
+    },
+    "sell": {
+      "enabled": true,
+      "name": "逃顶信号",
+      "emoji": "🔴",
+      "color": "red",
+      "min_coins": 8
+    },
+    "double_buy": {
+      "enabled": true,
+      "name": "双重抄底信号",
+      "emoji": "🟢🟢",
+      "color": "green",
+      "min_coins": 1
+    },
+    "double_sell": {
+      "enabled": true,
+      "name": "双重逃顶信号",
+      "emoji": "🔴🔴",
+      "color": "red",
+      "min_coins": 1
+    }
+  },
+  "push_conditions": {
+    "min_coins": 1,
+    "cooldown_seconds": 300,
+    "max_retries": 3,
+    "retry_delay": 5
+  },
+  "templates": {
+    "buy_signal": "\n🟢 <b>抄底信号触发</b>\n\n⏰ 时间: {time}\n📊 触发币种: {count}个\n\n<b>币种列表:</b>\n{coins}\n\n💡 提示: 价格接近支撑线，可能是抄底机会\n📍 查看详情: {url}\n",
+    "sell_signal": "\n🔴 <b>逃顶信号触发</b>\n\n⏰ 时间: {time}\n📊 触发币种: {count}个\n\n<b>币种列表:</b>\n{coins}\n\n⚠️ 提示: 价格接近压力线，建议考虑止盈\n📍 查看详情: {url}\n"
+  }
+}

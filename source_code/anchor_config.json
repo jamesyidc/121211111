@@ -1,0 +1,17 @@
+{
+  "telegram": {
+    "bot_token": "",
+    "chat_id": ""
+  },
+  "monitor": {
+    "profit_target": 40.0,
+    "loss_limit": -10.0,
+    "check_interval": 60,
+    "alert_cooldown": 30,
+    "only_short_positions": true,
+    "trade_mode": "real"
+  },
+  "database": {
+    "path": "/home/user/webapp/databases/anchor_system.db"
+  }
+}

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anchor System 加载诊断</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test {
+            background: #2a2a2a;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { color: #4ade80; }
+        .error { color: #f87171; }
+        .pending { color: #fbbf24; }
+        pre {
+            background: #0a0a0a;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Anchor System 页面加载诊断</h1>
+    
+    <div class="test">
+        <h3>1. 页面HTML加载</h3>
+        <p id="htmlTest" class="pending">测试中...</p>
+    </div>
+
+    <div class="test">
+        <h3>2. ECharts CDN加载</h3>
+        <p id="echartsTest" class="pending">测试中...</p>
+    </div>
+
+    <div class="test">
+        <h3>3. API响应测试</h3>
+        <div id="apiTests"></div>
+    </div>
+
+    <div class="test">
+        <h3>4. 并行加载性能测试</h3>
+        <p id="perfTest" class="pending">测试中...</p>
+    </div>
+
+    <div class="test">
+        <h3>5. 建议</h3>
+        <div id="suggestions"></div>
+    </div>
+
+    <script>
+        const startTime = Date.now();
+        
+        // 测试1: HTML加载
+        document.getElementById('htmlTest').innerHTML = 
+            `<span class="success">✅ HTML已加载 (${Date.now() - startTime}ms)</span>`;
+
+        // 测试2: ECharts CDN
+        const echartsStart = Date.now();
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js';
+        script.onload = function() {
+            const elapsed = Date.now() - echartsStart;
+            document.getElementById('echartsTest').innerHTML = 
+                `<span class="success">✅ ECharts加载成功 (${elapsed}ms)</span>`;
+        };
+        script.onerror = function() {
+            document.getElementById('echartsTest').innerHTML = 
+                `<span class="error">❌ ECharts加载失败 - 可能CDN被墙</span>`;
+        };
+        document.head.appendChild(script);
+
+        // 测试3: API响应
+        async function testAPIs() {
+            const apis = [
+                '/api/sub-account/config',
+                '/api/anchor-system/auto-maintenance-config',
+                '/api/anchor-system/status',
+                '/api/latest',
+                '/api/anchor-system/monitors?limit=50',
+                '/api/anchor-system/alerts?limit=10',
+                '/api/anchor-system/profit-records?trade_mode=real',
+                '/api/anchor-system/current-positions?trade_mode=real',
+                '/api/anchor-system/sub-account-positions?trade_mode=real',
+                '/api/anchor-system/warnings?trade_mode=real'
+            ];
+
+            const container = document.getElementById('apiTests');
+            const results = [];
+
+            for (const api of apis) {
+                const apiStart = Date.now();
+                try {
+                    const response = await fetch(api);
+                    const elapsed = Date.now() - apiStart;
+                    const status = response.status === 200 ? 'success' : 'error';
+                    results.push({api, elapsed, status: response.status});
+                    container.innerHTML += `
+                        <div class="${status}">
+                            ${response.status === 200 ? '✅' : '❌'} ${api} 
+                            (${elapsed}ms, ${response.status})
+                        </div>`;
+                } catch (err) {
+                    const elapsed = Date.now() - apiStart;
+                    results.push({api, elapsed, error: err.message});
+                    container.innerHTML += `
+                        <div class="error">
+                            ❌ ${api} (${elapsed}ms, ${err.message})
+                        </div>`;
+                }
+            }
+
+            return results;
+        }
+
+        // 测试4: 并行加载
+        async function testParallel() {
+            const apis = [
+                '/api/sub-account/config',
+                '/api/anchor-system/auto-maintenance-config',
+                '/api/anchor-system/status',
+                '/api/latest',
+                '/api/anchor-system/monitors?limit=50',
+                '/api/anchor-system/alerts?limit=10',
+                '/api/anchor-system/profit-records?trade_mode=real',
+                '/api/anchor-system/current-positions?trade_mode=real',
+                '/api/anchor-system/sub-account-positions?trade_mode=real',
+                '/api/anchor-system/warnings?trade_mode=real'
+            ];
+
+            const perfStart = Date.now();
+            const results = await Promise.allSettled(
+                apis.map(api => fetch(api))
+            );
+            const elapsed = Date.now() - perfStart;
+
+            const successes = results.filter(r => r.status === 'fulfilled' && r.value.status === 200).length;
+            
+            document.getElementById('perfTest').innerHTML = 
+                `<span class="success">✅ 并行加载完成: ${successes}/${apis.length} 成功 (${elapsed}ms)</span>`;
+
+            return elapsed;
+        }
+
+        // 运行测试
+        async function runTests() {
+            await testAPIs();
+            const parallelTime = await testParallel();
+
+            // 生成建议
+            const suggestions = document.getElementById('suggestions');
+            const totalTime = Date.now() - startTime;
+
+            if (totalTime < 3000) {
+                suggestions.innerHTML = `
+                    <p class="success">✅ 页面加载正常 (总耗时: ${totalTime}ms)</p>
+                    <p>如果实际使用时还是慢，可能是：</p>
+                    <ul>
+                        <li>浏览器缓存问题 - 按 Ctrl+Shift+R 强制刷新</li>
+                        <li>网络问题 - 检查网络连接</li>
+                        <li>浏览器扩展冲突 - 尝试无痕模式</li>
+                    </ul>`;
+            } else {
+                suggestions.innerHTML = `
+                    <p class="error">⚠️ 检测到加载较慢 (总耗时: ${totalTime}ms)</p>
+                    <p>可能原因：</p>
+                    <ul>
+                        <li>网络延迟较高</li>
+                        <li>CDN访问慢（ECharts）</li>
+                        <li>API响应慢</li>
+                    </ul>`;
+            }
+        }
+
+        runTests();
+    </script>
+</body>
+</html>

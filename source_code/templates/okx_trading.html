@@ -1,0 +1,1519 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OKX实盘交易系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+                'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            padding: 30px;
+            zoom: 1.5;
+        }
+
+        .container {
+            max-width: 2100px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 25px 30px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            color: #2d3748;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .mode-badge {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        /* 账户切换横条 */
+        .account-switcher {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 15px 30px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .account-switcher-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #2d3748;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .account-tabs {
+            display: flex;
+            gap: 10px;
+            flex: 1;
+        }
+
+        .account-tab {
+            padding: 8px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid #e2e8f0;
+            background: white;
+            color: #64748b;
+        }
+
+        .account-tab:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+
+        .account-tab.active {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            border-color: #2563eb;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .account-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-left: auto;
+            padding-left: 20px;
+            border-left: 2px solid #e2e8f0;
+        }
+
+        .account-balance {
+            font-size: 14px;
+            color: #64748b;
+        }
+
+        .account-balance strong {
+            color: #10b981;
+            font-size: 16px;
+            margin-left: 5px;
+        }
+
+        .btn-manage-accounts {
+            background: #8b5cf6;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-manage-accounts:hover {
+            background: #7c3aed;
+            transform: translateY(-2px);
+        }
+
+        /* 账户管理对话框 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .modal-header h2 {
+            font-size: 22px;
+            color: #2d3748;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #64748b;
+            line-height: 1;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+
+        .btn-close:hover {
+            background: #f1f5f9;
+            color: #2d3748;
+        }
+
+        .account-list {
+            margin-bottom: 25px;
+        }
+
+        .account-item {
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s;
+        }
+
+        .account-item:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+        }
+
+        .account-item-info {
+            flex: 1;
+        }
+
+        .account-item-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+
+        .account-item-balance {
+            font-size: 14px;
+            color: #10b981;
+            font-weight: 600;
+        }
+
+        .account-item-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-edit {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .btn-edit:hover {
+            background: #2563eb;
+        }
+
+        .btn-delete {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-delete:hover {
+            background: #dc2626;
+        }
+
+        .account-form {
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 8px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .btn-primary {
+            background: #10b981;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary:hover {
+            background: #059669;
+        }
+
+        .btn-secondary {
+            background: #64748b;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-secondary:hover {
+            background: #475569;
+        }
+
+        .btn-add-account {
+            background: #10b981;
+            color: white;
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-add-account:hover {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-home {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-home:hover {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+
+        .btn-refresh {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .btn-refresh:hover {
+            background: #2563eb;
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 280px 1fr 320px;
+            gap: 20px;
+        }
+
+        /* 左侧交易对列表 */
+        .symbols-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            max-height: calc(100vh - 140px);
+            overflow-y: auto;
+        }
+
+        .symbols-panel h3 {
+            font-size: 16px;
+            color: #2d3748;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .symbol-search {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 15px;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .symbol-search:focus {
+            border-color: #3b82f6;
+        }
+
+        .symbol-item {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+        }
+
+        .symbol-item:hover {
+            background: #f7fafc;
+        }
+
+        .symbol-item.active {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            border-color: #1e40af;
+        }
+
+        .symbol-item.favorite {
+            background: #fef3c7;
+            border-color: #fbbf24;
+        }
+
+        .symbol-item.favorite.active {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            border-color: #b45309;
+        }
+
+        .symbol-content {
+            flex: 1;
+        }
+
+        .symbol-name {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .favorite-badge {
+            color: #f59e0b;
+            font-size: 12px;
+        }
+
+        .symbol-item.active .favorite-badge {
+            color: #fef3c7;
+        }
+
+        .symbol-price {
+            font-size: 13px;
+            opacity: 0.8;
+        }
+
+        .favorite-btn {
+            padding: 4px 8px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            transition: all 0.3s;
+            opacity: 0;
+            margin-left: 8px;
+        }
+
+        .symbol-item:hover .favorite-btn {
+            opacity: 1;
+        }
+
+        .favorite-btn:hover {
+            transform: scale(1.2);
+        }
+
+        .favorite-btn.favorited {
+            opacity: 1;
+        }
+
+        .favorite-section {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #fbbf24;
+        }
+
+        .favorite-section-title {
+            font-size: 13px;
+            color: #d97706;
+            font-weight: 600;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* 中间交易面板 */
+        .trading-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .symbol-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .symbol-info {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .current-symbol {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2d3748;
+        }
+
+        .symbol-subtitle {
+            font-size: 14px;
+            color: #718096;
+        }
+
+        .current-price {
+            text-align: right;
+        }
+
+        .price-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #10b981;
+        }
+
+        .price-change {
+            font-size: 14px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            margin-top: 5px;
+            display: inline-block;
+        }
+
+        .price-change.up {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+
+        .price-change.down {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        /* 交易方向按钮 */
+        .direction-tabs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .direction-tab {
+            padding: 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .direction-tab:hover {
+            transform: translateY(-2px);
+        }
+
+        .direction-tab.long {
+            border-color: #10b981;
+            color: #10b981;
+        }
+
+        .direction-tab.long.active {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border-color: #059669;
+        }
+
+        .direction-tab.short {
+            border-color: #ef4444;
+            color: #ef4444;
+        }
+
+        .direction-tab.short.active {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            border-color: #dc2626;
+        }
+
+        /* 交易表单 */
+        .trading-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .form-control {
+            padding: 12px 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 15px;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .form-control:focus {
+            border-color: #3b82f6;
+        }
+
+        .leverage-buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+
+        .leverage-btn {
+            padding: 10px;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .leverage-btn:hover {
+            background: #f7fafc;
+        }
+
+        .leverage-btn.active {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            border-color: #2563eb;
+        }
+
+        .amount-presets {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px;
+        }
+
+        .preset-btn {
+            padding: 8px;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 13px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .preset-btn:hover {
+            background: #f7fafc;
+            border-color: #cbd5e0;
+        }
+
+        .submit-order {
+            padding: 16px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+
+        .submit-order.long {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+
+        .submit-order.long:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4);
+        }
+
+        .submit-order.short {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+        }
+
+        .submit-order.short:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4);
+        }
+
+        /* 右侧账户信息 */
+        .account-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .info-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .info-card h3 {
+            font-size: 16px;
+            color: #2d3748;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #f7fafc;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            font-size: 13px;
+            color: #718096;
+        }
+
+        .info-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .risk-warning {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .risk-warning h4 {
+            font-size: 14px;
+            color: #92400e;
+            margin-bottom: 8px;
+        }
+
+        .risk-warning ul {
+            font-size: 12px;
+            color: #78350f;
+            padding-left: 20px;
+        }
+
+        .risk-warning li {
+            margin-bottom: 4px;
+        }
+
+        /* 暂无持仓提示 */
+        .no-positions {
+            background: #f7fafc;
+            border: 2px dashed #cbd5e0;
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            color: #a0aec0;
+            font-size: 14px;
+        }
+
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e0;
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a0aec0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 顶部导航 -->
+        <div class="header">
+            <div>
+                <h1>
+                    💹 OKX实盘交易系统
+                    <span class="mode-badge">🔴 实盘交易</span>
+                </h1>
+            </div>
+            <div class="header-actions">
+                <a href="/" class="btn btn-home">🏠 返回首页</a>
+                <button class="btn btn-refresh" onclick="refreshData()">🔄 刷新</button>
+            </div>
+        </div>
+
+        <!-- 账户切换 -->
+        <div class="account-switcher">
+            <div class="account-switcher-label">
+                👤 选择账户
+            </div>
+            <div class="account-tabs" id="accountTabs">
+                <!-- 账户标签将通过JavaScript动态加载 -->
+            </div>
+            <div class="account-info">
+                <span class="account-balance">
+                    账户余额: <strong id="accountBalance">0.00 USDT</strong>
+                </span>
+                <button class="btn-manage-accounts" onclick="openAccountModal()">
+                    ⚙️ 管理账户
+                </button>
+            </div>
+        </div>
+
+        <!-- 主要布局 -->
+        <div class="main-layout">
+            <!-- 左侧：交易对列表 -->
+            <div class="symbols-panel">
+                <h3>💰 交易对列表 (27)</h3>
+                <input type="text" class="symbol-search" placeholder="搜索交易对..." id="symbolSearch">
+                <div id="symbolsList">
+                    <!-- 交易对列表将通过JavaScript动态加载 -->
+                </div>
+            </div>
+
+            <!-- 中间：交易面板 -->
+            <div class="trading-panel">
+                <!-- 当前交易对信息 -->
+                <div class="symbol-header">
+                    <div class="symbol-info">
+                        <div class="current-symbol" id="currentSymbol">BTC-USDT</div>
+                        <div class="symbol-subtitle">永续合约</div>
+                    </div>
+                    <div class="current-price">
+                        <div class="price-value" id="currentPrice">95650.00</div>
+                        <span class="price-change down" id="priceChange">-0.96%</span>
+                    </div>
+                </div>
+
+                <!-- 交易方向选择 -->
+                <div class="direction-tabs">
+                    <div class="direction-tab long active" onclick="selectDirection('long')">
+                        ⬆ 做多
+                    </div>
+                    <div class="direction-tab short" onclick="selectDirection('short')">
+                        ⬇ 做空
+                    </div>
+                </div>
+
+                <!-- 交易表单 -->
+                <form class="trading-form" onsubmit="submitOrder(event)">
+                    <!-- 价格类型 -->
+                    <div class="form-group">
+                        <label class="form-label">价格类型</label>
+                        <select class="form-control" id="priceType">
+                            <option value="limit">限价委托</option>
+                            <option value="market">市价委托</option>
+                        </select>
+                    </div>
+
+                    <!-- 杠杆倍数 -->
+                    <div class="form-group">
+                        <label class="form-label">杠杆倍数</label>
+                        <div class="leverage-buttons">
+                            <button type="button" class="leverage-btn" onclick="selectLeverage(3)">3x</button>
+                            <button type="button" class="leverage-btn" onclick="selectLeverage(5)">5x</button>
+                            <button type="button" class="leverage-btn active" onclick="selectLeverage(10)">10x</button>
+                            <button type="button" class="leverage-btn" onclick="selectLeverage(20)">20x</button>
+                        </div>
+                    </div>
+
+                    <!-- 交易数量 -->
+                    <div class="form-group">
+                        <label class="form-label">数量 (USDT)</label>
+                        <input type="number" class="form-control" id="orderAmount" placeholder="输入USDT数量" step="0.01" required>
+                        <div style="margin-top: 8px; font-size: 12px; color: #718096;">
+                            可用余额: <span id="availableBalance">224.15 USDT</span>
+                        </div>
+                    </div>
+
+                    <!-- 快捷金额 -->
+                    <div class="form-group">
+                        <div class="amount-presets">
+                            <button type="button" class="preset-btn" onclick="setAmount(10)">10%</button>
+                            <button type="button" class="preset-btn" onclick="setAmount(20)">20%</button>
+                            <button type="button" class="preset-btn" onclick="setAmount(25)">25%</button>
+                            <button type="button" class="preset-btn" onclick="setAmount(33)">33%</button>
+                            <button type="button" class="preset-btn" onclick="setAmount(50)">50%</button>
+                            <button type="button" class="preset-btn" onclick="setAmount(100)">100%</button>
+                        </div>
+                    </div>
+
+                    <!-- 提交按钮 -->
+                    <button type="submit" class="submit-order long" id="submitBtn">
+                        ⬆ 做多
+                    </button>
+                </form>
+
+                <!-- 风险提示 -->
+                <div class="risk-warning">
+                    <h4>⚠️ 风险提示</h4>
+                    <ul>
+                        <li>合约交易存在高风险，请谨慎操作</li>
+                        <li>杠杆会放大收益，也会放大亏损</li>
+                        <li>建议设置止损，控制风险</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 右侧：账户信息 -->
+            <div class="account-panel">
+                <!-- 账户总览 -->
+                <div class="info-card">
+                    <h3>💰 账户信息</h3>
+                    <div class="info-row">
+                        <span class="info-label">初始资金</span>
+                        <span class="info-value">0.00 USDT</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">总权益</span>
+                        <span class="info-value" style="color: #10b981;">224.15 USDT</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">可用余额</span>
+                        <span class="info-value">224.15 USDT</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">持仓保证金</span>
+                        <span class="info-value">0.00 USDT</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">未实现盈亏</span>
+                        <span class="info-value" style="color: #10b981;">+0.00 USDT</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">当日盈亏</span>
+                        <span class="info-value" style="color: #10b981;">+0.00 USDT</span>
+                    </div>
+                </div>
+
+                <!-- 暂无持仓 -->
+                <div class="info-card">
+                    <h3>📊 持仓</h3>
+                    <div class="no-positions">
+                        暂无持仓
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 当前交易方向
+        let currentDirection = 'long';
+        let currentLeverage = 10;
+        let currentSymbol = 'BTC-USDT-SWAP';
+
+        // 当前账户
+        let currentAccount = 'account1';
+        
+        // 收藏的交易对（从localStorage读取）
+        let favoriteSymbols = JSON.parse(localStorage.getItem('favoriteSymbols') || '[]');
+        
+        // 从localStorage加载账户列表，如果没有则使用默认账户
+        let accounts = JSON.parse(localStorage.getItem('okx_accounts') || JSON.stringify([
+            { id: 'account1', name: '账户1 (主账户)', balance: 224.15 },
+            { id: 'account2', name: '账户2 (子账户)', balance: 150.50 },
+            { id: 'account3', name: '账户3 (备用)', balance: 500.00 }
+        ]));
+
+        // 完整的27个交易对数据
+        const symbols = [
+            { symbol: 'BTC-USDT-SWAP', name: 'BTC', price: 95650.00, change: -0.96 },
+            { symbol: 'ETH-USDT-SWAP', name: 'ETH', price: 3280.50, change: 1.24 },
+            { symbol: 'XRP-USDT-SWAP', name: 'XRP', price: 2.058, change: -1.99 },
+            { symbol: 'BNB-USDT-SWAP', name: 'BNB', price: 688.90, change: -0.45 },
+            { symbol: 'SOL-USDT-SWAP', name: 'SOL', price: 145.20, change: -2.15 },
+            { symbol: 'DOGE-USDT-SWAP', name: 'DOGE', price: 0.1385, change: -3.96 },
+            { symbol: 'SUI-USDT-SWAP', name: 'SUI', price: 4.125, change: 5.67 },
+            { symbol: 'TRX-USDT-SWAP', name: 'TRX', price: 0.3096, change: 36.29 },
+            { symbol: 'LINK-USDT-SWAP', name: 'LINK', price: 13.76, change: 4.19 },
+            { symbol: 'DOT-USDT-SWAP', name: 'DOT', price: 2.139, change: 20.47 },
+            { symbol: 'UNI-USDT-SWAP', name: 'UNI', price: 5.31, change: 1.23 },
+            { symbol: 'LTC-USDT-SWAP', name: 'LTC', price: 98.75, change: -0.32 },
+            { symbol: 'BCH-USDT-SWAP', name: 'BCH', price: 598.70, change: 4.53 },
+            { symbol: 'NEAR-USDT-SWAP', name: 'NEAR', price: 1.74, change: 4.02 },
+            { symbol: 'AAVE-USDT-SWAP', name: 'AAVE', price: 172.58, change: 18.58 },
+            { symbol: 'APT-USDT-SWAP', name: 'APT', price: 1.801, change: 3.14 },
+            { symbol: 'FIL-USDT-SWAP', name: 'FIL', price: 1.515, change: 19.58 },
+            { symbol: 'TON-USDT-SWAP', name: 'TON', price: 1.72, change: 2.09 },
+            { symbol: 'XLM-USDT-SWAP', name: 'XLM', price: 0.22794, change: 14.55 },
+            { symbol: 'HBAR-USDT-SWAP', name: 'HBAR', price: 0.11753, change: 2.36 },
+            { symbol: 'STX-USDT-SWAP', name: 'STX', price: 0.3674, change: 53.14 },
+            { symbol: 'LDO-USDT-SWAP', name: 'LDO', price: 0.6146, change: 8.00 },
+            { symbol: 'CRV-USDT-SWAP', name: 'CRV', price: 0.4245, change: 1.12 },
+            { symbol: 'CRO-USDT-SWAP', name: 'CRO', price: 0.10098, change: 13.87 },
+            { symbol: 'CFX-USDT-SWAP', name: 'CFX', price: 0.07662, change: 10.72 },
+            { symbol: 'TAO-USDT-SWAP', name: 'TAO', price: 277.1, change: 6.69 },
+            { symbol: 'AVAX-USDT-SWAP', name: 'AVAX', price: 32.45, change: 1.87 }
+        ];
+
+        // 初始化页面
+        function init() {
+            renderAccountTabs();
+            renderSymbolsList();
+            loadAccountData();
+        }
+
+        // 渲染账户标签
+        function renderAccountTabs() {
+            const tabsContainer = document.getElementById('accountTabs');
+            tabsContainer.innerHTML = accounts.map(acc => `
+                <div class="account-tab ${acc.id === currentAccount ? 'active' : ''}" onclick="selectAccount('${acc.id}')">
+                    ${acc.name}
+                </div>
+            `).join('');
+            
+            // 更新账户余额显示
+            updateAccountBalance();
+        }
+
+        // 选择账户
+        function selectAccount(accountId) {
+            currentAccount = accountId;
+            renderAccountTabs();
+            loadAccountData();
+            console.log(`切换到账户: ${accountId}`);
+        }
+
+        // 更新账户余额显示
+        function updateAccountBalance() {
+            const account = accounts.find(acc => acc.id === currentAccount);
+            if (account) {
+                document.getElementById('accountBalance').textContent = account.balance.toFixed(2) + ' USDT';
+                document.getElementById('availableBalance').textContent = account.balance.toFixed(2) + ' USDT';
+            }
+        }
+
+        // 渲染交易对列表
+        function renderSymbolsList() {
+            const list = document.getElementById('symbolsList');
+            
+            // 分组：收藏的和非收藏的
+            const favorited = symbols.filter(s => favoriteSymbols.includes(s.symbol));
+            const notFavorited = symbols.filter(s => !favoriteSymbols.includes(s.symbol));
+            
+            let html = '';
+            
+            // 渲染收藏分组
+            if (favorited.length > 0) {
+                html += '<div class="favorite-section">';
+                html += '<div class="favorite-section-title">⭐ 常用币 (' + favorited.length + ')</div>';
+                html += favorited.map(s => renderSymbolItem(s, true)).join('');
+                html += '</div>';
+            }
+            
+            // 渲染非收藏分组
+            html += notFavorited.map(s => renderSymbolItem(s, false)).join('');
+            
+            list.innerHTML = html;
+        }
+        
+        // 渲染单个交易对项
+        function renderSymbolItem(s, isFavorite) {
+            const isActive = s.symbol === currentSymbol;
+            const favoriteClass = isFavorite ? 'favorite' : '';
+            const starIcon = isFavorite ? '⭐' : '☆';
+            
+            return `
+                <div class="symbol-item ${isActive ? 'active' : ''} ${favoriteClass}" onclick="selectSymbol('${s.symbol}')">
+                    <div class="symbol-content">
+                        <div class="symbol-name">
+                            ${s.name}/USDT
+                            ${isFavorite ? '<span class="favorite-badge">⭐</span>' : ''}
+                        </div>
+                        <div class="symbol-price">
+                            $${s.price.toFixed(s.price < 1 ? 4 : 2)} 
+                            <span style="color: ${s.change >= 0 ? '#10b981' : '#ef4444'}">
+                                ${s.change >= 0 ? '+' : ''}${s.change}%
+                            </span>
+                        </div>
+                    </div>
+                    <button class="favorite-btn ${isFavorite ? 'favorited' : ''}" 
+                            onclick="event.stopPropagation(); toggleFavorite('${s.symbol}')"
+                            title="${isFavorite ? '取消收藏' : '收藏'}">
+                        ${starIcon}
+                    </button>
+                </div>
+            `;
+        }
+        
+        // 切换收藏状态
+        function toggleFavorite(symbol) {
+            const index = favoriteSymbols.indexOf(symbol);
+            
+            if (index > -1) {
+                // 取消收藏
+                favoriteSymbols.splice(index, 1);
+            } else {
+                // 添加收藏
+                favoriteSymbols.push(symbol);
+            }
+            
+            // 保存到localStorage
+            localStorage.setItem('favoriteSymbols', JSON.stringify(favoriteSymbols));
+            
+            // 重新渲染列表
+            renderSymbolsList();
+            
+            console.log('收藏列表已更新:', favoriteSymbols);
+        }
+
+        // 选择交易对
+        function selectSymbol(symbol) {
+            currentSymbol = symbol;
+            const symbolData = symbols.find(s => s.symbol === symbol);
+            
+            document.getElementById('currentSymbol').textContent = symbolData.name + '-USDT';
+            document.getElementById('currentPrice').textContent = symbolData.price.toFixed(2);
+            
+            const changeEl = document.getElementById('priceChange');
+            changeEl.textContent = (symbolData.change >= 0 ? '+' : '') + symbolData.change + '%';
+            changeEl.className = 'price-change ' + (symbolData.change >= 0 ? 'up' : 'down');
+            
+            renderSymbolsList();
+        }
+
+        // 选择交易方向
+        function selectDirection(direction) {
+            currentDirection = direction;
+            
+            document.querySelectorAll('.direction-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelector('.direction-tab.' + direction).classList.add('active');
+            
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.className = 'submit-order ' + direction;
+            submitBtn.innerHTML = direction === 'long' ? '⬆ 做多' : '⬇ 做空';
+        }
+
+        // 选择杠杆
+        function selectLeverage(leverage) {
+            currentLeverage = leverage;
+            
+            document.querySelectorAll('.leverage-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+
+        // 设置金额百分比
+        function setAmount(percent) {
+            const account = accounts.find(acc => acc.id === currentAccount);
+            const balance = account ? account.balance : 0;
+            const amount = (balance * percent / 100).toFixed(2);
+            document.getElementById('orderAmount').value = amount;
+        }
+
+        // 提交订单
+        function submitOrder(event) {
+            event.preventDefault();
+            
+            const amount = document.getElementById('orderAmount').value;
+            const priceType = document.getElementById('priceType').value;
+            
+            if (!amount || parseFloat(amount) <= 0) {
+                alert('请输入有效的交易数量');
+                return;
+            }
+            
+            const symbolData = symbols.find(s => s.symbol === currentSymbol);
+            const orderData = {
+                symbol: currentSymbol,
+                direction: currentDirection,
+                leverage: currentLeverage,
+                amount: parseFloat(amount),
+                priceType: priceType,
+                price: symbolData.price
+            };
+            
+            console.log('提交订单:', orderData);
+            
+            if (confirm(`确认${currentDirection === 'long' ? '做多' : '做空'} ${symbolData.name}？\n数量: ${amount} USDT\n杠杆: ${currentLeverage}x`)) {
+                alert('订单提交成功！\n\n这是演示版本，实际交易功能需要连接OKX API。');
+            }
+        }
+
+        // 加载账户数据
+        function loadAccountData() {
+            // 这里应该从API加载真实数据
+            console.log('加载账户数据...');
+        }
+
+        // 刷新数据
+        function refreshData() {
+            console.log('刷新数据...');
+            loadAccountData();
+        }
+
+        // 搜索交易对
+        document.getElementById('symbolSearch').addEventListener('input', function(e) {
+            const search = e.target.value.toLowerCase();
+            document.querySelectorAll('.symbol-item').forEach(item => {
+                const text = item.textContent.toLowerCase();
+                item.style.display = text.includes(search) ? 'block' : 'none';
+            });
+        });
+
+        // 页面加载时初始化
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+
+    <!-- 账户管理对话框 -->
+    <div class="modal" id="accountModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>⚙️ 账户管理</h2>
+                <button class="btn-close" onclick="closeAccountModal()">×</button>
+            </div>
+            
+            <div class="account-list" id="accountList">
+                <!-- 账户列表将通过JavaScript动态加载 -->
+            </div>
+
+            <button class="btn-add-account" onclick="showAddAccountForm()">
+                ➕ 添加新账户
+            </button>
+
+            <!-- 添加/编辑账户表单 -->
+            <div class="account-form" id="accountForm" style="display: none;">
+                <h3 style="margin-bottom: 15px; color: #2d3748;" id="formTitle">添加账户</h3>
+                <form onsubmit="saveAccount(event)">
+                    <input type="hidden" id="editAccountId">
+                    <div class="form-group">
+                        <label for="accountName">账户名称</label>
+                        <input type="text" id="accountName" required placeholder="例如：主账户、子账户1">
+                    </div>
+                    <div class="form-group">
+                        <label for="apiKey">API Key</label>
+                        <input type="text" id="apiKey" placeholder="输入OKX API Key">
+                    </div>
+                    <div class="form-group">
+                        <label for="apiSecret">API Secret</label>
+                        <input type="password" id="apiSecret" placeholder="输入OKX API Secret">
+                    </div>
+                    <div class="form-group">
+                        <label for="passphrase">Passphrase</label>
+                        <input type="password" id="passphrase" placeholder="输入OKX Passphrase">
+                    </div>
+                    <div class="form-group">
+                        <label for="accountBalance">账户余额 (USDT)</label>
+                        <input type="number" id="accountBalance" required placeholder="例如：1000.50" step="0.01" min="0">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" onclick="hideAccountForm()">取消</button>
+                        <button type="submit" class="btn-primary">保存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 打开账户管理对话框
+        function openAccountModal() {
+            document.getElementById('accountModal').classList.add('active');
+            renderAccountList();
+        }
+
+        // 关闭账户管理对话框
+        function closeAccountModal() {
+            document.getElementById('accountModal').classList.remove('active');
+            hideAccountForm();
+        }
+
+        // 渲染账户列表
+        function renderAccountList() {
+            const accountList = document.getElementById('accountList');
+            accountList.innerHTML = accounts.map((account, index) => {
+                const hasApi = account.apiKey && account.apiSecret && account.passphrase;
+                const apiStatus = hasApi ? 
+                    '<span style="color: #10b981; font-size: 12px;">✓ API已配置</span>' : 
+                    '<span style="color: #ef4444; font-size: 12px;">✗ API未配置</span>';
+                return `
+                <div class="account-item">
+                    <div class="account-item-info">
+                        <div class="account-item-name">${account.name}</div>
+                        <div class="account-item-balance">${account.balance.toFixed(2)} USDT</div>
+                        <div style="margin-top: 4px;">${apiStatus}</div>
+                    </div>
+                    <div class="account-item-actions">
+                        <button class="btn-small btn-edit" onclick="editAccount('${account.id}')">编辑</button>
+                        ${accounts.length > 1 ? `<button class="btn-small btn-delete" onclick="deleteAccount('${account.id}')">删除</button>` : ''}
+                    </div>
+                </div>
+            `}).join('');
+        }
+
+        // 显示添加账户表单
+        function showAddAccountForm() {
+            document.getElementById('formTitle').textContent = '添加账户';
+            document.getElementById('editAccountId').value = '';
+            document.getElementById('accountName').value = '';
+            document.getElementById('apiKey').value = '';
+            document.getElementById('apiSecret').value = '';
+            document.getElementById('passphrase').value = '';
+            document.getElementById('accountBalance').value = '';
+            document.getElementById('accountForm').style.display = 'block';
+        }
+
+        // 隐藏账户表单
+        function hideAccountForm() {
+            document.getElementById('accountForm').style.display = 'none';
+        }
+
+        // 编辑账户
+        function editAccount(accountId) {
+            const account = accounts.find(a => a.id === accountId);
+            if (!account) return;
+
+            document.getElementById('formTitle').textContent = '编辑账户';
+            document.getElementById('editAccountId').value = accountId;
+            document.getElementById('accountName').value = account.name;
+            document.getElementById('apiKey').value = account.apiKey || '';
+            document.getElementById('apiSecret').value = account.apiSecret || '';
+            document.getElementById('passphrase').value = account.passphrase || '';
+            document.getElementById('accountBalance').value = account.balance;
+            document.getElementById('accountForm').style.display = 'block';
+        }
+
+        // 删除账户
+        function deleteAccount(accountId) {
+            if (accounts.length <= 1) {
+                alert('至少需要保留一个账户！');
+                return;
+            }
+
+            if (!confirm('确定要删除这个账户吗？')) return;
+
+            accounts = accounts.filter(a => a.id !== accountId);
+            
+            // 如果删除的是当前账户，切换到第一个账户
+            if (currentAccount === accountId) {
+                currentAccount = accounts[0].id;
+                selectAccount(currentAccount);
+            }
+
+            localStorage.setItem('okx_accounts', JSON.stringify(accounts));
+            renderAccountList();
+            renderAccountTabs();
+        }
+
+        // 保存账户
+        function saveAccount(event) {
+            event.preventDefault();
+
+            const accountId = document.getElementById('editAccountId').value;
+            const name = document.getElementById('accountName').value.trim();
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const apiSecret = document.getElementById('apiSecret').value.trim();
+            const passphrase = document.getElementById('passphrase').value.trim();
+            const balance = parseFloat(document.getElementById('accountBalance').value);
+
+            if (!name || balance < 0) {
+                alert('请填写有效的账户信息！');
+                return;
+            }
+
+            if (accountId) {
+                // 编辑现有账户
+                const account = accounts.find(a => a.id === accountId);
+                if (account) {
+                    account.name = name;
+                    account.apiKey = apiKey;
+                    account.apiSecret = apiSecret;
+                    account.passphrase = passphrase;
+                    account.balance = balance;
+                }
+            } else {
+                // 添加新账户
+                const newId = 'account_' + Date.now();
+                accounts.push({
+                    id: newId,
+                    name: name,
+                    apiKey: apiKey,
+                    apiSecret: apiSecret,
+                    passphrase: passphrase,
+                    balance: balance
+                });
+            }
+
+            localStorage.setItem('okx_accounts', JSON.stringify(accounts));
+            renderAccountList();
+            renderAccountTabs();
+            hideAccountForm();
+            
+            // 如果编辑的是当前账户，更新余额显示
+            if (accountId === currentAccount) {
+                updateAccountBalance();
+            }
+        }
+
+        // 点击对话框外部关闭
+        document.getElementById('accountModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeAccountModal();
+            }
+        });
+    </script>
+</body>
+</html>

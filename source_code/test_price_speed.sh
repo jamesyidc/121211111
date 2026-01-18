@@ -1,0 +1,15 @@
+#!/bin/bash
+echo "=== 1分钟涨跌速系统测试 ==="
+echo ""
+echo "1. 测试页面:"
+status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5000/price-speed-monitor)
+echo "   涨跌速监控页: HTTP $status"
+echo ""
+echo "2. 测试API:"
+curl -s http://localhost:5000/api/price-speed/latest | python3 -c "import sys,json;d=json.load(sys.stdin);print(f\"   返回状态: {d.get('success',False)}\");print(f\"   币种数量: {d.get('count',0)}\")"
+echo ""
+echo "3. 采集器状态:"
+ps aux | grep "price_speed_collector" | grep -v grep > /dev/null && echo "   ✅ 采集器运行中" || echo "   ❌ 采集器未运行"
+echo ""
+echo "4. 最新预警:"
+tail -5 price_speed_collector.log | grep "本轮采集完成"

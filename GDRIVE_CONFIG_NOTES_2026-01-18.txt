@@ -1,0 +1,272 @@
+📁 Google Drive 配置说明 - 2026-01-18
+═══════════════════════════════════════════════════════
+
+## 🔍 当前状态
+
+### ⚠️ Google Drive访问问题
+**问题**: 无法通过HTTP请求直接访问Google Drive文件夹内容
+
+**原因**: 
+- Google Drive网页是JavaScript动态渲染的
+- 需要浏览器执行JavaScript才能看到文件列表
+- 简单的HTTP请求只能获取到HTML框架，无法获取实际内容
+
+**影响**:
+- auto_gdrive_updater.py无法找到日期文件夹
+- 无法自动下载最新的TXT文件
+- 需要手动导入或使用其他方式
+
+═══════════════════════════════════════════════════════
+
+## 📋 文件夹信息
+
+### 新的父文件夹（你提供的）
+- **链接**: https://drive.google.com/drive/folders/1U5VjRis2FYnBJvtR_8mmPrmFcJCMPGrH?usp=sharing
+- **文件夹ID**: `1U5VjRis2FYnBJvtR_8mmPrmFcJCMPGrH`
+- **包含的子文件夹**:
+  1. data (ID: 1o5Dtzb501G1hXqnxStwH2SPmOOD5i6lr)
+  2. 数据 (ID: 1bu5x679TXDi__eJ2BDLk9-oa6FkkT2ax)
+  3. 日志 (ID: 1h8I6SfVSM_MtMTafNzQFfAF_9MIvrUAv)
+  4. 监控 (ID: 1vinIbLVVzCZe4LecoxzMtJSKYV8JiX9_)
+  5. **首页数据** (ID: 1j8YV6KysUCmgcmASFOxztWWIE1Vq-kYV) ✅
+
+### 首页数据文件夹（目标文件夹）
+- **链接**: https://drive.google.com/drive/folders/1j8YV6KysUCmgcmASFOxztWWIE1Vq-kYV
+- **文件夹ID**: `1j8YV6KysUCmgcmASFOxztWWIE1Vq-kYV`
+- **预期结构**:
+  ```
+  首页数据/
+  ├── 2026-01-01/
+  │   ├── 2026-01-01_0800.txt
+  │   ├── 2026-01-01_1000.txt
+  │   └── ...
+  ├── 2026-01-02/
+  ├── 2026-01-03/
+  └── 2026-01-18/
+      ├── 2026-01-18_0800.txt
+      └── ...
+  ```
+
+### 已更新的配置
+文件: `/home/user/webapp/source_code/auto_gdrive_updater.py`
+```python
+# 新的父文件夹ID（包含"首页数据"文件夹的上级文件夹）
+PARENT_FOLDER_ID = '1U5VjRis2FYnBJvtR_8mmPrmFcJCMPGrH'
+# "首页数据"子文件夹ID（在父文件夹内）
+HOME_DATA_FOLDER_ID = '1j8YV6KysUCmgcmASFOxztWWIE1Vq-kYV'
+```
+
+═══════════════════════════════════════════════════════
+
+## 🔧 解决方案
+
+### 方案1: 使用Google Drive API（推荐）⭐
+
+**优点**:
+- 官方支持，稳定可靠
+- 可以直接获取文件列表
+- 支持文件下载
+- 有详细的文档和示例
+
+**步骤**:
+1. 在Google Cloud Console创建项目
+2. 启用Google Drive API
+3. 创建服务账号并下载JSON密钥
+4. 在Drive中将文件夹共享给服务账号
+5. 使用Python库 `google-api-python-client` 访问
+
+**示例代码**:
+```python
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+
+# 加载服务账号凭证
+credentials = service_account.Credentials.from_service_account_file(
+    'service-account-key.json',
+    scopes=['https://www.googleapis.com/auth/drive.readonly']
+)
+
+# 创建Drive API客户端
+service = build('drive', 'v3', credentials=credentials)
+
+# 查询文件夹内容
+folder_id = '1j8YV6KysUCmgcmASFOxztWWIE1Vq-kYV'
+results = service.files().list(
+    q=f"'{folder_id}' in parents",
+    fields='files(id, name, mimeType)'
+).execute()
+
+files = results.get('files', [])
+```
+
+---
+
+### 方案2: 使用rclone（命令行工具）
+
+**优点**:
+- 功能强大
+- 支持多种云存储
+- 可以挂载为本地目录
+
+**步骤**:
+```bash
+# 安装rclone
+curl https://rclone.org/install.sh | sudo bash
+
+# 配置Google Drive
+rclone config
+
+# 列出文件
+rclone ls gdrive:首页数据/2026-01-18/
+
+# 下载文件
+rclone copy gdrive:首页数据/2026-01-18/ /local/path/
+```
+
+---
+
+### 方案3: 使用Selenium/Playwright（浏览器自动化）
+
+**优点**:
+- 可以执行JavaScript
+- 模拟真实浏览器操作
+
+**缺点**:
+- 资源消耗大
+- 不太稳定
+- 速度较慢
+
+**示例**:
+```python
+from playwright.sync_api import sync_playwright
+
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    page = browser.new_page()
+    page.goto('https://drive.google.com/drive/folders/YOUR_FOLDER_ID')
+    # 等待并提取内容
+```
+
+---
+
+### 方案4: 手动导入（临时方案）
+
+**步骤**:
+1. 从Google Drive手动下载TXT文件
+2. 使用Web界面上传: https://5000-xxx.sandbox.novita.ai/gdrive-detector
+3. 或使用命令行工具批量导入
+
+═══════════════════════════════════════════════════════
+
+## 🚀 推荐实施步骤
+
+### 第1步: 验证访问权限
+1. 确认"首页数据"文件夹是否设为公开分享
+2. 确认文件夹内是否有日期子文件夹（如2026-01-18）
+3. 如果有日期文件夹，将其中一个也设为公开分享并提供链接测试
+
+### 第2步: 选择解决方案
+**如果文件夹是公开的**:
+- 尝试使用rclone（快速简单）
+- 或者使用Playwright（如果rclone不行）
+
+**如果需要认证**:
+- 使用Google Drive API（最稳定）
+- 需要提供服务账号JSON密钥
+
+### 第3步: 实施方案
+根据选择的方案修改 `auto_gdrive_updater.py`
+
+### 第4步: 测试
+```bash
+# 手动测试更新脚本
+python3 /home/user/webapp/source_code/auto_gdrive_updater.py
+
+# 或重启PM2进程
+pm2 restart gdrive-updater
+
+# 查看日志
+pm2 logs gdrive-updater --lines 50
+```
+
+═══════════════════════════════════════════════════════
+
+## 📝 当前自动化任务
+
+### daily-task-runner（每日00:00自动执行）
+**任务内容**:
+1. 尝试运行Google Drive更新（可能会失败）
+2. 数据库自动备份（✅ 正常工作）
+3. 临时文件清理（✅ 正常工作）
+
+**日志位置**:
+- /home/user/webapp/logs/daily_task.log
+- PM2日志: `pm2 logs daily-task-runner`
+
+**如果Google Drive更新失败**:
+- 日志会记录失败原因
+- 其他任务（备份、清理）仍会继续执行
+- 需要手动导入数据或修复Google Drive访问
+
+═══════════════════════════════════════════════════════
+
+## 🔍 调试命令
+
+### 测试文件夹访问
+```bash
+# 测试父文件夹
+curl -s "https://drive.google.com/drive/folders/1U5VjRis2FYnBJvtR_8mmPrmFcJCMPGrH" | wc -c
+
+# 测试首页数据文件夹
+curl -s "https://drive.google.com/drive/folders/1j8YV6KysUCmgcmASFOxztWWIE1Vq-kYV" | wc -c
+
+# 测试具体日期文件夹（如果有ID）
+curl -s "https://drive.google.com/drive/folders/FOLDER_ID_HERE" | grep "\.txt"
+```
+
+### 运行探索脚本
+```bash
+# 探索文件夹结构
+python3 /home/user/webapp/source_code/explore_new_gdrive_structure.py
+
+# 诊断问题
+python3 /home/user/webapp/source_code/diagnose_gdrive_folders.py
+```
+
+### 查看更新器状态
+```bash
+# 查看PM2状态
+pm2 list | grep gdrive
+
+# 查看最近日志
+pm2 logs gdrive-updater --nostream --lines 30
+
+# 查看完整日志文件
+tail -50 /home/user/webapp/auto_gdrive_updater.log
+```
+
+═══════════════════════════════════════════════════════
+
+## 💡 建议
+
+### 立即行动
+1. **验证文件夹结构**: 确认"首页数据"文件夹内是否真的有日期子文件夹
+2. **提供测试链接**: 如果有日期文件夹，提供一个日期文件夹的公开链接用于测试
+3. **考虑API方案**: 如果经常需要自动更新，Google Drive API是最佳选择
+
+### 临时措施
+- 如果急需数据，使用手动导入功能
+- Web界面: https://5000-xxx.sandbox.novita.ai/gdrive-detector
+- 或直接上传TXT文件到服务器
+
+### 长期规划
+- 设置Google Drive API认证
+- 实现完全自动化的数据同步
+- 添加数据验证和错误恢复机制
+
+═══════════════════════════════════════════════════════
+
+📅 更新时间: 2026-01-18 08:55
+📝 状态: 等待用户确认文件夹结构和访问方式
+🔧 已更新: auto_gdrive_updater.py文件夹ID
+⏰ 自动任务: daily-task-runner已部署（每天00:00执行）

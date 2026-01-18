@@ -1,0 +1,5 @@
+{
+  "threshold_percentage": 20.0,
+  "lookback_days": 3,
+  "collection_interval": 300
+}

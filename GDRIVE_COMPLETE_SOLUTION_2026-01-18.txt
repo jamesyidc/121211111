@@ -1,0 +1,308 @@
+🎯 Google Drive数据同步 - 完整解决方案
+=====================================
+更新时间: 2026-01-18 09:30
+状态: ✅ 工具已就绪，等待数据上传
+
+## 📊 当前状态
+
+### Google Drive数据情况
+- **首页数据文件夹**: https://drive.google.com/drive/folders/1j8YV6KysUCmgcmASFOxztWWIE1Vq-kYV
+- **最新数据日期**: 2025-12-09
+- **缺失数据**: 2025-12-10 ~ 2026-01-18 (共40天)
+- **文件夹数量**: 50个日期文件夹
+- **验证状态**: ✅ 公开链接可访问，工具正常工作
+
+### 锚点系统逃顶信号图表
+- **状态**: ✅ 已完成，与历史页完全一致
+- **数据点数**: 29,220
+- **数据范围**: 2026-01-03 00:00:48 ~ 2026-01-18 11:30:58
+- **气球标记**:
+  - 🔴 每日2h最高点: 7个
+  - 🟣 24h信号48h峰值: 4个
+  - 💥 极端上涨(≥100%): 5个
+  - 💀 极端暴跌(≤-80%): 12个
+- **OKX曲线**: ✅ 紫色27币涨跌曲线已对齐
+- **访问链接**: https://5000-i4rq388xy9v1hw2uaz7ln-8f57ffe2.sandbox.novita.ai/anchor-system-real
+
+## 🛠️ 已创建的工具
+
+### 1. gdrive_public_reader.py - Google Drive公开文件夹读取器
+**功能**: 
+- 读取公开分享的Google Drive文件夹
+- 列出所有日期文件夹
+- 查找指定日期的TXT文件
+- 生成下载链接
+
+**优点**:
+- ✅ 不需要OAuth认证
+- ✅ 不需要API密钥
+- ✅ 直接使用公开分享链接
+
+**缺点**:
+- ⚠️  依赖Google Drive的HTML结构
+- ⚠️  可能因为动态加载导致读取不完整
+
+**使用示例**:
+```bash
+cd /home/user/webapp
+python3 source_code/gdrive_public_reader.py
+```
+
+**测试结果**:
+```
+✅ 找到50个日期文件夹
+✅ 成功获取2025-12-09的文件列表
+✅ 生成下载链接: https://drive.google.com/uc?id=1Hpoye1MieqjxzsnNSeN4D5q7zFQMgh1a&export=download
+```
+
+### 2. manual_import_txt.py - 手动TXT文件导入工具
+**功能**:
+- 导入单个TXT文件
+- 批量导入整个目录
+- 自动解析文件名获取时间
+- 检查重复数据
+
+**使用方法**:
+```bash
+# 单个文件
+python3 source_code/manual_import_txt.py /path/to/2026-01-18_1630.txt
+
+# 批量导入
+python3 source_code/manual_import_txt.py /path/to/directory/
+```
+
+### 3. auto_gdrive_updater_v2.py - 自动更新器V2
+**功能**:
+- 每10分钟自动检查新文件
+- 自动下载新文件
+- 自动导入数据库
+- 避免重复导入
+
+**优点**:
+- ✅ 使用公开链接，不需要认证
+- ✅ 自动运行，无需人工干预
+- ✅ 完整的日志记录
+
+**启动方法**:
+```bash
+# 停止旧的更新器
+pm2 delete gdrive-updater
+
+# 启动新的更新器
+pm2 start source_code/auto_gdrive_updater_v2.py --name gdrive-updater --interpreter python3
+
+# 查看日志
+pm2 logs gdrive-updater
+
+# 保存配置
+pm2 save
+```
+
+## 🚀 解决方案路线图
+
+### 阶段1: 立即可用的临时方案（当前）
+**目标**: 使用现有的2025年数据测试系统
+
+**步骤**:
+1. ✅ 已验证：可以读取2025-12-09的数据
+2. ✅ 已验证：可以生成正确的下载链接
+3. ✅ 工具已就绪：auto_gdrive_updater_v2.py
+
+**限制**:
+- ⚠️  只能读取已上传的数据
+- ⚠️  当前没有2026年数据
+
+### 阶段2: 数据上传（需要执行）
+**目标**: 将缺失的数据上传到Google Drive
+
+**需要上传的数据**:
+```
+首页数据/
+├── 2025-12-10/
+│   ├── 2025-12-10_0800.txt
+│   ├── 2025-12-10_1200.txt
+│   └── ...
+├── 2025-12-11/
+├── ...
+├── 2026-01-17/
+└── 2026-01-18/
+    ├── 2026-01-18_0800.txt
+    ├── 2026-01-18_1200.txt
+    └── 2026-01-18_1630.txt
+```
+
+**上传步骤**:
+1. 在"首页数据"文件夹中创建日期文件夹
+2. 将TXT文件上传到对应的日期文件夹
+3. 验证文件可访问
+
+**验证命令**:
+```bash
+cd /home/user/webapp
+python3 source_code/gdrive_public_reader.py
+```
+
+### 阶段3: 自动化运行（数据上传后）
+**目标**: 实现完全自动化的数据同步
+
+**步骤**:
+1. 确认数据已上传
+2. 启动自动更新器V2
+3. 验证自动导入功能
+
+**启动命令**:
+```bash
+pm2 delete gdrive-updater
+pm2 start source_code/auto_gdrive_updater_v2.py --name gdrive-updater --interpreter python3
+pm2 save
+```
+
+**监控命令**:
+```bash
+# 实时日志
+pm2 logs gdrive-updater
+
+# 查看状态
+pm2 status
+
+# 查看最近导入
+sqlite3 databases/crypto_data.db "SELECT stat_time, signal_24h_count, signal_2h_count FROM escape_signal_stats ORDER BY stat_time DESC LIMIT 10"
+```
+
+### 阶段4: 跨日期自动切换（已完成）
+**目标**: 每天自动切换到新日期文件夹
+
+**状态**: ✅ 已实现
+- daily_task_runner.py 每天00:00-00:30执行
+- 自动触发数据库备份
+- 自动清理临时文件
+
+**验证**:
+```bash
+pm2 logs daily-task-runner
+```
+
+## 📋 快速操作指南
+
+### 场景1: 我有TXT文件在本地
+```bash
+# 1. 将文件复制到服务器
+# 2. 批量导入
+cd /home/user/webapp
+python3 source_code/manual_import_txt.py /path/to/txt/files/
+
+# 3. 验证导入
+python3 << 'EOF'
+import sqlite3
+conn = sqlite3.connect('databases/crypto_data.db')
+cursor = conn.cursor()
+cursor.execute("SELECT COUNT(*) FROM escape_signal_stats WHERE stat_time >= '2026-01-01'")
+print(f"2026年数据点数: {cursor.fetchone()[0]}")
+conn.close()
+EOF
+```
+
+### 场景2: 数据在Google Drive（已上传）
+```bash
+# 1. 测试读取
+cd /home/user/webapp
+python3 source_code/gdrive_public_reader.py
+
+# 2. 如果能读取到2026-01-18的数据，启动自动更新器
+pm2 delete gdrive-updater
+pm2 start source_code/auto_gdrive_updater_v2.py --name gdrive-updater --interpreter python3
+pm2 save
+
+# 3. 监控日志
+pm2 logs gdrive-updater --lines 20
+```
+
+### 场景3: 从备份恢复
+```bash
+# 1. 查看可用备份
+ls -lh /home/user/webapp/backups/
+
+# 2. 恢复数据库
+cp databases/crypto_data.db databases/crypto_data.db.backup_$(date +%Y%m%d)
+cp backups/crypto_data_YYYY-MM-DD.db databases/crypto_data.db
+
+# 3. 重启服务
+pm2 restart flask-app
+
+# 4. 验证
+python3 << 'EOF'
+import sqlite3
+conn = sqlite3.connect('databases/crypto_data.db')
+cursor = conn.cursor()
+cursor.execute("SELECT MAX(stat_time) FROM escape_signal_stats")
+print(f"最新数据时间: {cursor.fetchone()[0]}")
+conn.close()
+EOF
+```
+
+## 🎯 当前待办事项
+
+### 高优先级
+- [ ] **确认**: Google Drive是否有2026年的数据？在哪里？
+- [ ] **决定**: 使用哪种方案导入数据？
+  - [ ] 方案A: 上传到Google Drive（长期方案）
+  - [ ] 方案B: 手动导入TXT文件（快速方案）
+  - [ ] 方案C: 恢复数据库备份（如果有）
+
+### 中优先级
+- [ ] 验证auto_gdrive_updater_v2.py的运行
+- [ ] 测试跨日期自动切换
+- [ ] 完善日志和监控
+
+### 低优先级
+- [ ] 优化Google Drive读取速度
+- [ ] 添加更多错误处理
+- [ ] 创建数据完整性检查脚本
+
+## 📞 需要你提供的信息
+
+请告诉我：
+1. **数据位置**: 2026-01-18的TXT文件在哪里？
+   - [ ] 在Google Drive（请提供具体位置）
+   - [ ] 在本地（请提供路径）
+   - [ ] 在备份中（请提供备份文件名）
+   - [ ] 没有数据（需要重新生成）
+
+2. **首选方案**: 你希望使用哪种方案？
+   - [ ] 上传到Google Drive + 自动同步
+   - [ ] 手动导入 + 一次性操作
+   - [ ] 数据库备份恢复
+
+3. **时间安排**: 什么时候可以提供数据？
+   - [ ] 现在就有
+   - [ ] 需要准备（预计时间：____）
+   - [ ] 需要帮助生成数据
+
+## 📊 系统状态总览
+
+### PM2进程状态
+```
+✅ flask-app         - 运行中
+✅ daily-task-runner - 运行中（每日00:00-00:30）
+✅ extreme-market-monitor - 运行中
+✅ coin-price-tracker - 运行中
+⚠️  gdrive-updater   - 等待配置（当前使用旧版本）
+```
+
+### 数据状态
+```
+✅ Escape信号数据: 29,220点 (2026-01-03 ~ 2026-01-18)
+✅ OKX 27币数据: 对齐完成
+✅ 极端市场标记: 正常工作
+⚠️  Google Drive同步: 等待数据上传
+```
+
+### 网页访问
+```
+✅ 锚点系统: https://5000-i4rq388xy9v1hw2uaz7ln-8f57ffe2.sandbox.novita.ai/anchor-system-real
+✅ 逃顶信号历史: https://5000-i4rq388xy9v1hw2uaz7ln-8f57ffe2.sandbox.novita.ai/escape-signal-history
+✅ 图表样式: 完全一致
+```
+
+=====================================
+下一步: 请告诉我数据在哪里，我立即帮你导入！

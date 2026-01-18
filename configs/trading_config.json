@@ -1,0 +1,12 @@
+{
+  "market_mode": "manual",
+  "market_trend": "neutral",
+  "total_capital": 1000,
+  "position_limit_percent": 60,
+  "anchor_capital_limit": 200,
+  "allow_long": false,
+  "allow_short": true,
+  "max_long_position": 500,
+  "max_short_position": 600,
+  "enabled": false
+}

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Simple Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+</head>
+<body style="background: #0e1117; color: white; padding: 20px;">
+    <h1>简单测试页面</h1>
+    <div id="chart" style="width: 800px; height: 400px; background: #1a1d29;"></div>
+    <div id="status"></div>
+    
+    <script>
+        console.log('🔧 Script loaded at:', new Date().toLocaleString());
+        
+        window.onload = function() {
+            console.log('✅ window.onload triggered');
+            document.getElementById('status').innerHTML += '<p>✅ window.onload triggered</p>';
+            
+            if (typeof echarts !== 'undefined') {
+                console.log('✅ ECharts available:', echarts.version);
+                document.getElementById('status').innerHTML += '<p>✅ ECharts version: ' + echarts.version + '</p>';
+                
+                const chart = echarts.init(document.getElementById('chart'));
+                const option = {
+                    title: { text: 'Test Chart', textStyle: { color: '#fff' } },
+                    xAxis: { type: 'category', data: ['Mon', 'Tue', 'Wed'] },
+                    yAxis: { type: 'value' },
+                    series: [{ data: [120, 200, 150], type: 'line' }]
+                };
+                chart.setOption(option);
+                console.log('✅ Chart rendered');
+                document.getElementById('status').innerHTML += '<p>✅ Chart rendered successfully</p>';
+            } else {
+                console.error('❌ ECharts not loaded!');
+                document.getElementById('status').innerHTML += '<p>❌ ECharts not loaded!</p>';
+            }
+        };
+        
+        console.log('🔧 Script execution finished');
+    </script>
+</body>
+</html>

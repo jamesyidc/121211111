@@ -1,0 +1,35 @@
+ Describing process with id 18 - name anchor-system 
+┌───────────────────┬──────────────────────────────────────────────┐
+│ status            │ online                                       │
+│ name              │ anchor-system                                │
+│ namespace         │ default                                      │
+│ version           │ N/A                                          │
+│ restarts          │ 15                                           │
+│ uptime            │ 54m                                          │
+│ entire log path   │ /home/user/webapp/logs/anchor-system.log     │
+│ script path       │ /home/user/webapp/anchor_system.py           │
+│ script args       │ N/A                                          │
+│ error log path    │ /home/user/.pm2/logs/anchor-system-error.log │
+│ out log path      │ /home/user/.pm2/logs/anchor-system-out.log   │
+│ pid path          │ /home/user/.pm2/pids/anchor-system-18.pid    │
+│ interpreter       │ python3                                      │
+│ interpreter args  │ N/A                                          │
+│ script id         │ 18                                           │
+│ exec cwd          │ /home/user/webapp                            │
+│ exec mode         │ fork_mode                                    │
+│ node.js version   │ N/A                                          │
+│ node env          │ N/A                                          │
+│ watch & reload    │ ✘                                            │
+│ unstable restarts │ 0                                            │
+│ created at        │ 2025-12-30T02:24:27.750Z                     │
+└───────────────────┴──────────────────────────────────────────────┘
+ Divergent env variables from local env 
+┌────────┬────────────┐
+│ SHLVL  │ 0          │
+│ OLDPWD │ /home/user │
+└────────┴────────────┘
+
+ Add your own code metrics: http://bit.ly/code-metrics
+ Use `pm2 logs anchor-system [--lines 1000]` to display logs
+ Use `pm2 env 18` to display environment variables
+ Use `pm2 monit` to monitor CPU and Memory usage anchor-system

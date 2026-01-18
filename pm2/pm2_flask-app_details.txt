@@ -1,0 +1,34 @@
+ Describing process with id 0 - name flask-app 
+┌───────────────────┬──────────────────────────────────────────┐
+│ status            │ online                                   │
+│ name              │ flask-app                                │
+│ namespace         │ default                                  │
+│ version           │ N/A                                      │
+│ restarts          │ 268                                      │
+│ uptime            │ 15m                                      │
+│ script path       │ /home/user/webapp/app_new.py             │
+│ script args       │ N/A                                      │
+│ error log path    │ /home/user/webapp/logs/flask-error-0.log │
+│ out log path      │ /home/user/webapp/logs/flask-out-0.log   │
+│ pid path          │ /home/user/.pm2/pids/flask-app-0.pid     │
+│ interpreter       │ python3                                  │
+│ interpreter args  │ N/A                                      │
+│ script id         │ 0                                        │
+│ exec cwd          │ /home/user/webapp                        │
+│ exec mode         │ fork_mode                                │
+│ node.js version   │ N/A                                      │
+│ node env          │ N/A                                      │
+│ watch & reload    │ ✘                                        │
+│ unstable restarts │ 0                                        │
+│ created at        │ 2025-12-30T03:03:49.748Z                 │
+└───────────────────┴──────────────────────────────────────────┘
+ Divergent env variables from local env 
+┌────────┬────────────┐
+│ SHLVL  │ 0          │
+│ OLDPWD │ /home/user │
+└────────┴────────────┘
+
+ Add your own code metrics: http://bit.ly/code-metrics
+ Use `pm2 logs flask-app [--lines 1000]` to display logs
+ Use `pm2 env 0` to display environment variables
+ Use `pm2 monit` to monitor CPU and Memory usage flask-app
