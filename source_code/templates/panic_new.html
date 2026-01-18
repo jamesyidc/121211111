@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>恐慌清洗指数 - 加密货币数据分析 v2.1</title>
+    <title>恐慌清洗指数 - 加密货币数据分析 v2.2</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <style>
         * {
@@ -1358,6 +1358,14 @@
             const max24hAmount = Math.max(...amounts);
             const max24hIndex = amounts.indexOf(max24hAmount);
             const max24hTime = times[max24hIndex];
+            
+            console.log('📊 图表数据:', {
+                dataPoints: amounts.length,
+                max: max24hAmount,
+                maxIndex: max24hIndex,
+                maxTime: max24hTime,
+                avg: avgAmount
+            });
             
             // 获取时间范围
             const startTime = pageData[0].datetime.substring(5, 16);  // MM-DD HH:MM
