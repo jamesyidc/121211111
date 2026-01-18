@@ -1,0 +1,123 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                          PM2进程完整备份                                       ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+📅 备份信息
+────────────────────────────────────────────────────────────────────────────
+备份时间: 2026-01-18 14:07:48
+备份目录: /home/user/webapp/backups/pm2_backup_20260118_140748
+进程总数: 20个
+总内存使用: ~943MB
+备份大小: $(du -sh /home/user/webapp/backups/pm2_backup_20260118_140748 | cut -f1)
+
+
+📦 备份文件清单
+────────────────────────────────────────────────────────────────────────────
+1. PM2进程配置
+   ✓ pm2_processes.json (92KB) - 完整进程配置JSON
+   ✓ pm2_processes_pretty.txt (105KB) - 可读进程详情
+   ✓ pm2_list.txt (5KB) - 进程列表快照
+
+2. Ecosystem配置文件 (10个)
+   ✓ ecosystem.config.js
+   ✓ ecosystem.config.new.js
+   ✓ ecosystem.liquidation1h.config.js
+   ✓ ecosystem.liquidation_alert.config.js
+   ✓ ecosystem_all_services.config.js
+   ✓ ecosystem_data_collectors.config.js
+   ✓ ecosystem_fear_greed.config.js
+   ✓ ecosystem_flask.config.js
+   ✓ ecosystem_monitor_2h.config.js
+   ✓ ecosystem_panic_sar.config.js
+
+3. 恢复工具
+   ✓ RESTORE_GUIDE.md - 完整恢复指南
+   ✓ restore.sh - 自动恢复脚本
+   ✓ BACKUP_INFO.txt - 本文件
+
+
+📊 备份的20个进程
+────────────────────────────────────────────────────────────────────────────
+数据采集器 (8个):
+  1. coin-price-tracker - 币价追踪
+  2. price-speed-collector - 价格速度采集
+  3. v1v2-collector - V1V2成交额采集
+  4. crypto-index-collector - 加密货币指数采集
+  5. okx-day-change-collector - OKX日涨跌采集
+  6. liquidation-1h-collector - 1小时爆仓采集
+  7. panic-collector - Panic指数采集
+  8. sar-jsonl-collector - SAR JSONL采集
+
+监控器 (5个):
+  9. anchor-profit-monitor - 锚点盈利监控
+  10. escape-signal-monitor - 逃顶信号监控
+  11. extreme-market-monitor - 极端市场监控
+  12. sar-slope-collector - SAR斜率采集
+  13. gdrive-detector - Google Drive检测器
+
+更新器 (4个):
+  14. escape-auto-updater - 逃顶自动更新
+  15. sr-levels-updater - 支撑阻力更新
+  16. gdrive-updater - Google Drive更新
+  17. sar-slope-updater - SAR斜率更新
+
+其他服务 (3个):
+  18. flask-app - Flask Web应用
+  19. daily-task-runner - 每日任务运行器
+  20. support-resistance-snapshot - 支撑阻力快照
+
+
+🔄 快速恢复步骤
+────────────────────────────────────────────────────────────────────────────
+
+方法1: 使用自动脚本 (推荐)
+  cd /home/user/webapp/backups/pm2_backup_20260118_140748
+  ./restore.sh
+  
+方法2: 手动恢复
+  pm2 delete all
+  pm2 resurrect
+  pm2 save
+
+方法3: 从JSON恢复
+  cd /home/user/webapp/backups/pm2_backup_20260118_140748
+  pm2 start pm2_processes.json
+  pm2 save
+
+
+📝 重要提醒
+────────────────────────────────────────────────────────────────────────────
+1. 恢复前请确保：
+   ✓ Python环境正常
+   ✓ Node.js环境正常
+   ✓ PM2已安装
+   ✓ 必要的端口未被占用（特别是5000端口）
+
+2. 恢复后请检查：
+   ✓ 所有进程都在运行 (pm2 list)
+   ✓ Flask应用可访问
+   ✓ 日志输出正常 (pm2 logs)
+   ✓ 没有错误信息
+
+3. 建议操作：
+   ✓ 保存进程列表 (pm2 save)
+   ✓ 设置开机自启 (pm2 startup)
+   ✓ 定期检查进程状态
+
+
+🆘 常用命令
+────────────────────────────────────────────────────────────────────────────
+查看进程列表:     pm2 list
+查看进程详情:     pm2 show <进程名>
+查看日志:         pm2 logs
+重启进程:         pm2 restart <进程名>
+停止进程:         pm2 stop <进程名>
+删除进程:         pm2 delete <进程名>
+实时监控:         pm2 monit
+
+
+════════════════════════════════════════════════════════════════════════════
+备份创建者: Claude Code Agent
+备份系统: Linux Sandbox
+备份完整性: ✅ 已验证
+════════════════════════════════════════════════════════════════════════════
