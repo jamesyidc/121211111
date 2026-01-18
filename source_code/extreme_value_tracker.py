@@ -240,14 +240,19 @@ class ExtremeValueTracker:
             })
         
         # 条件4: 1小时爆仓金额超过3000万美元
-        if liquidation_data['amount_usd'] > 30000000 and not self.is_in_cooldown('1h_liquidation_high'):
-            triggers.append({
-                'type': '1h_liquidation_high',
-                'description': '1小时爆仓金额超过3000万美元',
-                'value': liquidation_data['amount_usd'],
-                'value_wan': liquidation_data['amount_wan'],
-                'data': liquidation_data
-            })
+        self.log(f"🔍 检查爆仓条件: 金额={liquidation_data['amount_usd']:.2f}美元 ({liquidation_data['amount_wan']:.2f}万)")
+        if liquidation_data['amount_usd'] > 30000000:
+            if not self.is_in_cooldown('1h_liquidation_high'):
+                self.log(f"🚨 触发爆仓极值! 金额={liquidation_data['amount_wan']:.2f}万美元")
+                triggers.append({
+                    'type': '1h_liquidation_high',
+                    'description': '1小时爆仓金额超过3000万美元',
+                    'value': liquidation_data['amount_usd'],
+                    'value_wan': liquidation_data['amount_wan'],
+                    'data': liquidation_data
+                })
+            else:
+                self.log(f"⏳ 爆仓极值在冷却期内")
         
         if not triggers:
             return None
@@ -276,8 +281,8 @@ class ExtremeValueTracker:
             
             # 27个币的快照
             'coins_snapshot': {
-                'timestamp': extreme_event['coins_data']['timestamp'],
-                'datetime': extreme_event['coins_data']['datetime'],
+                'timestamp': extreme_event['coins_data'].get('timestamp', int(time.time())),
+                'datetime': extreme_event['coins_data'].get('record_time', datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S')),
                 'total_change': extreme_event['total_change'],
                 'coins': []
             },
@@ -317,16 +322,11 @@ class ExtremeValueTracker:
         }
         
         # 填充27个币的详细数据
-        if 'coin_changes' in extreme_event['coins_data']:
-            for coin in extreme_event['coins_data']['coin_changes']:
+        if 'day_changes' in extreme_event['coins_data']:
+            for symbol, change_pct in extreme_event['coins_data']['day_changes'].items():
                 snapshot['coins_snapshot']['coins'].append({
-                    'symbol': coin.get('symbol', ''),
-                    'name': coin.get('name', ''),
-                    'price': coin.get('price', 0),
-                    'day_change': coin.get('day_change', 0),
-                    'day_change_percent': coin.get('day_change_percent', 0),
-                    'volume_24h': coin.get('volume_24h', 0),
-                    'market_cap': coin.get('market_cap', 0)
+                    'symbol': symbol,
+                    'day_change_percent': change_pct
                 })
         
         return snapshot
