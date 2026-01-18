@@ -3981,6 +3981,11 @@
             // 计算平均值
             const avgAmount = (amounts.reduce((a, b) => a + b, 0) / amounts.length).toFixed(2);
             
+            // 找到24小时范围内1小时爆仓金额的最大值
+            const maxAmount = Math.max(...amounts);
+            const maxIndex = amounts.indexOf(maxAmount);
+            const maxTime = times[maxIndex];
+            
             // 获取时间范围
             const startTime = pageData[0].datetime.substring(5, 16);  // MM-DD HH:MM
             const endTime = pageData[pageData.length - 1].datetime.substring(5, 16);
@@ -4008,14 +4013,17 @@
                         const p = params[0];
                         const amount = p.value;
                         const color = amount > avgAmount ? '#ef4444' : amount < avgAmount * 0.8 ? '#10b981' : '#fbbf24';
+                        const currentIndex = p.dataIndex;
+                        const isMax = currentIndex === maxIndex;
                         return `<div style="padding: 8px;">
                             <div style="font-weight: 600; margin-bottom: 5px;">${p.name}</div>
                             <div style="color: ${color}; font-size: 16px; font-weight: 600;">
-                                💥 ${amount} 万美元
+                                💥 1H爆仓: ${amount} 万美元${isMax ? ' 🔥' : ''}
                             </div>
                             <div style="font-size: 11px; color: #9ca3af; margin-top: 5px;">
                                 平均值: ${avgAmount} 万美元
                             </div>
+                            ${isMax ? '<div style="font-size: 12px; color: #ef4444; margin-top: 5px; font-weight: 700; background: rgba(239, 68, 68, 0.2); padding: 3px 6px; border-radius: 3px;">🔥 24小时内1H爆仓最大值！</div>' : ''}
                         </div>`;
                     }
                 },
@@ -4106,6 +4114,29 @@
                             },
                             data: [
                                 { yAxis: avgAmount }
+                            ]
+                        },
+                        markPoint: {
+                            symbol: 'pin',
+                            symbolSize: 50,
+                            label: {
+                                show: true,
+                                formatter: function(params) {
+                                    return `24H最大\n${params.value}万`;
+                                },
+                                color: '#fff',
+                                fontSize: 11,
+                                fontWeight: 'bold'
+                            },
+                            itemStyle: {
+                                color: '#ef4444'
+                            },
+                            data: [
+                                {
+                                    coord: [maxIndex, maxAmount],
+                                    value: maxAmount.toFixed(2),
+                                    name: '24小时内1H爆仓最大值'
+                                }
                             ]
                         }
                     }
