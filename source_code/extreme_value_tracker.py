@@ -182,7 +182,7 @@ class ExtremeValueTracker:
         return total
     
     def check_extreme_conditions(self):
-        """检查是否满足极值条件"""
+        """检查是否满足极值条件（带冷却期检查）"""
         # 获取逃顶信号数据
         escape_data = self.get_escape_signal_stats()
         if not escape_data:
@@ -193,14 +193,19 @@ class ExtremeValueTracker:
         if not coins_data:
             return None
         
+        # 获取1小时爆仓数据
+        liquidation_data = self.get_1h_liquidation_data()
+        if not liquidation_data:
+            return None
+        
         # 计算27币涨跌幅总和
         total_change = self.calculate_total_change(coins_data)
         
-        # 检查触发条件
+        # 检查触发条件（只添加不在冷却期的触发器）
         triggers = []
         
         # 条件1: 2h信号极值标记
-        if escape_data.get('has_2h_peak'):
+        if escape_data.get('has_2h_peak') and not self.is_in_cooldown('2h_peak'):
             triggers.append({
                 'type': '2h_peak',
                 'description': '2h逃顶信号极值',
@@ -208,15 +213,16 @@ class ExtremeValueTracker:
                 'data': escape_data.get('peak_2h_info')
             })
         
-        # 条件2: 27币涨跌幅极值
-        if total_change > 100:
+        # 条件2: 27币涨跌幅极值（上涨）
+        if total_change > 100 and not self.is_in_cooldown('27coins_high'):
             triggers.append({
                 'type': '27coins_high',
                 'description': '27币涨跌幅总和超过100%',
                 'value': total_change,
                 'data': coins_data
             })
-        elif total_change < -80:
+        # 条件2b: 27币涨跌幅极值（下跌）
+        elif total_change < -80 and not self.is_in_cooldown('27coins_low'):
             triggers.append({
                 'type': '27coins_low',
                 'description': '27币涨跌幅总和低于-80%',
@@ -225,7 +231,7 @@ class ExtremeValueTracker:
             })
         
         # 条件3: 24h信号极值标记
-        if escape_data.get('has_24h_peak'):
+        if escape_data.get('has_24h_peak') and not self.is_in_cooldown('24h_peak'):
             triggers.append({
                 'type': '24h_peak',
                 'description': '24h逃顶信号极值',
@@ -233,8 +239,22 @@ class ExtremeValueTracker:
                 'data': escape_data.get('peak_24h_info')
             })
         
+        # 条件4: 1小时爆仓金额超过3000万美元
+        if liquidation_data['amount_usd'] > 30000000 and not self.is_in_cooldown('1h_liquidation_high'):
+            triggers.append({
+                'type': '1h_liquidation_high',
+                'description': '1小时爆仓金额超过3000万美元',
+                'value': liquidation_data['amount_usd'],
+                'value_wan': liquidation_data['amount_wan'],
+                'data': liquidation_data
+            })
+        
         if not triggers:
             return None
+        
+        # 更新触发时间（为所有触发的类型）
+        for trigger in triggers:
+            self.update_trigger_time(trigger['type'])
         
         return {
             'timestamp': int(time.time()),
@@ -242,6 +262,7 @@ class ExtremeValueTracker:
             'triggers': triggers,
             'escape_data': escape_data,
             'coins_data': coins_data,
+            'liquidation_data': liquidation_data,
             'total_change': total_change
         }
     
@@ -269,6 +290,16 @@ class ExtremeValueTracker:
                 'has_24h_peak': extreme_event['escape_data'].get('has_24h_peak', False),
                 'today_2h_max': extreme_event['escape_data'].get('today_2h_max', 0),
                 'max_24h_value': extreme_event['escape_data'].get('max_24h_value', 0)
+            },
+            
+            # 1小时爆仓快照
+            'liquidation_snapshot': {
+                'hour_1_amount_wan': extreme_event['liquidation_data'].get('amount_wan', 0),
+                'hour_1_amount_usd': extreme_event['liquidation_data'].get('amount_usd', 0),
+                'hour_24_amount': extreme_event['liquidation_data'].get('hour_24_amount', 0),
+                'panic_index': extreme_event['liquidation_data'].get('panic_index', 0),
+                'timestamp': extreme_event['liquidation_data'].get('timestamp', 0),
+                'datetime': extreme_event['liquidation_data'].get('datetime', '')
             },
             
             # 追踪记录（初始为空，后续更新）
