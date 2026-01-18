@@ -7,6 +7,11 @@
 1. 逃顶信号2h出现预警标记
 2. 27种币涨跌幅相加超过100%或小于-80%
 3. 逃顶24h出现极值被标记
+4. 1小时爆仓金额超过3000万美元
+
+冷却期机制：
+- 同一极值类型触发后，4小时内不再重复触发
+- 不同极值类型可以同时触发
 
 快照内容：
 - 触发时间
@@ -35,6 +40,10 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 # 数据文件路径
 SNAPSHOTS_FILE = DATA_DIR / 'extreme_snapshots.jsonl'
 TRACKING_FILE = DATA_DIR / 'extreme_tracking.jsonl'
+COOLDOWN_FILE = DATA_DIR / 'trigger_cooldown.jsonl'
+
+# 冷却期配置（秒）
+COOLDOWN_PERIOD = 4 * 3600  # 4小时
 
 class ExtremeValueTracker:
     """极值追踪器"""
@@ -42,7 +51,55 @@ class ExtremeValueTracker:
     def __init__(self):
         """初始化追踪器"""
         self.api_base = "http://localhost:5000"
+        self.last_triggers = self.load_cooldown_state()  # 加载冷却期状态
         self.log("✅ 极值追踪器初始化完成")
+    
+    def load_cooldown_state(self):
+        """加载冷却期状态"""
+        if not COOLDOWN_FILE.exists():
+            return {}
+        
+        try:
+            with open(COOLDOWN_FILE, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                if lines:
+                    # 读取最后一行（最新状态）
+                    return json.loads(lines[-1])
+        except Exception as e:
+            self.log(f"⚠️ 加载冷却期状态失败: {e}")
+        
+        return {}
+    
+    def save_cooldown_state(self):
+        """保存冷却期状态"""
+        try:
+            with open(COOLDOWN_FILE, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(self.last_triggers, ensure_ascii=False) + '\n')
+        except Exception as e:
+            self.log(f"⚠️ 保存冷却期状态失败: {e}")
+    
+    def is_in_cooldown(self, trigger_type):
+        """检查是否在冷却期内"""
+        if trigger_type not in self.last_triggers:
+            return False
+        
+        last_trigger_time = self.last_triggers[trigger_type]
+        current_time = int(time.time())
+        time_diff = current_time - last_trigger_time
+        
+        if time_diff < COOLDOWN_PERIOD:
+            remaining = COOLDOWN_PERIOD - time_diff
+            hours = remaining // 3600
+            minutes = (remaining % 3600) // 60
+            self.log(f"⏳ {trigger_type} 在冷却期内，剩余 {hours}小时{minutes}分钟")
+            return True
+        
+        return False
+    
+    def update_trigger_time(self, trigger_type):
+        """更新触发时间"""
+        self.last_triggers[trigger_type] = int(time.time())
+        self.save_cooldown_state()
     
     def log(self, message):
         """打印日志"""
@@ -81,6 +138,34 @@ class ExtremeValueTracker:
                 
         except Exception as e:
             self.log(f"❌ 获取27币数据异常: {e}")
+            return None
+    
+    def get_1h_liquidation_data(self):
+        """获取1小时爆仓数据"""
+        try:
+            url = f"{self.api_base}/api/panic/latest"
+            response = requests.get(url, timeout=10)
+            data = response.json()
+            
+            if data.get('success') and data.get('data'):
+                latest = data['data']
+                # hour_1_amount 单位是万美元，需要转换
+                amount_wan = latest.get('hour_1_amount', 0)
+                amount_usd = amount_wan * 10000  # 转换为美元
+                return {
+                    'amount_wan': amount_wan,
+                    'amount_usd': amount_usd,
+                    'timestamp': latest.get('timestamp', 0),
+                    'datetime': latest.get('datetime', ''),
+                    'hour_24_amount': latest.get('hour_24_amount', 0),
+                    'panic_index': latest.get('panic_index', 0)
+                }
+            else:
+                self.log(f"❌ 获取1小时爆仓数据失败: {data.get('message')}")
+                return None
+                
+        except Exception as e:
+            self.log(f"❌ 获取1小时爆仓数据异常: {e}")
             return None
     
     def calculate_total_change(self, coins_data):

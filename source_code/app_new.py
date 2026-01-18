@@ -14603,3 +14603,6 @@ def api_extreme_tracking_stats():
             'traceback': traceback.format_exc()
         })
 
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=False)
