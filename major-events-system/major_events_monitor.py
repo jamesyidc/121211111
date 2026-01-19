@@ -57,30 +57,27 @@ class MajorEventsMonitor:
     
     def get_2h_top_signal_count(self):
         """
-        获取2h见顶信号数量
+        获取2h见顶信号数量（从JSONL读取）
         返回: int, 见顶信号的币种数量
         """
         try:
-            conn = self.get_db_connection()
-            cursor = conn.cursor()
+            jsonl_file = self.data_dir / 'sar_slope_data.jsonl'
+            if not jsonl_file.exists():
+                logger.warning(f"SAR数据文件不存在: {jsonl_file}")
+                return 0
             
-            # 查询最新的2h见顶信号数量
-            # 假设数据库中有 sar_slope_data 表，包含 timeframe 和 is_topping 字段
-            cursor.execute('''
-                SELECT COUNT(DISTINCT inst_id) as top_count
-                FROM sar_slope_data
-                WHERE timeframe = '2h'
-                  AND is_topping = 1
-                  AND inst_id IN ({})
-                  AND timestamp >= datetime('now', '-2 hours')
-            '''.format(','.join(['?' for _ in self.symbols])), self.symbols)
-            
-            result = cursor.fetchone()
-            conn.close()
-            
-            count = result[0] if result else 0
-            logger.info(f"2h见顶信号数量: {count}")
-            return count
+            # 读取最后一行（最新数据）
+            with open(jsonl_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                if not lines:
+                    return 0
+                
+                last_line = lines[-1]
+                data = json.loads(last_line)
+                count = data.get('count', 0)
+                
+                logger.info(f"2h见顶信号数量: {count}")
+                return count
             
         except Exception as e:
             logger.error(f"获取2h见顶信号失败: {e}")
@@ -88,30 +85,27 @@ class MajorEventsMonitor:
     
     def get_27_coins_change_sum(self):
         """
-        获取27个币的涨跌幅总和
+        获取27个币的涨跌幅总和（从JSONL读取）
         返回: float, 涨跌幅总和（百分比）
         """
         try:
-            conn = self.get_db_connection()
-            cursor = conn.cursor()
+            jsonl_file = self.data_dir / 'coin_prices.jsonl'
+            if not jsonl_file.exists():
+                logger.warning(f"币种价格数据文件不存在: {jsonl_file}")
+                return 0
             
-            # 查询最新的涨跌幅数据
-            cursor.execute('''
-                SELECT SUM(day_change) as total_change
-                FROM (
-                    SELECT DISTINCT ON (inst_id) inst_id, day_change
-                    FROM coin_prices
-                    WHERE inst_id IN ({})
-                    ORDER BY inst_id, timestamp DESC
-                )
-            '''.format(','.join(['?' for _ in self.symbols])), self.symbols)
-            
-            result = cursor.fetchone()
-            conn.close()
-            
-            total = result[0] if result and result[0] else 0
-            logger.info(f"27个币涨跌幅总和: {total:.2f}%")
-            return total
+            # 读取最后一行（最新数据）
+            with open(jsonl_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                if not lines:
+                    return 0
+                
+                last_line = lines[-1]
+                data = json.loads(last_line)
+                total = data.get('total_change', 0)
+                
+                logger.info(f"27个币涨跌幅总和: {total:.2f}%")
+                return total
             
         except Exception as e:
             logger.error(f"获取涨跌幅总和失败: {e}")
@@ -119,28 +113,27 @@ class MajorEventsMonitor:
     
     def get_1h_liquidation_amount(self):
         """
-        获取1h爆仓金额（万美元）
+        获取1h爆仓金额（从JSONL读取）
         返回: float, 爆仓金额（万美元）
         """
         try:
-            conn = self.get_db_connection()
-            cursor = conn.cursor()
+            jsonl_file = self.data_dir / 'liquidation_data.jsonl'
+            if not jsonl_file.exists():
+                logger.warning(f"爆仓数据文件不存在: {jsonl_file}")
+                return 0
             
-            # 查询最新的1h爆仓数据
-            cursor.execute('''
-                SELECT liquidation_amount
-                FROM liquidation_data
-                WHERE timeframe = '1h'
-                ORDER BY timestamp DESC
-                LIMIT 1
-            ''')
-            
-            result = cursor.fetchone()
-            conn.close()
-            
-            amount = result[0] / 10000 if result and result[0] else 0  # 转换为万美元
-            logger.info(f"1h爆仓金额: {amount:.2f}万美元")
-            return amount
+            # 读取最后一行（最新数据）
+            with open(jsonl_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                if not lines:
+                    return 0
+                
+                last_line = lines[-1]
+                data = json.loads(last_line)
+                amount = data.get('liquidation_amount', 0) / 10000  # 转换为万美元
+                
+                logger.info(f"1h爆仓金额: {amount:.2f}万美元")
+                return amount
             
         except Exception as e:
             logger.error(f"获取爆仓金额失败: {e}")
