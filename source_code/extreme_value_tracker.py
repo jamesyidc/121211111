@@ -45,6 +45,9 @@ COOLDOWN_FILE = DATA_DIR / 'trigger_cooldown.jsonl'
 # 冷却期配置（秒）
 COOLDOWN_PERIOD = 4 * 3600  # 4小时
 
+# Telegram配置文件路径
+TELEGRAM_CONFIG_PATH = '/home/user/webapp/configs/telegram_config.json'
+
 class ExtremeValueTracker:
     """极值追踪器"""
     
@@ -52,6 +55,7 @@ class ExtremeValueTracker:
         """初始化追踪器"""
         self.api_base = "http://localhost:5000"
         self.last_triggers = self.load_cooldown_state()  # 加载冷却期状态
+        self.telegram_config = self.load_telegram_config()  # 加载TG配置
         self.log("✅ 极值追踪器初始化完成")
     
     def load_cooldown_state(self):
@@ -77,6 +81,113 @@ class ExtremeValueTracker:
                 f.write(json.dumps(self.last_triggers, ensure_ascii=False) + '\n')
         except Exception as e:
             self.log(f"⚠️ 保存冷却期状态失败: {e}")
+    
+    def load_telegram_config(self):
+        """加载Telegram配置"""
+        try:
+            if os.path.exists(TELEGRAM_CONFIG_PATH):
+                with open(TELEGRAM_CONFIG_PATH, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    self.log(f"✅ Telegram配置已加载")
+                    return config
+            else:
+                self.log(f"⚠️ Telegram配置文件不存在: {TELEGRAM_CONFIG_PATH}")
+                return None
+        except Exception as e:
+            self.log(f"⚠️ 加载Telegram配置失败: {e}")
+            return None
+    
+    def send_telegram_notification(self, snapshot_id, extreme_event):
+        """发送Telegram通知"""
+        if not self.telegram_config:
+            self.log("⚠️ Telegram配置未加载，跳过通知")
+            return False
+        
+        try:
+            bot_token = self.telegram_config.get('bot_token')
+            chat_id = self.telegram_config.get('chat_id')
+            api_base = self.telegram_config.get('api_base_url', 'https://api.telegram.org')
+            
+            if not bot_token or not chat_id:
+                self.log("⚠️ Telegram配置不完整，跳过通知")
+                return False
+            
+            # 构建消息
+            triggers = extreme_event.get('triggers', [])
+            trigger_types = [t.get('type') for t in triggers]
+            trigger_descriptions = [t.get('description') for t in triggers]
+            
+            total_change = extreme_event.get('total_change', 0)
+            
+            # 判断消息类型和emoji
+            if '27coins_low' in trigger_types or '27coins_high' in trigger_types:
+                emoji = "📉" if total_change < 0 else "📈"
+                type_name = "极端跌幅" if total_change < 0 else "极端涨幅"
+                color = "🔴" if total_change < 0 else "🟢"
+            else:
+                emoji = "⚠️"
+                type_name = "极值预警"
+                color = "🟡"
+            
+            # 获取爆仓数据
+            liquidation_data = extreme_event.get('liquidation_data', {})
+            liquidation_info = ""
+            if liquidation_data:
+                amount_wan = liquidation_data.get('amount_wan', 0)
+                if amount_wan > 3000:
+                    liquidation_info = f"\n💥 <b>1h爆仓</b>: {amount_wan:.2f}万美元"
+            
+            # 获取逃顶信号
+            escape_data = extreme_event.get('escape_data', {})
+            escape_info = ""
+            if escape_data:
+                if escape_data.get('has_2h_peak'):
+                    signal_2h = escape_data.get('today_2h_max', 0)
+                    escape_info += f"\n🚨 <b>2h逃顶</b>: {signal_2h}"
+                if escape_data.get('has_24h_peak'):
+                    signal_24h = escape_data.get('max_24h_value', 0)
+                    escape_info += f"\n⚡ <b>24h逃顶</b>: {signal_24h}"
+            
+            message = f"""
+{emoji} <b>极值追踪系统提醒</b> {emoji}
+
+{color} <b>类型</b>: {type_name}
+🔔 <b>触发条件</b>:
+"""
+            for desc in trigger_descriptions:
+                message += f"  • {desc}\n"
+            
+            message += f"""
+📊 <b>27币总涨跌</b>: <code>{total_change:+.2f}%</code>{liquidation_info}{escape_info}
+
+🆔 <b>快照ID</b>: {snapshot_id}
+⏰ <b>时间</b>: {extreme_event.get('datetime')}
+
+📈 <b>追踪计划</b>: 1h / 3h / 6h / 12h / 24h
+🔗 <b>查看详情</b>: /extreme-tracking
+"""
+            
+            # 发送消息
+            url = f"{api_base}/bot{bot_token}/sendMessage"
+            data = {
+                'chat_id': chat_id,
+                'text': message,
+                'parse_mode': 'HTML'
+            }
+            
+            response = requests.post(url, json=data, timeout=10)
+            
+            if response.status_code == 200:
+                self.log(f"✅ Telegram通知已发送: {snapshot_id}")
+                return True
+            else:
+                self.log(f"⚠️ Telegram通知发送失败: {response.status_code} - {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log(f"❌ Telegram通知发送异常: {e}")
+            return False
+    
     
     def is_in_cooldown(self, trigger_type):
         """检查是否在冷却期内"""
@@ -508,7 +619,10 @@ class ExtremeValueTracker:
             
             # 保存快照
             if self.save_snapshot(snapshot):
-                # 发送通知（可选）
+                # 发送Telegram通知
+                self.send_telegram_notification(snapshot['snapshot_id'], extreme_event)
+                
+                # 日志输出
                 trigger_desc = ', '.join([t['description'] for t in extreme_event['triggers']])
                 self.log(f"📸 已创建快照: {snapshot['snapshot_id']}")
                 self.log(f"   触发条件: {trigger_desc}")
