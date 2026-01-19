@@ -5,9 +5,13 @@
 
 极值触发条件：
 1. 逃顶信号2h出现预警标记
-2. 27种币涨跌幅相加超过100%或小于-80%
-3. 逃顶24h出现极值被标记
-4. 1小时爆仓金额超过3000万美元
+2. 27种币涨跌幅相加超过100%（27coins_high）
+3. 27种币涨跌幅下跌分级：
+   - 27coins_low_1: -80% 至 -119%（轻度）
+   - 27coins_low_2: -120% 至 -179%（中度）
+   - 27coins_low_3: -180% 及以下（重度）
+4. 逃顶24h出现极值被标记
+5. 1小时爆仓金额超过3000万美元
 
 冷却期机制：
 - 同一极值类型触发后，4小时内不再重复触发
@@ -120,10 +124,28 @@ class ExtremeValueTracker:
             total_change = extreme_event.get('total_change', 0)
             
             # 判断消息类型和emoji
-            if '27coins_low' in trigger_types or '27coins_high' in trigger_types:
-                emoji = "📉" if total_change < 0 else "📈"
-                type_name = "极端跌幅" if total_change < 0 else "极端涨幅"
-                color = "🔴" if total_change < 0 else "🟢"
+            has_27coins_low = any('27coins_low' in t for t in trigger_types)
+            has_27coins_high = '27coins_high' in trigger_types
+            
+            if has_27coins_low or has_27coins_high:
+                if total_change < 0:
+                    # 根据跌幅等级设置不同的emoji和描述
+                    if total_change <= -180:
+                        emoji = "🚨💀"
+                        type_name = "极端严重跌幅"
+                        color = "🔴🔴🔴"
+                    elif total_change <= -120:
+                        emoji = "⚠️📉"
+                        type_name = "中度跌幅"
+                        color = "🔴🔴"
+                    else:
+                        emoji = "📉"
+                        type_name = "轻度跌幅"
+                        color = "🔴"
+                else:
+                    emoji = "📈"
+                    type_name = "极端涨幅"
+                    color = "🟢"
             else:
                 emoji = "⚠️"
                 type_name = "极值预警"
@@ -337,14 +359,36 @@ class ExtremeValueTracker:
                 'value': total_change,
                 'data': coins_data
             })
-        # 条件2b: 27币涨跌幅极值（下跌）
-        elif total_change < -80 and not self.is_in_cooldown('27coins_low'):
-            triggers.append({
-                'type': '27coins_low',
-                'description': '27币涨跌幅总和低于-80%',
-                'value': total_change,
-                'data': coins_data
-            })
+        
+        # 条件2b: 27币涨跌幅极值（下跌）- 分3个等级
+        # 优先检查最严重的等级
+        if total_change <= -180:
+            if not self.is_in_cooldown('27coins_low_3'):
+                triggers.append({
+                    'type': '27coins_low_3',
+                    'description': '27币涨跌幅总和 ≤ -180%（重度下跌）',
+                    'value': total_change,
+                    'level': 3,
+                    'data': coins_data
+                })
+        elif total_change <= -120:
+            if not self.is_in_cooldown('27coins_low_2'):
+                triggers.append({
+                    'type': '27coins_low_2',
+                    'description': '27币涨跌幅总和 -120% 至 -179%（中度下跌）',
+                    'value': total_change,
+                    'level': 2,
+                    'data': coins_data
+                })
+        elif total_change <= -80:
+            if not self.is_in_cooldown('27coins_low_1'):
+                triggers.append({
+                    'type': '27coins_low_1',
+                    'description': '27币涨跌幅总和 -80% 至 -119%（轻度下跌）',
+                    'value': total_change,
+                    'level': 1,
+                    'data': coins_data
+                })
         
         # 条件3: 24h信号极值标记
         if escape_data.get('has_24h_peak') and not self.is_in_cooldown('24h_peak'):
