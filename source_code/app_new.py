@@ -2,7 +2,7 @@
 """
 加密货币数据分析系统 - 完全仿照参考页面风格
 """
-from flask import Flask, render_template_string, render_template, request, jsonify, send_from_directory, make_response, redirect
+from flask import Flask, render_template_string, render_template, request, jsonify, send_from_directory, send_file, make_response, redirect
 import sqlite3
 from datetime import datetime, timedelta
 import json
@@ -15034,15 +15034,31 @@ def live_trading_static(filename):
         # 尝试从public目录加载
         file_path = f'/home/user/webapp/live-trading-system/public/{filename}'
         if os.path.exists(file_path):
-            return send_file(file_path)
+            # 根据文件扩展名设置mimetype
+            if filename.endswith('.js'):
+                return send_file(file_path, mimetype='application/javascript')
+            elif filename.endswith('.css'):
+                return send_file(file_path, mimetype='text/css')
+            elif filename.endswith('.html'):
+                return send_file(file_path, mimetype='text/html')
+            else:
+                return send_file(file_path)
         
         # 尝试从根目录加载
         file_path = f'/home/user/webapp/live-trading-system/{filename}'
         if os.path.exists(file_path):
-            return send_file(file_path)
+            if filename.endswith('.js'):
+                return send_file(file_path, mimetype='application/javascript')
+            elif filename.endswith('.css'):
+                return send_file(file_path, mimetype='text/css')
+            else:
+                return send_file(file_path)
         
         return f"文件未找到: {filename}", 404
     except Exception as e:
+        import traceback
+        print(f"静态文件加载错误: {str(e)}")
+        print(traceback.format_exc())
         return f"加载文件失败: {str(e)}", 500
 
 # 实盘交易API端点
