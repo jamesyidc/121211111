@@ -124,13 +124,13 @@ class ExtremeValueTracker:
             return None
     
     def get_27_coins_data(self):
-        """获取27个币的最新涨跌数据"""
+        """获取27个币的最新涨跌数据（包含价格）"""
         try:
-            url = f"{self.api_base}/api/okx-day-change/latest?limit=1"
+            url = f"{self.api_base}/api/coin-price-tracker/latest?limit=1"
             response = requests.get(url, timeout=10)
             data = response.json()
             
-            if data.get('success') and data.get('data'):
+            if data.get('success') and data.get('count') > 0:
                 return data['data'][0]  # 返回最新一条记录
             else:
                 self.log(f"❌ 获取27币数据失败: {data.get('message')}")
@@ -170,12 +170,17 @@ class ExtremeValueTracker:
     
     def calculate_total_change(self, coins_data):
         """计算27个币的涨跌幅总和"""
-        if not coins_data or 'coin_changes' not in coins_data:
+        if not coins_data or 'day_changes' not in coins_data:
             return 0
         
         total = 0
-        for coin in coins_data['coin_changes']:
-            change = coin.get('day_change_percent', 0)
+        for symbol, coin_info in coins_data['day_changes'].items():
+            if isinstance(coin_info, dict):
+                change = coin_info.get('change_pct', 0)
+            else:
+                # 兼容旧格式（直接是数字）
+                change = coin_info
+            
             if isinstance(change, (int, float)):
                 total += change
         
@@ -282,7 +287,7 @@ class ExtremeValueTracker:
             # 27个币的快照
             'coins_snapshot': {
                 'timestamp': extreme_event['coins_data'].get('timestamp', int(time.time())),
-                'datetime': extreme_event['coins_data'].get('record_time', datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S')),
+                'datetime': extreme_event['coins_data'].get('collect_time', extreme_event['coins_data'].get('record_time', datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S'))),
                 'total_change': extreme_event['total_change'],
                 'coins': []
             },
@@ -323,11 +328,21 @@ class ExtremeValueTracker:
         
         # 填充27个币的详细数据
         if 'day_changes' in extreme_event['coins_data']:
-            for symbol, change_pct in extreme_event['coins_data']['day_changes'].items():
-                snapshot['coins_snapshot']['coins'].append({
-                    'symbol': symbol,
-                    'day_change_percent': change_pct
-                })
+            for symbol, coin_info in extreme_event['coins_data']['day_changes'].items():
+                if isinstance(coin_info, dict):
+                    # 新格式：包含价格信息
+                    snapshot['coins_snapshot']['coins'].append({
+                        'symbol': symbol,
+                        'current_price': coin_info.get('current_price', 0),
+                        'base_price': coin_info.get('base_price', 0),
+                        'day_change_percent': coin_info.get('change_pct', 0)
+                    })
+                else:
+                    # 旧格式：只有涨跌幅
+                    snapshot['coins_snapshot']['coins'].append({
+                        'symbol': symbol,
+                        'day_change_percent': coin_info
+                    })
         
         return snapshot
     
