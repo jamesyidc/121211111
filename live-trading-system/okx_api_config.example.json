@@ -1,0 +1,21 @@
+{
+  "apiKey": "YOUR_API_KEY_HERE",
+  "apiSecret": "YOUR_API_SECRET_HERE",
+  "passphrase": "YOUR_PASSPHRASE_HERE",
+  "environment": "production",
+  "baseUrl": "https://www.okx.com",
+  "enableProxy": false,
+  "timeout": 10000,
+  "rateLimit": {
+    "maxRequests": 20,
+    "perSeconds": 2
+  },
+  "permissions": {
+    "trade": true,
+    "read": true,
+    "withdraw": false
+  },
+  "accountType": "unified",
+  "created": "2026-01-19T00:00:00Z",
+  "status": "active"
+}
