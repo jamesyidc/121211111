@@ -1051,7 +1051,7 @@
                         <label class="form-label">数量 (USDT)</label>
                         <input type="number" class="form-control" id="orderAmount" placeholder="输入USDT数量" step="0.01" required>
                         <div style="margin-top: 8px; font-size: 12px; color: #718096;">
-                            可用余额: <span id="availableBalance">224.15 USDT</span>
+                            可用余额: <span id="orderAvailableBalance">224.15 USDT</span>
                         </div>
                     </div>
 
@@ -1224,6 +1224,12 @@
                     document.getElementById('availableBalance').textContent = data.availableBalance.toFixed(2) + ' USDT';
                     document.getElementById('usedMargin').textContent = data.usedMargin.toFixed(2) + ' USDT';
                     
+                    // 同时更新订单表单中的可用余额
+                    const orderBalanceEl = document.getElementById('orderAvailableBalance');
+                    if (orderBalanceEl) {
+                        orderBalanceEl.textContent = data.availableBalance.toFixed(2) + ' USDT';
+                    }
+                    
                     // 未实现盈亏带颜色
                     const uplElement = document.getElementById('unrealizedPnl');
                     const upl = data.unrealizedPnl;
@@ -1385,8 +1391,13 @@
         function updateAccountBalance() {
             const account = accounts.find(acc => acc.id === currentAccount);
             if (account) {
+                // 更新账户标签处的余额
                 document.getElementById('accountBalance').textContent = account.balance.toFixed(2) + ' USDT';
-                document.getElementById('availableBalance').textContent = account.balance.toFixed(2) + ' USDT';
+                // 更新订单表单中的可用余额
+                const orderBalanceEl = document.getElementById('orderAvailableBalance');
+                if (orderBalanceEl) {
+                    orderBalanceEl.textContent = account.balance.toFixed(2) + ' USDT';
+                }
             }
         }
 
