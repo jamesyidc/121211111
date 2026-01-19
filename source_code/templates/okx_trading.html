@@ -1086,6 +1086,20 @@
 
             <!-- 右侧：账户信息 -->
             <div class="account-panel">
+                <!-- API配置提示 -->
+                <div id="apiConfigNotice" style="display: none; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                        <span style="font-size: 20px;">⚠️</span>
+                        <strong style="color: #92400e;">需要配置API凭证</strong>
+                    </div>
+                    <p style="margin: 0 0 8px 28px; color: #78350f; font-size: 13px;">
+                        当前账户未配置OKX API凭证，无法查询账户余额和持仓信息。
+                    </p>
+                    <p style="margin: 0 0 0 28px; color: #78350f; font-size: 13px;">
+                        请点击账户标签上的"编辑"按钮，填入您的API Key、API Secret和Passphrase。
+                    </p>
+                </div>
+                
                 <!-- 账户总览 -->
                 <div class="info-card">
                     <h3>💰 账户信息 <button onclick="refreshAccountData()" style="background: #3b82f6; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 10px;">🔄</button></h3>
@@ -1176,14 +1190,20 @@
         async function loadAccountInfo() {
             const account = accounts.find(acc => acc.id === currentAccount);
             if (!account || !account.apiKey || !account.apiSecret || !account.passphrase) {
-                // 没有API凭证，显示默认值
-                document.getElementById('totalEquity').textContent = '-- USDT';
-                document.getElementById('availableBalance').textContent = '-- USDT';
-                document.getElementById('usedMargin').textContent = '-- USDT';
-                document.getElementById('unrealizedPnl').textContent = '-- USDT';
-                document.getElementById('frozenBalance').textContent = '-- USDT';
+                // 没有API凭证，显示默认值和提示
+                document.getElementById('totalEquity').textContent = '未配置';
+                document.getElementById('availableBalance').textContent = '未配置';
+                document.getElementById('usedMargin').textContent = '未配置';
+                document.getElementById('unrealizedPnl').textContent = '未配置';
+                document.getElementById('frozenBalance').textContent = '未配置';
+                
+                // 显示配置提示
+                showApiConfigNotice();
                 return;
             }
+            
+            // 隐藏配置提示
+            hideApiConfigNotice();
 
             try {
                 const response = await fetch('/api/okx-trading/account-info', {
@@ -1223,7 +1243,7 @@
         async function loadPositions() {
             const account = accounts.find(acc => acc.id === currentAccount);
             if (!account || !account.apiKey || !account.apiSecret || !account.passphrase) {
-                document.getElementById('positionsList').innerHTML = '<div class="no-positions">暂无持仓</div>';
+                document.getElementById('positionsList').innerHTML = '<div class="no-positions">请先配置账户API凭证</div>';
                 document.getElementById('positionsCount').textContent = '(0)';
                 return;
             }
@@ -1313,6 +1333,22 @@
                 loadAccountInfo(),
                 loadPositions()
             ]);
+        }
+
+        // 显示API配置提示
+        function showApiConfigNotice() {
+            const notice = document.getElementById('apiConfigNotice');
+            if (notice) {
+                notice.style.display = 'block';
+            }
+        }
+
+        // 隐藏API配置提示
+        function hideApiConfigNotice() {
+            const notice = document.getElementById('apiConfigNotice');
+            if (notice) {
+                notice.style.display = 'none';
+            }
         }
 
         // 初始化页面
