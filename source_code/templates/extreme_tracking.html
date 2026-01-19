@@ -496,7 +496,8 @@
                             <tr>
                                 <th>追踪时段</th>
                                 <th>总涨跌幅</th>
-                                <th>状态</th>
+                                <th>追踪时间</th>
+                                <th>操作</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -504,13 +505,73 @@
                                 if (!data) return '';
                                 const change = data.total_change || 0;
                                 const changeClass = change >= 0 ? 'positive' : 'negative';
-                                const status = data.status || '-';
+                                const datetime = data.datetime || '-';
+                                const hasCoinsData = data.coins_snapshot && data.coins_snapshot.length > 0;
+                                
+                                // 生成币种详情HTML
+                                let coinsDetailHTML = '';
+                                if (hasCoinsData) {
+                                    coinsDetailHTML = `
+                                        <tr class="coins-detail-row" id="coins-${snapshot.snapshot_id}-${period}" style="display: none;">
+                                            <td colspan="4" style="padding: 15px; background: rgba(0,0,0,0.3);">
+                                                <div style="max-height: 400px; overflow-y: auto;">
+                                                    <table class="tracking-table" style="margin: 0;">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>币种</th>
+                                                                <th>触发时价格</th>
+                                                                <th>当前价格</th>
+                                                                <th>价格变化</th>
+                                                                <th>触发时日涨跌</th>
+                                                                <th>当前日涨跌</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            ${data.coins_snapshot.map(coin => {
+                                                                const priceChange = coin.price_change_from_trigger || 0;
+                                                                const priceChangeClass = priceChange >= 0 ? 'positive' : 'negative';
+                                                                const currentDayChange = coin.current_day_change || 0;
+                                                                const currentDayChangeClass = currentDayChange >= 0 ? 'positive' : 'negative';
+                                                                const triggerDayChange = coin.trigger_day_change || 0;
+                                                                const triggerDayChangeClass = triggerDayChange >= 0 ? 'positive' : 'negative';
+                                                                
+                                                                return `
+                                                                    <tr>
+                                                                        <td style="font-weight: 600;">${coin.symbol}</td>
+                                                                        <td>$${(coin.trigger_price || 0).toFixed(coin.trigger_price < 1 ? 6 : 2)}</td>
+                                                                        <td>$${(coin.current_price || 0).toFixed(coin.current_price < 1 ? 6 : 2)}</td>
+                                                                        <td class="${priceChangeClass}">${priceChange >= 0 ? '+' : ''}${priceChange.toFixed(2)}%</td>
+                                                                        <td class="${triggerDayChangeClass}">${triggerDayChange >= 0 ? '+' : ''}${triggerDayChange.toFixed(2)}%</td>
+                                                                        <td class="${currentDayChangeClass}">${currentDayChange >= 0 ? '+' : ''}${currentDayChange.toFixed(2)}%</td>
+                                                                    </tr>
+                                                                `;
+                                                            }).join('')}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    `;
+                                }
+                                
                                 return `
                                     <tr>
-                                        <td>${period}</td>
+                                        <td><strong>${period}</strong></td>
                                         <td class="${changeClass}">${change >= 0 ? '+' : ''}${change.toFixed(2)}%</td>
-                                        <td>${status}</td>
+                                        <td>${datetime}</td>
+                                        <td>
+                                            ${hasCoinsData ? `
+                                                <button onclick="toggleCoinsDetail('${snapshot.snapshot_id}', '${period}')" 
+                                                        style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                                                               color: white; border: none; padding: 5px 12px; 
+                                                               border-radius: 6px; cursor: pointer; font-size: 12px; 
+                                                               font-weight: 600;">
+                                                    查看27币详情
+                                                </button>
+                                            ` : '<span style="color: #888;">无数据</span>'}
+                                        </td>
                                     </tr>
+                                    ${coinsDetailHTML}
                                 `;
                             }).join('')}
                         </tbody>
@@ -602,6 +663,18 @@
                 loadSnapshots(status === 'all' ? undefined : status);
             });
         });
+        
+        // 切换币种详情显示/隐藏
+        function toggleCoinsDetail(snapshotId, period) {
+            const detailRow = document.getElementById(`coins-${snapshotId}-${period}`);
+            if (detailRow) {
+                if (detailRow.style.display === 'none') {
+                    detailRow.style.display = 'table-row';
+                } else {
+                    detailRow.style.display = 'none';
+                }
+            }
+        }
         
         // 初始加载
         loadStats();
