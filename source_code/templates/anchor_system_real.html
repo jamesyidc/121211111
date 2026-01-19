@@ -1002,6 +1002,32 @@
             </div>
         </div>
 
+        <!-- 27币实时涨跌 -->
+        <div class="card" id="coinsDataCard" style="display: none;">
+            <div class="card-header">
+                <div class="card-title">
+                    <span>📊</span>
+                    27币实时涨跌
+                    <span id="coinsDataTime" style="margin-left: 15px; font-size: 14px; font-weight: normal; color: #718096;"></span>
+                </div>
+            </div>
+            
+            <!-- 总涨跌幅 -->
+            <div style="padding: 15px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: 0 20px 15px 20px; border-radius: 12px;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <span style="color: white; font-size: 16px; font-weight: 600;">27币总涨跌</span>
+                    <span id="coinsTotalChange" style="color: white; font-size: 24px; font-weight: 700;">--</span>
+                </div>
+            </div>
+            
+            <!-- 币种网格 -->
+            <div style="padding: 0 20px 20px 20px;">
+                <div id="coinsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;">
+                    <!-- 币种卡片将通过 JavaScript 动态生成 -->
+                </div>
+            </div>
+        </div>
+
         <!-- 历史极值记录 -->
         <div class="card">
             <div class="card-header">
@@ -2416,7 +2442,7 @@
                             fetch('/api/latest'),
                             fetch('/api/anchor-system/monitors?limit=50'),
                             fetch('/api/anchor-system/alerts?limit=10'),
-                            fetch('/api/anchor-system/profit-records?trade_mode=real')
+                            fetch('/api/anchor-system/profit-records-with-coins?trade_mode=real')  // 修改为新的API端点
                         ]);
                         
                         // 处理计次数据（从/api/latest获取）
@@ -2462,11 +2488,16 @@
                             }
                         }
                         
-                        // 处理历史极值记录
+                        // 处理历史极值记录 + 27币数据
                         if (recordsRes.status === 'fulfilled' && recordsRes.value.ok) {
                             const recordsData = await recordsRes.value.json();
                             if (recordsData.success) {
                                 renderRecordsTable(recordsData.records);
+                                
+                                // 渲染27币数据
+                                if (recordsData.coins_data) {
+                                    renderCoinsData(recordsData.coins_data);
+                                }
                             }
                         }
                         
@@ -2797,6 +2828,79 @@
             });
             return orderMap;
         })();
+        
+        // 渲染27币实时涨跌数据
+        function renderCoinsData(coinsData) {
+            if (!coinsData || !coinsData.coins || coinsData.coins.length === 0) {
+                document.getElementById('coinsDataCard').style.display = 'none';
+                return;
+            }
+            
+            // 显示卡片
+            document.getElementById('coinsDataCard').style.display = 'block';
+            
+            // 更新时间
+            if (coinsData.datetime) {
+                document.getElementById('coinsDataTime').textContent = `更新时间: ${coinsData.datetime}`;
+            }
+            
+            // 更新总涨跌
+            const totalChange = coinsData.total_change || 0;
+            const totalChangeColor = totalChange >= 0 ? '#48bb78' : '#f56565';
+            document.getElementById('coinsTotalChange').innerHTML = `
+                <span style="color: ${totalChangeColor}">
+                    ${totalChange >= 0 ? '+' : ''}${totalChange.toFixed(2)}%
+                </span>
+            `;
+            
+            // 渲染币种网格
+            const grid = document.getElementById('coinsGrid');
+            grid.innerHTML = '';
+            
+            coinsData.coins.forEach(coin => {
+                const changePercent = coin.day_change_percent || 0;
+                const changeColor = changePercent >= 0 ? '#48bb78' : '#f56565';
+                const changeBg = changePercent >= 0 ? 'rgba(72, 187, 120, 0.1)' : 'rgba(245, 101, 101, 0.1)';
+                
+                const card = document.createElement('div');
+                card.style.cssText = `
+                    padding: 12px;
+                    background: white;
+                    border-radius: 8px;
+                    border: 1px solid #e2e8f0;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                    transition: all 0.2s;
+                `;
+                
+                card.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                        <div style="font-weight: 700; color: #2d3748; font-size: 15px;">${coin.symbol}</div>
+                        <div style="background: ${changeBg}; padding: 4px 8px; border-radius: 6px;">
+                            <span style="color: ${changeColor}; font-weight: 600; font-size: 13px;">
+                                ${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%
+                            </span>
+                        </div>
+                    </div>
+                    <div style="color: #4a5568; font-size: 14px; font-weight: 600;">
+                        $${coin.current_price.toFixed(4)}
+                    </div>
+                `;
+                
+                // 鼠标悬停效果
+                card.addEventListener('mouseenter', () => {
+                    card.style.transform = 'translateY(-2px)';
+                    card.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                });
+                card.addEventListener('mouseleave', () => {
+                    card.style.transform = 'translateY(0)';
+                    card.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
+                });
+                
+                grid.appendChild(card);
+            });
+            
+            console.log('✅ 27币数据渲染完成:', coinsData.coins.length, '个币种');
+        }
         
         function renderRecordsTable(data, forceShowAll = false) {
             currentRecordsData = data; // 保存数据供持续时间更新使用

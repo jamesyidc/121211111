@@ -13199,6 +13199,86 @@ def get_anchor_profit_records():
             'traceback': traceback.format_exc()
         })
 
+@app.route('/api/anchor-system/profit-records-with-coins')
+def get_profit_records_with_coins():
+    """获取历史极值记录 + 27个币的实时涨跌幅和价格"""
+    try:
+        trade_mode = request.args.get('trade_mode', 'real')
+        
+        # 1. 获取极值记录
+        manager = ExtremeJSONLManager(trade_mode=trade_mode)
+        all_records = manager.get_deduplicated_records()
+        
+        # 转换为API格式
+        records = []
+        for r in all_records:
+            records.append({
+                'inst_id': r.get('inst_id'),
+                'pos_side': r.get('pos_side'),
+                'record_type': r.get('record_type'),
+                'profit_rate': r.get('profit_rate'),
+                'timestamp': r.get('updated_at') or r.get('created_at'),
+                'pos_size': r.get('pos_size'),
+                'avg_price': r.get('avg_price'),
+                'mark_price': r.get('mark_price')
+            })
+        
+        # 2. 获取27个币的实时涨跌幅和价格
+        coins_data = None
+        try:
+            # 读取最新的27币数据
+            import os
+            import json as json_module
+            
+            coin_prices_file = 'data/coin_price_tracker/coin_prices_30min.jsonl'
+            if os.path.exists(coin_prices_file):
+                with open(coin_prices_file, 'r', encoding='utf-8') as f:
+                    # 读取最后一行（最新数据）
+                    lines = f.readlines()
+                    if lines:
+                        last_line = lines[-1].strip()
+                        if last_line:
+                            latest_data = json_module.loads(last_line)
+                            
+                            # 提取27个币的数据
+                            coins_list = []
+                            day_changes = latest_data.get('day_changes', {})
+                            
+                            for symbol, data in day_changes.items():
+                                if isinstance(data, dict):
+                                    coins_list.append({
+                                        'symbol': symbol,
+                                        'name': symbol,  # 简化处理
+                                        'current_price': data.get('current_price', 0),
+                                        'base_price': data.get('base_price', 0),
+                                        'day_change_percent': data.get('change_pct', 0),  # 使用 change_pct 字段
+                                    })
+                            
+                            if coins_list:
+                                coins_data = {
+                                    'timestamp': latest_data.get('timestamp'),
+                                    'datetime': latest_data.get('collect_time', latest_data.get('datetime')),  # 使用 collect_time
+                                    'total_change': latest_data.get('total_change', 0),  # 使用 total_change
+                                    'coins': coins_list
+                                }
+        except Exception as e:
+            print(f"❌ 获取27币数据失败: {e}")
+        
+        return jsonify({
+            'success': True,
+            'records': records,
+            'total': len(records),
+            'trade_mode': trade_mode,
+            'data_source': 'JSONL',
+            'coins_data': coins_data  # 新增：27个币的实时数据
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
 @app.route('/api/anchor-system/cleanup-extremes', methods=['POST'])
 def cleanup_extreme_records():
     """清理错误的极值记录（删除所有亏损记录）"""
