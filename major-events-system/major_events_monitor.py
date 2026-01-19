@@ -46,6 +46,7 @@ class MajorEventsMonitor:
             'top_signal_120': None,  # 记录120见顶信号的时间
             'liquidation_high': None,  # 记录爆仓金额新高的时间
             'liquidation_value': 0,  # 当前爆仓金额
+            'profit_marks_history': [],  # 多空盈利标记历史
         }
         
         logger.info("重大事件监控系统初始化完成")
@@ -357,6 +358,166 @@ class MajorEventsMonitor:
         
         return None
     
+    def get_anchor_profit_stats(self):
+        """
+        获取锚定系统多空盈利统计
+        返回: dict, 包含 short_profit_120 和 short_loss 的数量
+        """
+        try:
+            conn = sqlite3.connect('/home/user/webapp/trading.db')
+            cursor = conn.cursor()
+            
+            # 查询最新的盈利统计数据
+            # 假设数据存储在 anchor_profit_history 表中
+            cursor.execute('''
+                SELECT 
+                    datetime,
+                    stats
+                FROM anchor_profit_history
+                WHERE trade_mode = 'real'
+                ORDER BY timestamp DESC
+                LIMIT 1
+            ''')
+            
+            result = cursor.fetchone()
+            conn.close()
+            
+            if result:
+                import json
+                datetime_str = result[0]
+                stats_json = result[1]
+                
+                try:
+                    stats = json.loads(stats_json) if isinstance(stats_json, str) else stats_json
+                    short_profit_120 = stats.get('short', {}).get('gte_120', 0)
+                    short_loss = stats.get('short', {}).get('loss', 0)
+                    
+                    logger.info(f"锚定系统盈利统计 - 空单盈利≥120%: {short_profit_120}, 空单亏损: {short_loss}")
+                    return {
+                        'datetime': datetime_str,
+                        'short_profit_120': short_profit_120,
+                        'short_loss': short_loss,
+                        'stats': stats
+                    }
+                except:
+                    logger.error("解析盈利统计数据失败")
+                    return None
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"获取锚定系统盈利统计失败: {e}")
+            return None
+    
+    def check_event_5_profit_trend_reversal(self):
+        """
+        事件五：多空盈利趋势反转
+        - 空单亏损 >= 3 标记为绿色
+        - 空单盈利≥120%数量 >= 3 标记为红色
+        - 如果最近一次标记是红色，检测上一个是绿色，触发多空转换
+        - 如果最近一次标记是绿色，检测上一个是红色，触发多空转换
+        - 操作提示：多空转换
+        """
+        profit_stats = self.get_anchor_profit_stats()
+        
+        if not profit_stats:
+            return None
+        
+        short_profit_120 = profit_stats['short_profit_120']
+        short_loss = profit_stats['short_loss']
+        datetime_str = profit_stats['datetime']
+        
+        # 确定当前标记类型
+        current_mark = None
+        if short_loss >= 3:
+            current_mark = 'green'  # 绿色：空单亏损
+            logger.info(f"🟢 空单亏损≥3: {short_loss}个")
+        elif short_profit_120 >= 3:
+            current_mark = 'red'    # 红色：空单盈利
+            logger.info(f"🔴 空单盈利≥120%: {short_profit_120}个")
+        
+        # 如果有标记，添加到历史记录
+        if current_mark:
+            history = self.event_states['profit_marks_history']
+            
+            # 检查是否是新的标记（不同的时间点）
+            if not history or history[-1]['datetime'] != datetime_str:
+                mark_data = {
+                    'datetime': datetime_str,
+                    'mark': current_mark,
+                    'short_profit_120': short_profit_120,
+                    'short_loss': short_loss,
+                    'time': datetime.now()
+                }
+                history.append(mark_data)
+                
+                # 只保留最近10个标记
+                if len(history) > 10:
+                    history.pop(0)
+                
+                logger.info(f"📍 添加新标记: {current_mark} at {datetime_str}")
+                
+                # 检查是否触发趋势反转
+                if len(history) >= 2:
+                    last_mark = history[-1]['mark']
+                    previous_mark = history[-2]['mark']
+                    
+                    # 检查趋势反转
+                    if last_mark != previous_mark:
+                        # 从红转绿：多头转空头
+                        if last_mark == 'green' and previous_mark == 'red':
+                            event = {
+                                'event_type': 'profit_trend_reversal',
+                                'event_id': 5,
+                                'event_name': '多空盈利趋势反转',
+                                'reversal_type': 'red_to_green',
+                                'previous_mark': {
+                                    'color': 'red',
+                                    'datetime': history[-2]['datetime'],
+                                    'short_profit_120': history[-2]['short_profit_120']
+                                },
+                                'current_mark': {
+                                    'color': 'green',
+                                    'datetime': history[-1]['datetime'],
+                                    'short_loss': history[-1]['short_loss']
+                                },
+                                'action': '多空转换 (空头趋势)',
+                                'confidence': 'medium',
+                                'description': f'多空转换：红色({history[-2]["short_profit_120"]}个盈利) → 绿色({history[-1]["short_loss"]}个亏损)，市场从强势转弱势'
+                            }
+                            
+                            logger.warning(f"🚨 事件五触发：多空趋势反转 (红→绿) - 空头趋势！")
+                            self.save_event(event)
+                            return event
+                        
+                        # 从绿转红：空头转多头
+                        elif last_mark == 'red' and previous_mark == 'green':
+                            event = {
+                                'event_type': 'profit_trend_reversal',
+                                'event_id': 5,
+                                'event_name': '多空盈利趋势反转',
+                                'reversal_type': 'green_to_red',
+                                'previous_mark': {
+                                    'color': 'green',
+                                    'datetime': history[-2]['datetime'],
+                                    'short_loss': history[-2]['short_loss']
+                                },
+                                'current_mark': {
+                                    'color': 'red',
+                                    'datetime': history[-1]['datetime'],
+                                    'short_profit_120': history[-1]['short_profit_120']
+                                },
+                                'action': '多空转换 (多头趋势)',
+                                'confidence': 'medium',
+                                'description': f'多空转换：绿色({history[-2]["short_loss"]}个亏损) → 红色({history[-1]["short_profit_120"]}个盈利)，市场从弱势转强势'
+                            }
+                            
+                            logger.warning(f"🚨 事件五触发：多空趋势反转 (绿→红) - 多头趋势！")
+                            self.save_event(event)
+                            return event
+        
+        return None
+    
     def save_event(self, event):
         """保存事件到JSONL文件"""
         event['timestamp'] = datetime.now().isoformat()
@@ -398,9 +559,10 @@ class MajorEventsMonitor:
             event2 = self.check_event_2_normal_intensity_top()
             event3 = self.check_event_3_strong_short_liquidation()
             event4 = self.check_event_4_weak_short_liquidation()
+            event5 = self.check_event_5_profit_trend_reversal()
             
             # 收集触发的事件
-            triggered_events = [e for e in [event1, event2, event3, event4] if e]
+            triggered_events = [e for e in [event1, event2, event3, event4, event5] if e]
             
             if triggered_events:
                 logger.warning(f"本周期触发 {len(triggered_events)} 个事件")
