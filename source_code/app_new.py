@@ -15014,6 +15014,60 @@ def api_extreme_tracking_stats():
         })
 
 
+# ==================== 实盘交易系统路由 ====================
+
+@app.route('/live-trading')
+def live_trading():
+    """实盘交易系统主页"""
+    try:
+        with open('/home/user/webapp/live-trading-system/public/live-trading-v2.html', 'r', encoding='utf-8') as f:
+            return f.read()
+    except FileNotFoundError:
+        return "实盘交易系统文件未找到", 404
+    except Exception as e:
+        return f"加载实盘交易系统失败: {str(e)}", 500
+
+@app.route('/live-trading/<path:filename>')
+def live_trading_static(filename):
+    """实盘交易系统静态文件服务"""
+    try:
+        # 尝试从public目录加载
+        file_path = f'/home/user/webapp/live-trading-system/public/{filename}'
+        if os.path.exists(file_path):
+            return send_file(file_path)
+        
+        # 尝试从根目录加载
+        file_path = f'/home/user/webapp/live-trading-system/{filename}'
+        if os.path.exists(file_path):
+            return send_file(file_path)
+        
+        return f"文件未找到: {filename}", 404
+    except Exception as e:
+        return f"加载文件失败: {str(e)}", 500
+
+# 实盘交易API端点
+@app.route('/api/live-trading/<path:endpoint>', methods=['GET', 'POST', 'PUT', 'DELETE'])
+def live_trading_api(endpoint):
+    """实盘交易API代理"""
+    try:
+        import json
+        
+        # 这里应该调用实际的交易API
+        # 暂时返回模拟数据
+        return jsonify({
+            'success': True,
+            'message': f'API endpoint: {endpoint}',
+            'method': request.method,
+            'data': request.get_json() if request.is_json else None
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
 # ==================== Flask App 启动入口 ====================
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)

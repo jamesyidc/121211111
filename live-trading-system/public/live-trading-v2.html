@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>OKX实盘交易系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+        }
+        .okx-header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .account-selector {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .account-selector:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        .symbol-list {
+            max-height: calc(100vh - 200px);
+            overflow-y: auto;
+        }
+        .symbol-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+            transition: all 0.2s;
+        }
+        .symbol-item:hover {
+            background: #f3f4f6;
+            border-left-color: #3b82f6;
+        }
+        .symbol-item.active {
+            background: #eff6ff;
+            border-left-color: #3b82f6;
+            font-weight: 600;
+        }
+        .trade-panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+        .side-buy {
+            background: #10b981;
+        }
+        .side-buy:hover {
+            background: #059669;
+        }
+        .side-sell {
+            background: #ef4444;
+        }
+        .side-sell:hover {
+            background: #dc2626;
+        }
+        .leverage-btn {
+            padding: 8px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .leverage-btn:hover {
+            border-color: #3b82f6;
+        }
+        .leverage-btn.active {
+            background: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+        .account-card {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border: 2px solid #e5e7eb;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .account-card:hover {
+            border-color: #3b82f6;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+        }
+        .account-card.active {
+            border-color: #10b981;
+            background: #f0fdf4;
+        }
+        .account-status-online {
+            width: 8px;
+            height: 8px;
+            background: #10b981;
+            border-radius: 50%;
+            display: inline-block;
+            animation: pulse 2s infinite;
+        }
+        .account-status-offline {
+            width: 8px;
+            height: 8px;
+            background: #ef4444;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .toast {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            min-width: 300px;
+            padding: 16px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 2000;
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部导航 -->
+    <div class="okx-header text-white py-4 px-6">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-4">
+                <h1 class="text-2xl font-bold">
+                    <i class="fas fa-chart-line"></i> OKX实盘交易系统
+                </h1>
+                <div class="text-sm opacity-90">
+                    <i class="fas fa-shield-alt"></i> 多账户管理 | 专业交易
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <!-- 账户选择器 -->
+                <div class="account-selector flex items-center gap-2" onclick="openAccountManager()" id="accountSelector">
+                    <div>
+                        <div class="text-xs text-gray-600">当前账户</div>
+                        <div class="font-semibold flex items-center gap-2">
+                            <span class="account-status-offline" id="accountStatus"></span>
+                            <span id="currentAccountName">未配置</span>
+                        </div>
+                    </div>
+                    <i class="fas fa-chevron-down text-gray-400"></i>
+                </div>
+                <!-- 快捷添加按钮 -->
+                <button 
+                    id="quickAddAccountBtn"
+                    onclick="openAddAccountForm()"
+                    class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all"
+                    style="display: none;"
+                >
+                    <i class="fas fa-plus"></i> 添加账户
+                </button>
+                <a 
+                    href="/multi-account-trading.html" 
+                    class="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-all"
+                    title="多账户批量操作"
+                >
+                    <i class="fas fa-layer-group"></i> 多账户模式
+                </a>
+                <a 
+                    href="/live-trading-debug.html" 
+                    class="px-4 py-2 bg-yellow-500 text-black rounded-lg hover:bg-yellow-600 transition-all font-bold"
+                    title="调试测试页面"
+                >
+                    <i class="fas fa-bug"></i> 调试模式
+                </a>
+                <a href="/" class="text-white hover:text-blue-200">
+                    <i class="fas fa-home"></i> 返回首页
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 未配置账户提示 -->
+    <div id="noAccountBanner" class="bg-yellow-50 border-l-4 border-yellow-400 p-6 mx-6 mt-6 rounded-lg" style="display: none;">
+        <div class="flex items-start">
+            <div class="flex-shrink-0">
+                <i class="fas fa-exclamation-triangle text-yellow-400 text-2xl"></i>
+            </div>
+            <div class="ml-4 flex-1">
+                <h3 class="text-lg font-bold text-yellow-800 mb-2">
+                    👋 欢迎使用OKX实盘交易系统！
+                </h3>
+                <p class="text-yellow-700 mb-4">
+                    您还没有添加任何API账户。请先添加OKX API账户才能开始交易。
+                </p>
+                <button 
+                    onclick="openAddAccountForm()"
+                    class="px-6 py-3 bg-yellow-500 text-white font-semibold rounded-lg hover:bg-yellow-600 transition-all"
+                >
+                    <i class="fas fa-plus-circle"></i> 立即添加API账户
+                </button>
+                <button 
+                    onclick="document.getElementById('noAccountBanner').style.display='none'"
+                    class="ml-3 px-4 py-3 text-yellow-700 hover:text-yellow-900"
+                >
+                    暂不添加
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="max-w-7xl mx-auto p-6">
+        <div class="grid grid-cols-12 gap-6">
+            <!-- 左侧：交易对列表 -->
+            <div class="col-span-3">
+                <div class="trade-panel p-4">
+                    <div class="mb-4">
+                        <h3 class="font-bold text-lg mb-2">
+                            <i class="fas fa-list"></i> 交易对 (27)
+                        </h3>
+                        <input 
+                            type="text" 
+                            id="symbolSearch" 
+                            placeholder="搜索交易对..."
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                    </div>
+                    <div class="symbol-list" id="symbolList">
+                        <!-- 动态生成 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 中间：交易面板 -->
+            <div class="col-span-6">
+                <div class="trade-panel p-6">
+                    <!-- 交易对信息 -->
+                    <div class="mb-6 pb-6 border-b border-gray-200">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h2 class="text-3xl font-bold" id="currentSymbol">BTC-USDT</h2>
+                                <div class="text-sm text-gray-500">永续合约</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-3xl font-bold text-green-600" id="currentPrice">--</div>
+                                <div class="text-sm" id="priceChange">--</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 交易类型切换 -->
+                    <div class="flex gap-2 mb-6">
+                        <button 
+                            class="flex-1 py-3 rounded-lg font-semibold transition-all"
+                            :class="orderType === 'limit' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600'"
+                            onclick="setOrderType('limit')"
+                            id="limitBtn"
+                        >
+                            <i class="fas fa-chart-bar"></i> 限价委托
+                        </button>
+                        <button 
+                            class="flex-1 py-3 rounded-lg font-semibold transition-all"
+                            :class="orderType === 'market' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600'"
+                            onclick="setOrderType('market')"
+                            id="marketBtn"
+                        >
+                            <i class="fas fa-bolt"></i> 市价委托
+                        </button>
+                    </div>
+
+                    <!-- 限价委托面板 -->
+                    <div id="limitOrderPanel">
+                        <!-- 方向选择 -->
+                        <div class="grid grid-cols-2 gap-4 mb-6">
+                            <button 
+                                class="py-3 rounded-lg font-semibold text-white side-buy"
+                                onclick="setSide('buy')"
+                                id="buyBtn"
+                            >
+                                <i class="fas fa-arrow-up"></i> 做多
+                            </button>
+                            <button 
+                                class="py-3 rounded-lg font-semibold text-white side-sell"
+                                onclick="setSide('sell')"
+                                id="sellBtn"
+                            >
+                                <i class="fas fa-arrow-down"></i> 做空
+                            </button>
+                        </div>
+
+                        <!-- 价格类型 -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium mb-2">价格类型</label>
+                            <select id="priceType" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" onchange="handlePriceTypeChange()">
+                                <option value="opponent1">对手价1档</option>
+                                <option value="opponent5">对手价5档</option>
+                                <option value="optimal1">同向价1档</option>
+                                <option value="optimal5">同向价5档</option>
+                                <option value="custom">指定价格</option>
+                            </select>
+                            <div class="text-xs text-gray-500 mt-1">
+                                对手价=立即成交价，同向价=挂单价
+                            </div>
+                        </div>
+
+                        <!-- 自定义价格输入（初始隐藏） -->
+                        <div id="customPriceInput" class="mb-6" style="display: none;">
+                            <label class="block text-sm font-medium mb-2">开仓价格</label>
+                            <input 
+                                type="number" 
+                                id="customPrice" 
+                                placeholder="输入开仓价格"
+                                step="0.0001"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                            <div class="text-xs text-gray-500 mt-1">
+                                当前市价: <span id="referencePrice">--</span>
+                            </div>
+                        </div>
+
+                        <!-- 杠杆倍数 -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium mb-2">杠杆倍数</label>
+                            <div class="grid grid-cols-4 gap-3 mb-3">
+                                <button class="leverage-btn" onclick="setLeverage(3)" id="lev3">3x</button>
+                                <button class="leverage-btn" onclick="setLeverage(5)" id="lev5">5x</button>
+                                <button class="leverage-btn active" onclick="setLeverage(10)" id="lev10">10x</button>
+                                <button class="leverage-btn" onclick="setLeverage(20)" id="lev20">20x</button>
+                            </div>
+                            <div class="grid grid-cols-3 gap-3">
+                                <button class="leverage-btn" onclick="setLeverage(30)" id="lev30">30x</button>
+                                <button class="leverage-btn" onclick="setLeverage(40)" id="lev40">40x</button>
+                                <button class="leverage-btn" onclick="setLeverage(50)" id="lev50">50x</button>
+                            </div>
+                        </div>
+
+                        <!-- 数量输入 -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium mb-2">数量 (USDT)</label>
+                            <input 
+                                type="number" 
+                                id="amount" 
+                                placeholder="输入USDT数量"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                            <div class="grid grid-cols-6 gap-2 mt-3">
+                                <button class="py-2 text-sm border border-gray-300 rounded hover:bg-gray-50" onclick="setAmountPercent(10)">10%</button>
+                                <button class="py-2 text-sm border border-gray-300 rounded hover:bg-gray-50" onclick="setAmountPercent(20)">20%</button>
+                                <button class="py-2 text-sm border border-gray-300 rounded hover:bg-gray-50" onclick="setAmountPercent(25)">25%</button>
+                                <button class="py-2 text-sm border border-gray-300 rounded hover:bg-gray-50" onclick="setAmountPercent(33)">33%</button>
+                                <button class="py-2 text-sm border border-gray-300 rounded hover:bg-gray-50" onclick="setAmountPercent(50)">50%</button>
+                                <button class="py-2 text-sm border border-gray-300 rounded hover:bg-gray-50" onclick="setAmountPercent(100)">100%</button>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-2">
+                                可用余额: <span id="availableBalance">--</span> USDT
+                            </div>
+                        </div>
+
+                        <!-- 🆕 止盈止损设置 -->
+                        <div class="mb-6 p-4 bg-gray-50 rounded-lg">
+                            <h4 class="text-sm font-bold mb-3 text-gray-700">
+                                <i class="fas fa-shield-alt"></i> 风险控制（可选）
+                            </h4>
+                            
+                            <!-- 止盈设置 -->
+                            <div class="mb-3">
+                                <label class="block text-xs font-medium text-gray-600 mb-1">
+                                    止盈收益率 (%)
+                                </label>
+                                <input 
+                                    type="number" 
+                                    id="limitTakeProfitRate"
+                                    step="0.1"
+                                    placeholder="例如: 10 (表示盈利10%时自动平仓)"
+                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                                >
+                            </div>
+                            
+                            <!-- 止损设置 -->
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">
+                                    止损亏损率 (%)
+                                </label>
+                                <input 
+                                    type="number" 
+                                    id="limitStopLossRate"
+                                    step="0.1"
+                                    placeholder="例如: 5 (表示亏损5%时自动平仓)"
+                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                                >
+                            </div>
+                            
+                            <div class="text-xs text-gray-500 mt-2">
+                                <i class="fas fa-info-circle"></i> 
+                                留空表示不设置止盈止损，订单成功后会自动在OKX设置
+                            </div>
+                        </div>
+
+                        <!-- 提交按钮 -->
+                        <button 
+                            class="w-full py-4 bg-blue-500 text-white font-bold rounded-lg hover:bg-blue-600 transition-all"
+                            onclick="submitOrder()"
+                        >
+                            <i class="fas fa-paper-plane"></i> 提交订单
+                        </button>
+                    </div>
+
+                    <!-- 市价委托面板 -->
+                    <div id="marketOrderPanel" style="display: none;">
+                        <!-- 方向选择 -->
+                        <div class="grid grid-cols-2 gap-4 mb-6">
+                            <button 
+                                class="py-3 rounded-lg font-semibold text-white side-buy"
+                                onclick="setSide('buy')"
+                            >
+                                <i class="fas fa-arrow-up"></i> 做多
+                            </button>
+                            <button 
+                                class="py-3 rounded-lg font-semibold text-white side-sell"
+                                onclick="setSide('sell')"
+                            >
+                                <i class="fas fa-arrow-down"></i> 做空
+                            </button>
+                        </div>
+
+                        <!-- 杠杆倍数 -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium mb-2">杠杆倍数</label>
+                            <div class="grid grid-cols-4 gap-3 mb-3">
+                                <button class="leverage-btn" onclick="setLeverage(3)" id="market-lev3">3x</button>
+                                <button class="leverage-btn" onclick="setLeverage(5)" id="market-lev5">5x</button>
+                                <button class="leverage-btn active" onclick="setLeverage(10)" id="market-lev10">10x</button>
+                                <button class="leverage-btn" onclick="setLeverage(20)" id="market-lev20">20x</button>
+                            </div>
+                            <div class="grid grid-cols-3 gap-3">
+                                <button class="leverage-btn" onclick="setLeverage(30)" id="market-lev30">30x</button>
+                                <button class="leverage-btn" onclick="setLeverage(40)" id="market-lev40">40x</button>
+                                <button class="leverage-btn" onclick="setLeverage(50)" id="market-lev50">50x</button>
+                            </div>
+                        </div>
+
+                        <!-- 数量输入 -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium mb-2">数量 (USDT)</label>
+                            <input 
+                                type="number" 
+                                id="marketAmount" 
+                                placeholder="输入USDT数量"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                            <div class="grid grid-cols-6 gap-2 mt-3">
+                                <button class="py-2 text-sm border border-gray-300 rounded hover:bg-gray-50" onclick="setAmountPercent(10)">10%</button>
+                                <button class="py-2 text-sm border border-gray-300 rounded hover:bg-gray-50" onclick="setAmountPercent(20)">20%</button>
+                                <button class="py-2 text-sm border border-gray-300 rounded hover:bg-gray-50" onclick="setAmountPercent(25)">25%</button>
+                                <button class="py-2 text-sm border border-gray-300 rounded hover:bg-gray-50" onclick="setAmountPercent(33)">33%</button>
+                                <button class="py-2 text-sm border border-gray-300 rounded hover:bg-gray-50" onclick="setAmountPercent(50)">50%</button>
+                                <button class="py-2 text-sm border border-gray-300 rounded hover:bg-gray-50" onclick="setAmountPercent(100)">100%</button>
+                            </div>
+                        </div>
+
+                        <!-- 🆕 止盈止损设置 -->
+                        <div class="mb-6 p-4 bg-gray-50 rounded-lg">
+                            <h4 class="text-sm font-bold mb-3 text-gray-700">
+                                <i class="fas fa-shield-alt"></i> 风险控制（可选）
+                            </h4>
+                            
+                            <!-- 止盈设置 -->
+                            <div class="mb-3">
+                                <label class="block text-xs font-medium text-gray-600 mb-1">
+                                    止盈收益率 (%)
+                                </label>
+                                <input 
+                                    type="number" 
+                                    id="marketTakeProfitRate"
+                                    step="0.1"
+                                    placeholder="例如: 10 (表示盈利10%时自动平仓)"
+                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                                >
+                            </div>
+                            
+                            <!-- 止损设置 -->
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">
+                                    止损亏损率 (%)
+                                </label>
+                                <input 
+                                    type="number" 
+                                    id="marketStopLossRate"
+                                    step="0.1"
+                                    placeholder="例如: 5 (表示亏损5%时自动平仓)"
+                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                                >
+                            </div>
+                            
+                            <div class="text-xs text-gray-500 mt-2">
+                                <i class="fas fa-info-circle"></i> 
+                                留空表示不设置止盈止损，订单成功后会自动在OKX设置
+                            </div>
+                        </div>
+
+                        <!-- 提交按钮 -->
+                        <button 
+                            class="w-full py-4 bg-blue-500 text-white font-bold rounded-lg hover:bg-blue-600 transition-all"
+                            onclick="submitOrder()"
+                        >
+                            <i class="fas fa-bolt"></i> 市价成交
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧：账户信息和持仓 -->
+            <div class="col-span-3">
+                <!-- 账户信息 -->
+                <div class="trade-panel p-4 mb-6">
+                    <h3 class="font-bold mb-4">
+                        <i class="fas fa-wallet"></i> 账户信息
+                    </h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">初始金额</span>
+                            <span class="font-bold text-gray-700" id="initialBalance">--</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">总权益</span>
+                            <span class="font-bold" id="totalEquity">--</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">可用余额</span>
+                            <span class="font-bold text-green-600" id="available">--</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">持仓保证金</span>
+                            <span class="font-bold text-blue-600" id="positionMargin">--</span>
+                        </div>
+                        <div class="flex justify-between border-t pt-2">
+                            <span class="text-gray-600">未实现盈亏</span>
+                            <span class="font-bold" id="unrealizedPnl">--</span>
+                        </div>
+                        <div class="flex justify-between border-t pt-2">
+                            <span class="text-gray-600">当日盈亏</span>
+                            <span class="font-bold" id="dailyPnl">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 持仓列表 -->
+                <div class="trade-panel p-4">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold">
+                            <i class="fas fa-briefcase"></i> 持仓
+                        </h3>
+                        <div class="flex gap-2">
+                            <button class="text-sm text-orange-500 hover:text-orange-600 font-semibold" onclick="cancelAllPendingOrders()" title="取消所有未成交的委托单">
+                                <i class="fas fa-ban"></i> 取消未成交委托
+                            </button>
+                            <button class="text-sm text-red-500 hover:text-red-600 font-semibold" onclick="clearAllDefenseOrders()" title="一键清除所有防守单">
+                                <i class="fas fa-trash-alt"></i> 清除所有防守单
+                            </button>
+                            <button class="text-sm text-purple-500 hover:text-purple-600" onclick="openTradeHistory()" title="查看历史订单">
+                                <i class="fas fa-history"></i> 历史订单
+                            </button>
+                            <button class="text-sm text-blue-500 hover:text-blue-600" onclick="loadPositions()">
+                                <i class="fas fa-sync-alt"></i> 刷新
+                            </button>
+                        </div>
+                    </div>
+                    <div id="positionsList" class="space-y-2">
+                        <div class="text-center text-gray-500 py-8">
+                            <i class="fas fa-inbox text-3xl mb-2"></i>
+                            <div class="text-sm">暂无持仓</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 账户管理模态框 -->
+    <div id="accountModal" class="modal">
+        <div class="modal-content p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold">
+                    <i class="fas fa-users-cog"></i> 账户管理
+                </h2>
+                <button class="text-gray-500 hover:text-gray-700" onclick="closeAccountManager()">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+            </div>
+
+            <div id="accountsList" class="mb-6">
+                <!-- 动态生成账户列表 -->
+            </div>
+
+            <button 
+                class="w-full py-3 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600"
+                onclick="openAddAccountForm()"
+            >
+                <i class="fas fa-plus"></i> 添加新账户
+            </button>
+        </div>
+    </div>
+
+    <!-- 添加账户表单模态框 -->
+    <div id="addAccountModal" class="modal">
+        <div class="modal-content p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold">
+                    <i class="fas fa-user-plus"></i> 添加API账户
+                </h2>
+                <button class="text-gray-500 hover:text-gray-700" onclick="closeAddAccountForm()">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+            </div>
+
+            <form id="accountForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">账户名称</label>
+                    <input 
+                        type="text" 
+                        id="accountName"
+                        placeholder="例如: 主账户、测试账户"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                    >
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-2">API Key</label>
+                    <input 
+                        type="text" 
+                        id="apiKey"
+                        placeholder="输入OKX API Key"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                    >
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-2">API Secret</label>
+                    <input 
+                        type="password" 
+                        id="apiSecret"
+                        placeholder="输入OKX API Secret"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                    >
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-2">Passphrase</label>
+                    <input 
+                        type="password" 
+                        id="passphrase"
+                        placeholder="输入OKX Passphrase"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                    >
+                </div>
+
+                <div class="flex items-center">
+                    <input type="checkbox" id="isTestnet" class="w-4 h-4 text-blue-500 rounded">
+                    <label for="isTestnet" class="ml-2 text-sm">使用测试网</label>
+                </div>
+
+                <div class="flex gap-3">
+                    <button 
+                        type="button"
+                        class="flex-1 py-3 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300"
+                        onclick="testAPIConnection()"
+                    >
+                        <i class="fas fa-plug"></i> 测试连接
+                    </button>
+                    <button 
+                        type="submit"
+                        class="flex-1 py-3 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600"
+                    >
+                        <i class="fas fa-save"></i> 保存账户
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 止盈止损设置模态框 -->
+    <div id="tpslModal" class="modal">
+        <div class="modal-content p-6" style="max-width: 500px;">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold">
+                    <i class="fas fa-chart-line"></i> 止盈止损设置
+                </h2>
+                <button class="text-gray-500 hover:text-gray-700" onclick="closeTPSLModal()">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+            </div>
+
+            <form id="tpslForm" onsubmit="submitTPSL(event)">
+                <input type="hidden" id="tpslPositionId">
+                <input type="hidden" id="tpslSymbol">
+                <input type="hidden" id="tpslSide">
+
+                <!-- 止盈设置 -->
+                <div class="mb-6">
+                    <div class="flex items-center mb-3">
+                        <input type="checkbox" id="enableTP" class="w-4 h-4 text-green-500 rounded">
+                        <label for="enableTP" class="ml-2 font-medium text-green-600">启用止盈</label>
+                    </div>
+                    <div id="tpSettings" class="space-y-3 ml-6" style="display: none;">
+                        <div>
+                            <label class="block text-sm mb-1">止盈价格</label>
+                            <input 
+                                type="number" 
+                                id="takeProfitPrice"
+                                step="0.01"
+                                placeholder="例如: 2.80"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                            >
+                        </div>
+                        <div class="text-xs text-gray-500">
+                            或按收益率设置（触发价将自动计算）
+                        </div>
+                        <div>
+                            <label class="block text-sm mb-1">止盈收益率 (%)</label>
+                            <input 
+                                type="number" 
+                                id="takeProfitRate"
+                                step="0.1"
+                                placeholder="例如: 10 (表示10%)"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                            >
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 止损设置 -->
+                <div class="mb-6">
+                    <div class="flex items-center mb-3">
+                        <input type="checkbox" id="enableSL" class="w-4 h-4 text-red-500 rounded">
+                        <label for="enableSL" class="ml-2 font-medium text-red-600">启用止损</label>
+                    </div>
+                    <div id="slSettings" class="space-y-3 ml-6" style="display: none;">
+                        <div>
+                            <label class="block text-sm mb-1">止损价格</label>
+                            <input 
+                                type="number" 
+                                id="stopLossPrice"
+                                step="0.01"
+                                placeholder="例如: 2.40"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                            >
+                        </div>
+                        <div class="text-xs text-gray-500">
+                            或按亏损率设置（触发价将自动计算）
+                        </div>
+                        <div>
+                            <label class="block text-sm mb-1">止损亏损率 (%)</label>
+                            <input 
+                                type="number" 
+                                id="stopLossRate"
+                                step="0.1"
+                                placeholder="例如: 5 (表示亏损5%)"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                            >
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 最大持有周期 -->
+                <div class="mb-6">
+                    <div class="flex items-center mb-3">
+                        <input type="checkbox" id="enableMaxHold" class="w-4 h-4 text-blue-500 rounded">
+                        <label for="enableMaxHold" class="ml-2 font-medium text-blue-600">设置最大持有周期</label>
+                    </div>
+                    <div id="maxHoldSettings" class="space-y-3 ml-6" style="display: none;">
+                        <div>
+                            <label class="block text-sm mb-1">K线周期</label>
+                            <select 
+                                id="maxHoldTimeframe"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value="5m" selected>5分钟</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm mb-1">最大K线数量</label>
+                            <input 
+                                type="number" 
+                                id="maxHoldBars"
+                                min="1"
+                                placeholder="例如: 20"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                            <div class="text-xs text-gray-500 mt-1">
+                                超过设定K线数量后，系统将自动平仓
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex gap-3">
+                    <button 
+                        type="button"
+                        onclick="closeTPSLModal()"
+                        class="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                    >
+                        取消
+                    </button>
+                    <button 
+                        type="submit"
+                        class="flex-1 px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                    >
+                        <i class="fas fa-check"></i> 确认设置
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 防守加仓模态框 -->
+    <div id="defenseAddModal" class="modal">
+        <div class="modal-content p-6" style="max-width: 500px;">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold">
+                    <i class="fas fa-shield-alt"></i> 防守加仓设置
+                </h2>
+                <button class="text-gray-500 hover:text-gray-700" onclick="closeDefenseAddModal()">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+            </div>
+
+            <form id="defenseAddForm" onsubmit="submitDefenseAdd(event)">
+                <input type="hidden" id="defensePositionId">
+                <input type="hidden" id="defenseSymbol">
+                <input type="hidden" id="defenseSide">
+                <input type="hidden" id="defenseAnchorPrice">
+                <input type="hidden" id="defenseLeverage">
+
+                <!-- 说明 -->
+                <div class="bg-blue-50 border-l-4 border-blue-400 p-3 mb-4">
+                    <div class="text-sm text-blue-800">
+                        <i class="fas fa-info-circle"></i> 
+                        <strong>防守加仓</strong>：以开仓价为锚点，当价格达到设定条件时自动加仓
+                    </div>
+                </div>
+
+                <!-- 锚定价格显示 -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-2">锚定价格（开仓价）</label>
+                    <div class="px-4 py-3 bg-gray-100 rounded-lg font-semibold text-lg" id="displayAnchorPrice">
+                        --
+                    </div>
+                </div>
+
+                <!-- 触发条件 -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-2">触发条件</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button 
+                            type="button"
+                            class="py-3 border-2 border-red-500 text-red-600 rounded-lg font-semibold hover:bg-red-50"
+                            onclick="setDefenseTriggerType('down')"
+                            id="triggerDown"
+                        >
+                            <i class="fas fa-arrow-down"></i> 下跌加仓
+                        </button>
+                        <button 
+                            type="button"
+                            class="py-3 border-2 border-gray-300 text-gray-600 rounded-lg font-semibold hover:bg-gray-50"
+                            onclick="setDefenseTriggerType('up')"
+                            id="triggerUp"
+                        >
+                            <i class="fas fa-arrow-up"></i> 上涨加仓
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 触发百分比 -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-2">触发百分比 (%)</label>
+                    <input 
+                        type="number" 
+                        id="defenseTriggerPercent"
+                        step="0.1"
+                        min="0.1"
+                        max="50"
+                        placeholder="例如: 5 (表示下跌5%或上涨5%)"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                    >
+                    <div class="text-xs text-gray-500 mt-1">
+                        触发价格 = 开仓价 × (1 ± 百分比)
+                    </div>
+                    <div class="text-sm font-semibold mt-2" id="calculatedTriggerPrice">
+                        触发价格: --
+                    </div>
+                </div>
+
+                <!-- 加仓数量 -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-2">加仓数量 (USDT)</label>
+                    <input 
+                        type="number" 
+                        id="defenseUsdtAmount"
+                        step="1"
+                        min="10"
+                        placeholder="输入加仓USDT数量"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                    >
+                    <div class="text-xs text-gray-500 mt-1">
+                        此订单不会立即占用余额，触发时才执行
+                    </div>
+                </div>
+
+                <!-- 杠杆倍数显示 -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium mb-2">杠杆倍数</label>
+                    <div class="px-4 py-3 bg-gray-100 rounded-lg font-semibold" id="displayLeverage">
+                        --
+                    </div>
+                </div>
+
+                <div class="flex gap-3">
+                    <button 
+                        type="button"
+                        onclick="closeDefenseAddModal()"
+                        class="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                    >
+                        取消
+                    </button>
+                    <button 
+                        type="submit"
+                        class="flex-1 px-4 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600"
+                    >
+                        <i class="fas fa-check"></i> 确认设置
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 历史订单模态框 -->
+    <div id="tradeHistoryModal" class="modal">
+        <div class="modal-content p-6" style="max-width: 1200px; max-height: 90vh; overflow-y: auto;">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold">
+                    <i class="fas fa-history"></i> 历史订单
+                </h2>
+                <div class="flex gap-2">
+                    <button 
+                        class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+                        onclick="exportTradeHistoryCSV()"
+                        title="导出CSV"
+                    >
+                        <i class="fas fa-file-csv"></i> 导出CSV
+                    </button>
+                    <button class="text-gray-500 hover:text-gray-700" onclick="closeTradeHistory()">
+                        <i class="fas fa-times text-2xl"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 筛选器 -->
+            <div class="flex gap-3 mb-4 flex-wrap">
+                <select id="historySymbolFilter" class="px-3 py-2 border rounded-lg" onchange="loadTradeHistory()">
+                    <option value="">所有币种</option>
+                </select>
+                <select id="historyTypeFilter" class="px-3 py-2 border rounded-lg" onchange="loadTradeHistory()">
+                    <option value="">所有类型</option>
+                    <option value="open_long">开多</option>
+                    <option value="open_short">开空</option>
+                    <option value="close_long">平多</option>
+                    <option value="close_short">平空</option>
+                </select>
+                <select id="historyDaysFilter" class="px-3 py-2 border rounded-lg" onchange="loadTradeHistory()">
+                    <option value="7">最近7天</option>
+                    <option value="30">最近30天</option>
+                    <option value="90">最近90天</option>
+                    <option value="365">最近一年</option>
+                </select>
+            </div>
+
+            <!-- 历史记录列表 -->
+            <div id="tradeHistoryList">
+                <div class="text-center text-gray-500 py-8">
+                    <i class="fas fa-spinner fa-spin text-3xl mb-2"></i>
+                    <div class="text-sm">加载中...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/live-trading-v2.js?v=20251123000200"></script>
+</body>
+</html>
