@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>重大事件监控系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .event-card {
+            transition: all 0.3s ease;
+        }
+        .event-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .event-high {
+            border-left: 4px solid #ef4444;
+        }
+        .event-medium {
+            border-left: 4px solid #f59e0b;
+        }
+        .event-low {
+            border-left: 4px solid #10b981;
+        }
+        .action-short {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: #991b1b;
+        }
+        .action-long {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            color: #065f46;
+        }
+        .pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <!-- 导航栏 -->
+    <nav class="bg-gradient-to-r from-blue-600 to-blue-800 text-white shadow-lg">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <h1 class="text-2xl font-bold">
+                    <i class="fas fa-bolt mr-2"></i>
+                    重大事件监控系统
+                </h1>
+                <div class="flex items-center space-x-4">
+                    <button onclick="refreshData()" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition">
+                        <i class="fas fa-sync-alt mr-2"></i>刷新
+                    </button>
+                    <a href="/" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition">
+                        <i class="fas fa-home mr-2"></i>返回首页
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-4 py-8">
+        <!-- 实时数据面板 -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-xl font-bold mb-4 flex items-center">
+                <i class="fas fa-chart-line mr-2 text-blue-600"></i>
+                实时监控数据
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- 2h见顶信号 -->
+                <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-6">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-gray-600 font-medium">2h见顶信号</span>
+                        <i class="fas fa-arrow-down text-purple-600 text-xl"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-purple-600" id="topSignalCount">--</div>
+                    <div class="text-sm text-gray-500 mt-2">
+                        <span id="topSignalStatus">等待数据...</span>
+                    </div>
+                </div>
+
+                <!-- 27币涨跌幅和 -->
+                <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-gray-600 font-medium">27币涨跌幅和</span>
+                        <i class="fas fa-percentage text-blue-600 text-xl"></i>
+                    </div>
+                    <div class="text-3xl font-bold" id="coinsChangeSum">--</div>
+                    <div class="text-sm text-gray-500 mt-2">
+                        实时涨跌幅总和
+                    </div>
+                </div>
+
+                <!-- 1h爆仓金额 -->
+                <div class="bg-gradient-to-br from-red-50 to-red-100 rounded-lg p-6">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-gray-600 font-medium">1h爆仓金额</span>
+                        <i class="fas fa-fire text-red-600 text-xl"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-red-600" id="liquidationAmount">--</div>
+                    <div class="text-sm text-gray-500 mt-2">
+                        <span id="liquidationStatus">万美元</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 事件规则说明 -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-xl font-bold mb-4 flex items-center">
+                <i class="fas fa-info-circle mr-2 text-blue-600"></i>
+                事件触发规则
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- 事件一 -->
+                <div class="border border-red-200 rounded-lg p-4 event-high">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-lg">事件一：高强度见顶诱多</h3>
+                        <span class="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-bold">开空</span>
+                    </div>
+                    <ul class="text-sm text-gray-600 space-y-2">
+                        <li><i class="fas fa-check text-red-500 mr-2"></i>2h见顶信号达到 <strong>120</strong></li>
+                        <li><i class="fas fa-check text-red-500 mr-2"></i>10小时内第二次信号 <strong>10-119</strong></li>
+                        <li><i class="fas fa-check text-red-500 mr-2"></i>27币涨跌幅和 <strong>为正</strong></li>
+                    </ul>
+                </div>
+
+                <!-- 事件二 -->
+                <div class="border border-orange-200 rounded-lg p-4 event-medium">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-lg">事件二：一般强度见顶诱多</h3>
+                        <span class="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-bold">开空</span>
+                    </div>
+                    <ul class="text-sm text-gray-600 space-y-2">
+                        <li><i class="fas fa-check text-orange-500 mr-2"></i>2h见顶信号 <strong>20-119</strong></li>
+                        <li><i class="fas fa-check text-orange-500 mr-2"></i>10小时内第二次信号 <strong>小于第一次</strong></li>
+                    </ul>
+                </div>
+
+                <!-- 事件三 -->
+                <div class="border border-red-200 rounded-lg p-4 event-high">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-lg">事件三：强空头爆仓</h3>
+                        <span class="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-bold">开空</span>
+                    </div>
+                    <ul class="text-sm text-gray-600 space-y-2">
+                        <li><i class="fas fa-check text-red-500 mr-2"></i>1h爆仓金额 <strong>≥ 3000万</strong></li>
+                        <li><i class="fas fa-check text-red-500 mr-2"></i>持续10分钟 <strong>创新高</strong></li>
+                    </ul>
+                </div>
+
+                <!-- 事件四 -->
+                <div class="border border-green-200 rounded-lg p-4 event-low">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-lg">事件四：弱空头爆仓</h3>
+                        <span class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-bold">开多</span>
+                    </div>
+                    <ul class="text-sm text-gray-600 space-y-2">
+                        <li><i class="fas fa-check text-green-500 mr-2"></i>1h爆仓金额 <strong>≥ 3000万</strong></li>
+                        <li><i class="fas fa-check text-green-500 mr-2"></i>持续10分钟 <strong>未创新高</strong></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 最近触发的事件 -->
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-bold flex items-center">
+                    <i class="fas fa-history mr-2 text-blue-600"></i>
+                    最近触发的事件
+                </h2>
+                <select id="timeRange" onchange="changeTimeRange()" class="border border-gray-300 rounded-lg px-4 py-2">
+                    <option value="24">最近24小时</option>
+                    <option value="12">最近12小时</option>
+                    <option value="6">最近6小时</option>
+                    <option value="1">最近1小时</option>
+                </select>
+            </div>
+            
+            <div id="eventsContainer">
+                <div class="text-center py-8 text-gray-500">
+                    <i class="fas fa-spinner fa-spin text-3xl mb-4"></i>
+                    <p>加载中...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 自动刷新间隔（秒）
+        const REFRESH_INTERVAL = 30;
+        let refreshTimer = null;
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshData();
+            startAutoRefresh();
+        });
+
+        // 开始自动刷新
+        function startAutoRefresh() {
+            if (refreshTimer) clearInterval(refreshTimer);
+            refreshTimer = setInterval(refreshData, REFRESH_INTERVAL * 1000);
+        }
+
+        // 刷新数据
+        async function refreshData() {
+            try {
+                await Promise.all([
+                    loadCurrentStatus(),
+                    loadRecentEvents()
+                ]);
+            } catch (error) {
+                console.error('刷新数据失败:', error);
+            }
+        }
+
+        // 加载当前状态
+        async function loadCurrentStatus() {
+            try {
+                const response = await fetch('/api/major-events/current-status');
+                const data = await response.json();
+
+                if (data.success) {
+                    const current = data.current_data;
+
+                    // 更新2h见顶信号
+                    document.getElementById('topSignalCount').textContent = current.top_signal_2h;
+                    updateTopSignalStatus(current.top_signal_2h);
+
+                    // 更新27币涨跌幅和
+                    const changeSum = current.coins_change_sum;
+                    const changeSumEl = document.getElementById('coinsChangeSum');
+                    changeSumEl.textContent = changeSum.toFixed(2) + '%';
+                    changeSumEl.className = 'text-3xl font-bold ' + (changeSum >= 0 ? 'text-green-600' : 'text-red-600');
+
+                    // 更新爆仓金额
+                    document.getElementById('liquidationAmount').textContent = current.liquidation_1h.toFixed(0);
+                    updateLiquidationStatus(current.liquidation_1h);
+                }
+            } catch (error) {
+                console.error('加载当前状态失败:', error);
+            }
+        }
+
+        // 更新见顶信号状态
+        function updateTopSignalStatus(count) {
+            const statusEl = document.getElementById('topSignalStatus');
+            if (count >= 120) {
+                statusEl.innerHTML = '<span class="text-red-600 font-bold pulse"><i class="fas fa-exclamation-triangle mr-1"></i>高强度信号</span>';
+            } else if (count >= 20) {
+                statusEl.innerHTML = '<span class="text-orange-600 font-bold"><i class="fas fa-exclamation-circle mr-1"></i>一般强度信号</span>';
+            } else if (count >= 10) {
+                statusEl.innerHTML = '<span class="text-yellow-600"><i class="fas fa-info-circle mr-1"></i>弱信号</span>';
+            } else {
+                statusEl.innerHTML = '<span class="text-gray-500">暂无信号</span>';
+            }
+        }
+
+        // 更新爆仓金额状态
+        function updateLiquidationStatus(amount) {
+            const statusEl = document.getElementById('liquidationStatus');
+            if (amount >= 3000) {
+                statusEl.innerHTML = '<span class="text-red-600 font-bold pulse"><i class="fas fa-fire mr-1"></i>万美元 - 达到阈值！</span>';
+            } else {
+                statusEl.innerHTML = '<span class="text-gray-500">万美元</span>';
+            }
+        }
+
+        // 加载最近事件
+        async function loadRecentEvents() {
+            try {
+                const hours = document.getElementById('timeRange').value;
+                const response = await fetch(`/api/major-events/recent?hours=${hours}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    displayEvents(data.events);
+                }
+            } catch (error) {
+                console.error('加载最近事件失败:', error);
+            }
+        }
+
+        // 显示事件列表
+        function displayEvents(events) {
+            const container = document.getElementById('eventsContainer');
+
+            if (events.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        <i class="fas fa-inbox text-3xl mb-4"></i>
+                        <p>暂无事件触发</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // 过滤出已确认的事件
+            const confirmedEvents = events.filter(e => e.event_type.includes('confirmed'));
+
+            const html = confirmedEvents.map(event => {
+                const actionClass = event.action === '开空' ? 'action-short' : 'action-long';
+                const iconClass = event.action === '开空' ? 'fa-arrow-down' : 'fa-arrow-up';
+                const confidenceColor = {
+                    'high': 'red',
+                    'medium': 'orange',
+                    'low': 'green'
+                }[event.confidence] || 'gray';
+
+                return `
+                    <div class="event-card border border-gray-200 rounded-lg p-6 mb-4 event-${confidenceColor}">
+                        <div class="flex items-start justify-between mb-3">
+                            <div>
+                                <h3 class="font-bold text-lg mb-1">${event.event_name}</h3>
+                                <p class="text-sm text-gray-500">${new Date(event.timestamp).toLocaleString('zh-CN')}</p>
+                            </div>
+                            <div class="${actionClass} px-4 py-2 rounded-lg font-bold flex items-center">
+                                <i class="fas ${iconClass} mr-2"></i>
+                                ${event.action}
+                            </div>
+                        </div>
+                        <p class="text-gray-700 mb-3">${event.description}</p>
+                        <div class="flex items-center space-x-4 text-sm">
+                            <span class="px-3 py-1 bg-gray-100 rounded-full">
+                                <i class="fas fa-tag mr-1"></i>
+                                事件${event.event_id}
+                            </span>
+                            <span class="px-3 py-1 bg-${confidenceColor}-100 text-${confidenceColor}-800 rounded-full">
+                                <i class="fas fa-signal mr-1"></i>
+                                ${event.confidence === 'high' ? '高' : event.confidence === 'medium' ? '中' : '低'}置信度
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = html || `
+                <div class="text-center py-8 text-gray-500">
+                    <i class="fas fa-inbox text-3xl mb-4"></i>
+                    <p>暂无确认事件</p>
+                </div>
+            `;
+        }
+
+        // 切换时间范围
+        function changeTimeRange() {
+            loadRecentEvents();
+        }
+
+        // 手动触发检查
+        async function triggerCheck() {
+            try {
+                const response = await fetch('/api/major-events/trigger-check', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    alert(`检查完成！触发了 ${data.count} 个事件`);
+                    refreshData();
+                }
+            } catch (error) {
+                console.error('触发检查失败:', error);
+                alert('检查失败：' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

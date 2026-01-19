@@ -15084,6 +15084,126 @@ def live_trading_api(endpoint):
             'traceback': traceback.format_exc()
         })
 
+# ==================== 重大事件系统 API ====================
+@app.route('/major-events')
+def major_events_page():
+    """重大事件系统主页"""
+    try:
+        html_file = '/home/user/webapp/major-events-system/major_events.html'
+        with open(html_file, 'r', encoding='utf-8') as f:
+            return f.read()
+    except FileNotFoundError:
+        return "重大事件系统页面未找到", 404
+    except Exception as e:
+        return f"加载重大事件系统失败: {str(e)}", 500
+
+@app.route('/major-events/<path:filename>')
+def major_events_static(filename):
+    """重大事件系统静态文件"""
+    try:
+        file_path = f'/home/user/webapp/major-events-system/{filename}'
+        if os.path.exists(file_path):
+            if filename.endswith('.js'):
+                return send_file(file_path, mimetype='application/javascript')
+            elif filename.endswith('.css'):
+                return send_file(file_path, mimetype='text/css')
+            else:
+                return send_file(file_path)
+        return f"文件未找到: {filename}", 404
+    except Exception as e:
+        return f"加载文件失败: {str(e)}", 500
+
+@app.route('/api/major-events/current-status', methods=['GET'])
+def get_major_events_status():
+    """获取当前事件监控状态"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp/major-events-system')
+        from major_events_monitor import MajorEventsMonitor
+        
+        monitor = MajorEventsMonitor()
+        
+        # 获取当前数据
+        top_signal_count = monitor.get_2h_top_signal_count()
+        coins_change_sum = monitor.get_27_coins_change_sum()
+        liquidation_amount = monitor.get_1h_liquidation_amount()
+        
+        # 获取最近24小时的事件
+        recent_events = monitor.get_recent_events(hours=24)
+        
+        return jsonify({
+            'success': True,
+            'timestamp': datetime.now().isoformat(),
+            'current_data': {
+                'top_signal_2h': top_signal_count,
+                'coins_change_sum': coins_change_sum,
+                'liquidation_1h': liquidation_amount
+            },
+            'event_states': monitor.event_states,
+            'recent_events': recent_events[-10:],  # 最近10个事件
+            'total_events_24h': len(recent_events)
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/major-events/recent', methods=['GET'])
+def get_recent_major_events():
+    """获取最近的重大事件"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp/major-events-system')
+        from major_events_monitor import MajorEventsMonitor
+        
+        monitor = MajorEventsMonitor()
+        
+        # 获取时间参数
+        hours = int(request.args.get('hours', 24))
+        
+        events = monitor.get_recent_events(hours=hours)
+        
+        return jsonify({
+            'success': True,
+            'hours': hours,
+            'events': events,
+            'total': len(events)
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/major-events/trigger-check', methods=['POST'])
+def trigger_event_check():
+    """手动触发事件检查"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp/major-events-system')
+        from major_events_monitor import MajorEventsMonitor
+        
+        monitor = MajorEventsMonitor()
+        triggered_events = monitor.monitor_cycle()
+        
+        return jsonify({
+            'success': True,
+            'triggered_events': triggered_events,
+            'count': len(triggered_events)
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
 # ==================== Flask App 启动入口 ====================
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
