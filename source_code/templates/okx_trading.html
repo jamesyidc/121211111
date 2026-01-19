@@ -865,6 +865,76 @@
             font-size: 14px;
         }
 
+        /* 持仓项目 */
+        .position-item {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+
+        .position-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .position-symbol {
+            font-weight: 600;
+            font-size: 14px;
+            color: #2d3748;
+        }
+
+        .position-side {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .position-side.long {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .position-side.short {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .position-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            font-size: 12px;
+        }
+
+        .position-detail-item {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .position-detail-label {
+            color: #718096;
+        }
+
+        .position-detail-value {
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .position-pnl {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
         /* 滚动条样式 */
         ::-webkit-scrollbar {
             width: 8px;
@@ -1018,37 +1088,33 @@
             <div class="account-panel">
                 <!-- 账户总览 -->
                 <div class="info-card">
-                    <h3>💰 账户信息</h3>
-                    <div class="info-row">
-                        <span class="info-label">初始资金</span>
-                        <span class="info-value">0.00 USDT</span>
-                    </div>
+                    <h3>💰 账户信息 <button onclick="refreshAccountData()" style="background: #3b82f6; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 10px;">🔄</button></h3>
                     <div class="info-row">
                         <span class="info-label">总权益</span>
-                        <span class="info-value" style="color: #10b981;">224.15 USDT</span>
+                        <span class="info-value" style="color: #10b981;" id="totalEquity">-- USDT</span>
                     </div>
                     <div class="info-row">
                         <span class="info-label">可用余额</span>
-                        <span class="info-value">224.15 USDT</span>
+                        <span class="info-value" id="availableBalance">-- USDT</span>
                     </div>
                     <div class="info-row">
                         <span class="info-label">持仓保证金</span>
-                        <span class="info-value">0.00 USDT</span>
+                        <span class="info-value" id="usedMargin">-- USDT</span>
                     </div>
                     <div class="info-row">
                         <span class="info-label">未实现盈亏</span>
-                        <span class="info-value" style="color: #10b981;">+0.00 USDT</span>
+                        <span class="info-value" id="unrealizedPnl">-- USDT</span>
                     </div>
                     <div class="info-row">
-                        <span class="info-label">当日盈亏</span>
-                        <span class="info-value" style="color: #10b981;">+0.00 USDT</span>
+                        <span class="info-label">冻结余额</span>
+                        <span class="info-value" id="frozenBalance">-- USDT</span>
                     </div>
                 </div>
 
-                <!-- 暂无持仓 -->
+                <!-- 持仓列表 -->
                 <div class="info-card">
-                    <h3>📊 持仓</h3>
-                    <div class="no-positions">
+                    <h3>📊 持仓 <span id="positionsCount" style="color: #888; font-size: 14px; font-weight: normal;">(0)</span></h3>
+                    <div id="positionsList" class="no-positions">
                         暂无持仓
                     </div>
                 </div>
@@ -1106,11 +1172,155 @@
             { symbol: 'AVAX-USDT-SWAP', name: 'AVAX', price: 32.45, change: 1.87 }
         ];
 
+        // 加载账户信息
+        async function loadAccountInfo() {
+            const account = accounts.find(acc => acc.id === currentAccount);
+            if (!account || !account.apiKey || !account.apiSecret || !account.passphrase) {
+                // 没有API凭证，显示默认值
+                document.getElementById('totalEquity').textContent = '-- USDT';
+                document.getElementById('availableBalance').textContent = '-- USDT';
+                document.getElementById('usedMargin').textContent = '-- USDT';
+                document.getElementById('unrealizedPnl').textContent = '-- USDT';
+                document.getElementById('frozenBalance').textContent = '-- USDT';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/okx-trading/account-info', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        apiKey: account.apiKey,
+                        apiSecret: account.apiSecret,
+                        passphrase: account.passphrase
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success && result.data) {
+                    const data = result.data;
+                    document.getElementById('totalEquity').textContent = data.totalEquity.toFixed(2) + ' USDT';
+                    document.getElementById('availableBalance').textContent = data.availableBalance.toFixed(2) + ' USDT';
+                    document.getElementById('usedMargin').textContent = data.usedMargin.toFixed(2) + ' USDT';
+                    
+                    // 未实现盈亏带颜色
+                    const uplElement = document.getElementById('unrealizedPnl');
+                    const upl = data.unrealizedPnl;
+                    uplElement.textContent = (upl >= 0 ? '+' : '') + upl.toFixed(2) + ' USDT';
+                    uplElement.style.color = upl >= 0 ? '#10b981' : '#ef4444';
+                    
+                    document.getElementById('frozenBalance').textContent = data.frozenBalance.toFixed(2) + ' USDT';
+                } else {
+                    console.error('获取账户信息失败:', result.error);
+                }
+            } catch (error) {
+                console.error('加载账户信息异常:', error);
+            }
+        }
+
+        // 加载持仓列表
+        async function loadPositions() {
+            const account = accounts.find(acc => acc.id === currentAccount);
+            if (!account || !account.apiKey || !account.apiSecret || !account.passphrase) {
+                document.getElementById('positionsList').innerHTML = '<div class="no-positions">暂无持仓</div>';
+                document.getElementById('positionsCount').textContent = '(0)';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/okx-trading/positions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        apiKey: account.apiKey,
+                        apiSecret: account.apiSecret,
+                        passphrase: account.passphrase
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success && result.data) {
+                    const positions = result.data;
+                    const positionsCount = positions.length;
+                    
+                    document.getElementById('positionsCount').textContent = `(${positionsCount})`;
+                    
+                    if (positionsCount === 0) {
+                        document.getElementById('positionsList').innerHTML = '<div class="no-positions">暂无持仓</div>';
+                    } else {
+                        // 更新已用保证金
+                        if (result.summary) {
+                            document.getElementById('usedMargin').textContent = result.summary.totalMargin.toFixed(2) + ' USDT';
+                        }
+                        
+                        // 渲染持仓列表
+                        const html = positions.map(pos => {
+                            const pnlColor = pos.unrealizedPnl >= 0 ? '#10b981' : '#ef4444';
+                            const pnlSign = pos.unrealizedPnl >= 0 ? '+' : '';
+                            const sideClass = pos.posSide === 'long' ? 'long' : 'short';
+                            const sideName = pos.posSide === 'long' ? '做多' : '做空';
+                            
+                            return `
+                                <div class="position-item">
+                                    <div class="position-header">
+                                        <span class="position-symbol">${pos.instId}</span>
+                                        <span class="position-side ${sideClass}">${sideName}</span>
+                                    </div>
+                                    <div class="position-details">
+                                        <div class="position-detail-item">
+                                            <span class="position-detail-label">持仓量:</span>
+                                            <span class="position-detail-value">${pos.posSize}</span>
+                                        </div>
+                                        <div class="position-detail-item">
+                                            <span class="position-detail-label">杠杆:</span>
+                                            <span class="position-detail-value">${pos.leverage}x</span>
+                                        </div>
+                                        <div class="position-detail-item">
+                                            <span class="position-detail-label">开仓价:</span>
+                                            <span class="position-detail-value">$${pos.avgPrice.toFixed(2)}</span>
+                                        </div>
+                                        <div class="position-detail-item">
+                                            <span class="position-detail-label">标记价:</span>
+                                            <span class="position-detail-value">$${pos.markPrice.toFixed(2)}</span>
+                                        </div>
+                                    </div>
+                                    <div class="position-pnl">
+                                        <span>未实现盈亏:</span>
+                                        <span style="color: ${pnlColor};">
+                                            ${pnlSign}${pos.unrealizedPnl.toFixed(2)} USDT 
+                                            (${pnlSign}${pos.unrealizedPnlRatio.toFixed(2)}%)
+                                        </span>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+                        
+                        document.getElementById('positionsList').innerHTML = html;
+                    }
+                } else {
+                    console.error('获取持仓失败:', result.error);
+                }
+            } catch (error) {
+                console.error('加载持仓异常:', error);
+            }
+        }
+
+        // 刷新账户数据（账户信息+持仓）
+        async function refreshAccountData() {
+            await Promise.all([
+                loadAccountInfo(),
+                loadPositions()
+            ]);
+        }
+
         // 初始化页面
         function init() {
             renderAccountTabs();
             renderSymbolsList();
             loadAccountData();
+            refreshAccountData();  // 加载账户信息和持仓
         }
 
         // 渲染账户标签
@@ -1131,6 +1341,7 @@
             currentAccount = accountId;
             renderAccountTabs();
             loadAccountData();
+            refreshAccountData();  // 刷新账户信息和持仓
             console.log(`切换到账户: ${accountId}`);
         }
 
@@ -1608,6 +1819,14 @@
                 closeAccountModal();
             }
         });
+
+        // 页面加载完成后初始化
+        init();
+
+        // 定时刷新账户数据（每30秒）
+        setInterval(() => {
+            refreshAccountData();
+        }, 30000);
     </script>
 </body>
 </html>
