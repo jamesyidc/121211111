@@ -360,50 +360,45 @@ class MajorEventsMonitor:
     
     def get_anchor_profit_stats(self):
         """
-        获取锚定系统多空盈利统计
+        获取锚定系统多空盈利统计（从JSONL文件读取）
         返回: dict, 包含 short_profit_120 和 short_loss 的数量
         """
         try:
-            conn = sqlite3.connect('/home/user/webapp/trading.db')
-            cursor = conn.cursor()
+            profit_stats_file = self.data_dir / 'anchor_profit_stats.jsonl'
             
-            # 查询最新的盈利统计数据
-            # 假设数据存储在 anchor_profit_history 表中
-            cursor.execute('''
-                SELECT 
-                    datetime,
-                    stats
-                FROM anchor_profit_history
-                WHERE trade_mode = 'real'
-                ORDER BY timestamp DESC
-                LIMIT 1
-            ''')
+            if not profit_stats_file.exists():
+                logger.warning("锚定系统盈利统计文件不存在，请先启动数据收集器")
+                return None
             
-            result = cursor.fetchone()
-            conn.close()
+            # 读取最后一行（最新数据）
+            with open(profit_stats_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
             
-            if result:
-                import json
-                datetime_str = result[0]
-                stats_json = result[1]
-                
-                try:
-                    stats = json.loads(stats_json) if isinstance(stats_json, str) else stats_json
-                    short_profit_120 = stats.get('short', {}).get('gte_120', 0)
-                    short_loss = stats.get('short', {}).get('loss', 0)
-                    
-                    logger.info(f"锚定系统盈利统计 - 空单盈利≥120%: {short_profit_120}, 空单亏损: {short_loss}")
-                    return {
-                        'datetime': datetime_str,
-                        'short_profit_120': short_profit_120,
-                        'short_loss': short_loss,
-                        'stats': stats
-                    }
-                except:
-                    logger.error("解析盈利统计数据失败")
-                    return None
+            if not lines:
+                logger.warning("锚定系统盈利统计文件为空")
+                return None
             
-            return None
+            # 解析最新记录
+            last_line = lines[-1].strip()
+            record = json.loads(last_line)
+            
+            stats = record.get('stats', {})
+            short_stats = stats.get('short', {})
+            
+            short_profit_120 = short_stats.get('gte_120', 0)
+            short_loss = short_stats.get('loss', 0)
+            datetime_str = record.get('datetime', '')
+            
+            logger.info(f"锚定系统盈利统计 - 时间: {datetime_str}, " +
+                       f"空单盈利≥120%: {short_profit_120}, 空单亏损: {short_loss}")
+            
+            return {
+                'datetime': datetime_str,
+                'short_profit_120': short_profit_120,
+                'short_loss': short_loss,
+                'stats': stats,
+                'timestamp': record.get('timestamp', 0)
+            }
             
         except Exception as e:
             logger.error(f"获取锚定系统盈利统计失败: {e}")
