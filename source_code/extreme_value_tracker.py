@@ -548,35 +548,54 @@ class ExtremeValueTracker:
             updated = False
             for snapshot in snapshots:
                 if snapshot['snapshot_id'] == snapshot_id:
-                    # 计算价格变化
+                    # 创建追踪数据，包含完整的27币快照
                     tracking_data = {
                         'timestamp': int(time.time()),
                         'datetime': datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S'),
                         'period': period,
                         'total_change': self.calculate_total_change(coins_data),
-                        'coins': []
+                        'coins_snapshot': []  # 保存27币的完整快照
                     }
                     
-                    # 计算每个币的价格变化
+                    # 保存当前时刻27币的完整数据（价格+涨跌幅）
                     original_coins = {c['symbol']: c for c in snapshot['coins_snapshot']['coins']}
                     
-                    if 'coin_changes' in coins_data:
-                        for coin in coins_data['coin_changes']:
-                            symbol = coin.get('symbol', '')
-                            if symbol in original_coins:
-                                original_price = original_coins[symbol]['price']
-                                current_price = coin.get('price', 0)
-                                price_change = ((current_price - original_price) / original_price * 100) if original_price > 0 else 0
-                                
-                                tracking_data['coins'].append({
-                                    'symbol': symbol,
-                                    'name': coin.get('name', ''),
-                                    'original_price': original_price,
-                                    'current_price': current_price,
-                                    'price_change_percent': round(price_change, 2),
-                                    'original_day_change': original_coins[symbol]['day_change_percent'],
-                                    'current_day_change': coin.get('day_change_percent', 0)
-                                })
+                    if 'day_changes' in coins_data:
+                        for symbol, coin_info in coins_data['day_changes'].items():
+                            # 获取原始快照数据
+                            original_coin = original_coins.get(symbol, {})
+                            original_price = original_coin.get('current_price', 0)
+                            original_base_price = original_coin.get('base_price', 0)
+                            original_day_change = original_coin.get('day_change_percent', 0)
+                            
+                            # 当前数据
+                            if isinstance(coin_info, dict):
+                                current_price = coin_info.get('current_price', 0)
+                                base_price = coin_info.get('base_price', 0)
+                                current_day_change = coin_info.get('change_pct', 0)
+                            else:
+                                current_price = 0
+                                base_price = 0
+                                current_day_change = coin_info
+                            
+                            # 计算从触发时刻到现在的价格变化
+                            price_change_from_trigger = 0
+                            if original_price > 0 and current_price > 0:
+                                price_change_from_trigger = ((current_price - original_price) / original_price * 100)
+                            
+                            tracking_data['coins_snapshot'].append({
+                                'symbol': symbol,
+                                # 触发时刻的数据
+                                'trigger_price': original_price,
+                                'trigger_base_price': original_base_price,
+                                'trigger_day_change': original_day_change,
+                                # 当前时刻的数据
+                                'current_price': current_price,
+                                'current_base_price': base_price,
+                                'current_day_change': current_day_change,
+                                # 变化幅度（从触发时刻到现在）
+                                'price_change_from_trigger': round(price_change_from_trigger, 2)
+                            })
                     
                     # 更新追踪数据
                     snapshot['tracking'][period] = tracking_data
