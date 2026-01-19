@@ -13149,21 +13149,37 @@ def get_anchor_profit_records():
             # 查询所有记录
             all_records = manager.get_all_records()
             
-            # 按 inst_id, pos_side, record_type 排序
-            all_records.sort(key=lambda x: (
+            # 只保留每个(inst_id, pos_side, record_type)组合的最新记录
+            latest_records = {}
+            for r in all_records:
+                key = (r.get('inst_id'), r.get('pos_side'), r.get('record_type'))
+                # 比较updated_at或created_at，保留最新的
+                existing = latest_records.get(key)
+                if existing is None:
+                    latest_records[key] = r
+                else:
+                    # 比较时间戳，保留更新的
+                    existing_time = existing.get('updated_at') or existing.get('created_at') or ''
+                    new_time = r.get('updated_at') or r.get('created_at') or ''
+                    if new_time > existing_time:
+                        latest_records[key] = r
+            
+            # 转换为列表并排序
+            unique_records = list(latest_records.values())
+            unique_records.sort(key=lambda x: (
                 x.get('inst_id', ''),
                 x.get('pos_side', ''),
                 x.get('record_type', '')
             ))
             
             records = []
-            for r in all_records:
+            for r in unique_records:
                 records.append({
                     'inst_id': r.get('inst_id'),
                     'pos_side': r.get('pos_side'),
                     'record_type': r.get('record_type'),
                     'profit_rate': r.get('profit_rate'),
-                    'timestamp': r.get('timestamp'),
+                    'timestamp': r.get('updated_at') or r.get('created_at'),
                     'pos_size': r.get('pos_size'),
                     'avg_price': r.get('avg_price'),
                     'mark_price': r.get('mark_price')

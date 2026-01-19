@@ -212,6 +212,40 @@ class ExtremeJSONLManager:
             print(f"删除记录失败: {e}")
             return 0
     
+    def get_deduplicated_records(self) -> List[Dict]:
+        """
+        获取去重后的极值记录（每个币种+方向+类型只保留最新的一条）
+        
+        Returns:
+            去重后的记录列表
+        """
+        all_records = self.get_all_records()
+        
+        # 使用字典按 (inst_id, pos_side, record_type) 去重，保留最新记录
+        latest_records = {}
+        
+        for record in all_records:
+            inst_id = record.get('inst_id', '')
+            pos_side = record.get('pos_side', '')
+            record_type = record.get('record_type', '')
+            
+            key = (inst_id, pos_side, record_type)
+            
+            # 比较时间，保留最新的
+            current_time = record.get('updated_at', record.get('created_at', ''))
+            
+            if key not in latest_records:
+                latest_records[key] = record
+            else:
+                existing_time = latest_records[key].get('updated_at', latest_records[key].get('created_at', ''))
+                
+                # 字符串时间比较（格式：'2026-01-19 12:37:23'）
+                if current_time > existing_time:
+                    latest_records[key] = record
+        
+        # 返回列表
+        return list(latest_records.values())
+    
     def get_statistics(self) -> Dict:
         """
         获取统计信息
