@@ -12989,6 +12989,98 @@ def update_sub_account_config():
             'error': str(e)
         })
 
+@app.route('/api/okx-trading/account-balance', methods=['POST'])
+def get_okx_account_balance():
+    """获取OKX账户余额"""
+    try:
+        import hmac
+        import base64
+        from datetime import datetime, timezone
+        import requests
+        
+        data = request.get_json()
+        api_key = data.get('apiKey', '')
+        secret_key = data.get('apiSecret', '')
+        passphrase = data.get('passphrase', '')
+        
+        if not api_key or not secret_key or not passphrase:
+            return jsonify({
+                'success': False,
+                'error': 'API凭证不完整'
+            })
+        
+        # OKX API配置
+        base_url = 'https://www.okx.com'
+        request_path = '/api/v5/account/balance'
+        method = 'GET'
+        
+        # 生成签名
+        timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        message = timestamp + method + request_path
+        mac = hmac.new(
+            bytes(secret_key, encoding='utf8'),
+            bytes(message, encoding='utf-8'),
+            digestmod='sha256'
+        )
+        signature = base64.b64encode(mac.digest()).decode()
+        
+        # 请求头
+        headers = {
+            'OK-ACCESS-KEY': api_key,
+            'OK-ACCESS-SIGN': signature,
+            'OK-ACCESS-TIMESTAMP': timestamp,
+            'OK-ACCESS-PASSPHRASE': passphrase,
+            'Content-Type': 'application/json'
+        }
+        
+        # 发送请求
+        response = requests.get(base_url + request_path, headers=headers, timeout=10)
+        result = response.json()
+        
+        if result.get('code') == '0' and result.get('data'):
+            # 获取USDT余额
+            balances = result['data']
+            usdt_balance = 0.0
+            
+            for account in balances:
+                details = account.get('details', [])
+                for detail in details:
+                    if detail.get('ccy') == 'USDT':
+                        # 可用余额 + 冻结余额
+                        available = float(detail.get('availBal', 0))
+                        frozen = float(detail.get('frozenBal', 0))
+                        usdt_balance += (available + frozen)
+            
+            return jsonify({
+                'success': True,
+                'balance': round(usdt_balance, 2),
+                'currency': 'USDT',
+                'raw_data': result['data']
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('msg', '获取余额失败'),
+                'code': result.get('code', 'unknown')
+            })
+            
+    except requests.exceptions.Timeout:
+        return jsonify({
+            'success': False,
+            'error': 'API请求超时'
+        })
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            'success': False,
+            'error': f'网络请求失败: {str(e)}'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
 @app.route('/api/anchor-system/auto-maintenance-config')
 def get_auto_maintenance_config():
     """获取自动维护配置"""
