@@ -177,7 +177,9 @@ def save_to_jsonl(timestamp, stats, long_positions, short_positions, escape_sign
         'stats': stats,
         'escape_signal_2h': escape_signal_2h,
         'long_positions': long_positions,
-        'short_positions': short_positions
+        'short_positions': short_positions,
+        'long_count': len(long_positions),
+        'short_count': len(short_positions)
     }
     
     with open(JSONL_FILE, 'a', encoding='utf-8') as f:
