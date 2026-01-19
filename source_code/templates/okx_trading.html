@@ -1247,14 +1247,35 @@
 
         // 加载持仓列表
         async function loadPositions() {
+            console.log('[loadPositions] 开始加载持仓...');
+            console.log('[loadPositions] currentAccount:', currentAccount);
+            console.log('[loadPositions] accounts:', accounts);
+            
             const account = accounts.find(acc => acc.id === currentAccount);
-            if (!account || !account.apiKey || !account.apiSecret || !account.passphrase) {
+            console.log('[loadPositions] 找到的账户:', account);
+            
+            if (!account) {
+                console.error('[loadPositions] 账户不存在');
+                document.getElementById('positionsList').innerHTML = '<div class="no-positions">账户不存在</div>';
+                document.getElementById('positionsCount').textContent = '(0)';
+                return;
+            }
+            
+            console.log('[loadPositions] API凭证检查:', {
+                hasApiKey: !!account.apiKey,
+                hasApiSecret: !!account.apiSecret,
+                hasPassphrase: !!account.passphrase
+            });
+            
+            if (!account.apiKey || !account.apiSecret || !account.passphrase) {
+                console.log('[loadPositions] 未配置API凭证');
                 document.getElementById('positionsList').innerHTML = '<div class="no-positions">请先配置账户API凭证</div>';
                 document.getElementById('positionsCount').textContent = '(0)';
                 return;
             }
 
             try {
+                console.log('[loadPositions] 调用API...');
                 const response = await fetch('/api/okx-trading/positions', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1266,10 +1287,14 @@
                 });
 
                 const result = await response.json();
+                console.log('[loadPositions] API响应:', result);
 
                 if (result.success && result.data) {
                     const positions = result.data;
                     const positionsCount = positions.length;
+                    
+                    console.log('[loadPositions] 持仓数量:', positionsCount);
+                    console.log('[loadPositions] 持仓数据:', positions);
                     
                     document.getElementById('positionsCount').textContent = `(${positionsCount})`;
                     
@@ -1326,10 +1351,13 @@
                         document.getElementById('positionsList').innerHTML = html;
                     }
                 } else {
-                    console.error('获取持仓失败:', result.error);
+                    console.error('[loadPositions] 获取持仓失败:', result.error);
+                    console.error('[loadPositions] 完整响应:', result);
+                    document.getElementById('positionsList').innerHTML = '<div class="no-positions">加载失败: ' + (result.error || '未知错误') + '</div>';
                 }
             } catch (error) {
-                console.error('加载持仓异常:', error);
+                console.error('[loadPositions] 加载持仓异常:', error);
+                document.getElementById('positionsList').innerHTML = '<div class="no-positions">加载异常</div>';
             }
         }
 
