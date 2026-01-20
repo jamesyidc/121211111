@@ -649,93 +649,104 @@
             
             console.log(`📍 空单盈利≥120%标记数: ${shortProfitMarks.length}, 空单亏损标记数: ${shortLossMarks.length}`);
             
-            // 计算2h见顶信号的最高点标记和事件触发
-            // 阶段1：找出所有局部峰值（>10）- 检测上升后下降的拐点
-            // 阶段2：合并相近的峰值，只保留最高的
-            // 阶段3：检测事件触发（10小时内第二个峰值<第一个峰值）
+            // 计算2h见顶信号的峰值标记和事件触发
+            // 新算法：基于50%下降识别独立峰值
+            // 规则：
+            // 1. 峰值之间必须有下降超过50%的谷底
+            // 2. 每个峰值区域只保留最高点（相同高度取第一个）
+            // 3. 检测事件触发（10小时内第二个峰值<第一个峰值）
             const escape2hMarks = [];
             const TEN_HOURS_IN_MINUTES = 600; // 10小时 = 600分钟
-            const PEAK_WINDOW = 5; // 峰值检测窗口：5分钟
-            const MERGE_WINDOW = 30; // 峰值合并窗口：30分钟
             
-            // 阶段1：找出所有局部峰值（拐点检测）
-            const rawPeaks = []; // 存储 {index, value, datetime}
+            // 阶段1：基于50%下降识别独立峰值
+            const localMaxPoints = [];
+            let currentPeakStart = -1;  // 当前峰值区域的起始索引
+            let currentPeakMax = 0;      // 当前峰值区域的最高值
+            let currentPeakMaxIndex = -1; // 当前峰值区域最高点的索引
+            let inPeakRegion = false;    // 是否在峰值区域内
             
-            for (let i = PEAK_WINDOW; i < dataList.length - PEAK_WINDOW; i++) {
+            for (let i = 0; i < dataList.length; i++) {
                 const currentValue = escape2hData[i];
                 
                 // 只处理信号值>10的点
-                if (currentValue <= 10) continue;
-                
-                // 检查是否是局部峰值：
-                // 1. 左边的值都小于等于当前值
-                // 2. 右边的值都小于等于当前值
-                let isLocalPeak = true;
-                
-                // 检查左侧窗口
-                for (let j = i - PEAK_WINDOW; j < i; j++) {
-                    if (escape2hData[j] > currentValue) {
-                        isLocalPeak = false;
-                        break;
+                if (currentValue <= 10) {
+                    // 如果在峰值区域内，且当前值<=10，结束峰值区域
+                    if (inPeakRegion && currentPeakMax > 10) {
+                        // 保存当前峰值
+                        localMaxPoints.push({
+                            index: currentPeakMaxIndex,
+                            value: currentPeakMax,
+                            datetime: dataList[currentPeakMaxIndex].datetime
+                        });
+                        console.log(`📍 峰值结束: 值=${currentPeakMax}, 时间=${utcToBeijing(dataList[currentPeakMaxIndex].datetime)}, 原因=信号降到10以下`);
+                        
+                        // 重置状态
+                        inPeakRegion = false;
+                        currentPeakMax = 0;
+                        currentPeakMaxIndex = -1;
+                        currentPeakStart = -1;
                     }
+                    continue;
                 }
                 
-                // 检查右侧窗口
-                if (isLocalPeak) {
-                    for (let j = i + 1; j <= i + PEAK_WINDOW; j++) {
-                        if (escape2hData[j] > currentValue) {
-                            isLocalPeak = false;
-                            break;
+                // 如果不在峰值区域内，开始新的峰值区域
+                if (!inPeakRegion) {
+                    inPeakRegion = true;
+                    currentPeakStart = i;
+                    currentPeakMax = currentValue;
+                    currentPeakMaxIndex = i;
+                    console.log(`🆕 峰值开始: 值=${currentValue}, 时间=${utcToBeijing(dataList[i].datetime)}`);
+                } else {
+                    // 在峰值区域内
+                    
+                    // 检查是否下降超过50%
+                    const dropPercent = (currentPeakMax - currentValue) / currentPeakMax;
+                    
+                    if (dropPercent >= 0.5) {
+                        // 下降超过50%，当前峰值区域结束
+                        localMaxPoints.push({
+                            index: currentPeakMaxIndex,
+                            value: currentPeakMax,
+                            datetime: dataList[currentPeakMaxIndex].datetime
+                        });
+                        console.log(`📍 峰值结束: 值=${currentPeakMax}, 时间=${utcToBeijing(dataList[currentPeakMaxIndex].datetime)}, 原因=下降${(dropPercent*100).toFixed(1)}% (${currentPeakMax} -> ${currentValue})`);
+                        
+                        // 如果当前值>10，开始新的峰值区域
+                        if (currentValue > 10) {
+                            inPeakRegion = true;
+                            currentPeakStart = i;
+                            currentPeakMax = currentValue;
+                            currentPeakMaxIndex = i;
+                            console.log(`🆕 峰值开始: 值=${currentValue}, 时间=${utcToBeijing(dataList[i].datetime)}`);
+                        } else {
+                            inPeakRegion = false;
+                            currentPeakMax = 0;
+                            currentPeakMaxIndex = -1;
+                            currentPeakStart = -1;
                         }
+                    } else {
+                        // 未下降超过50%，更新峰值最大值（如果当前值更高）
+                        if (currentValue > currentPeakMax) {
+                            currentPeakMax = currentValue;
+                            currentPeakMaxIndex = i;
+                            console.log(`⬆️ 峰值更新: ${currentPeakMax}, 时间=${utcToBeijing(dataList[i].datetime)}`);
+                        }
+                        // 如果相等，保持第一个（不更新）
                     }
-                }
-                
-                // 如果是局部峰值，添加到列表
-                if (isLocalPeak) {
-                    rawPeaks.push({
-                        index: i,
-                        value: currentValue,
-                        datetime: dataList[i].datetime
-                    });
                 }
             }
             
-            console.log(`🔍 找到 ${rawPeaks.length} 个原始峰值`);
-            
-            // 阶段2：合并相近的峰值，只保留30分钟内的最高峰值
-            const localMaxPoints = [];
-            
-            for (let i = 0; i < rawPeaks.length; i++) {
-                const currentPeak = rawPeaks[i];
-                let shouldAdd = true;
-                
-                // 检查是否与已有峰值在30分钟内
-                for (let j = localMaxPoints.length - 1; j >= 0; j--) {
-                    const existingPeak = localMaxPoints[j];
-                    const timeDiff = currentPeak.index - existingPeak.index;
-                    
-                    // 如果时间差超过30分钟，不需要再往前检查
-                    if (timeDiff > MERGE_WINDOW) break;
-                    
-                    // 如果在30分钟内
-                    if (timeDiff <= MERGE_WINDOW) {
-                        // 如果当前峰值更高，替换已有峰值
-                        if (currentPeak.value > existingPeak.value) {
-                            localMaxPoints[j] = currentPeak;
-                            console.log(`🔄 合并峰值: ${existingPeak.value} -> ${currentPeak.value} (${utcToBeijing(currentPeak.datetime)})`);
-                        }
-                        shouldAdd = false;
-                        break;
-                    }
-                }
-                
-                // 如果不在30分钟内，添加为新峰值
-                if (shouldAdd) {
-                    localMaxPoints.push(currentPeak);
-                }
+            // 处理最后一个峰值区域（如果还在峰值区域内）
+            if (inPeakRegion && currentPeakMax > 10) {
+                localMaxPoints.push({
+                    index: currentPeakMaxIndex,
+                    value: currentPeakMax,
+                    datetime: dataList[currentPeakMaxIndex].datetime
+                });
+                console.log(`📍 峰值结束: 值=${currentPeakMax}, 时间=${utcToBeijing(dataList[currentPeakMaxIndex].datetime)}, 原因=数据结束`);
             }
             
-            console.log(`✅ 合并后剩余 ${localMaxPoints.length} 个峰值`);
+            console.log(`✅ 找到 ${localMaxPoints.length} 个独立峰值`);
             
             // 阶段2：检测事件触发和标记
             const triggeredEvents = []; // 存储触发的事件
