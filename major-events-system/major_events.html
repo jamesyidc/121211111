@@ -650,43 +650,60 @@
             console.log(`📍 空单盈利≥120%标记数: ${shortProfitMarks.length}, 空单亏损标记数: ${shortLossMarks.length}`);
             
             // 计算2h见顶信号的最高点标记和事件触发
-            // 阶段1：找出所有局部最高点（>10）
+            // 阶段1：找出所有局部峰值（>10）- 检测上升后下降的拐点
             // 阶段2：检测事件触发（10小时内第二个峰值<第一个峰值）
             const escape2hMarks = [];
-            const TWO_HOURS_IN_MINUTES = 120; // 2小时 = 120分钟
+            const TWO_HOURS_IN_MINUTES = 120; // 2小时 = 120分钟（用于事件触发检测）
             const TEN_HOURS_IN_MINUTES = 600; // 10小时 = 600分钟
+            const PEAK_WINDOW = 5; // 峰值检测窗口：5分钟
             
-            // 阶段1：找出所有局部最高点
+            // 阶段1：找出所有局部峰值（拐点检测）
             const localMaxPoints = []; // 存储 {index, value, datetime}
             
-            for (let i = 0; i < dataList.length; i++) {
+            for (let i = PEAK_WINDOW; i < dataList.length - PEAK_WINDOW; i++) {
                 const currentValue = escape2hData[i];
                 
                 // 只处理信号值>10的点
                 if (currentValue <= 10) continue;
                 
-                // 检查2小时范围内（前后各1小时）是否是最高点
-                let isLocalMax = true;
-                const startIndex = Math.max(0, i - TWO_HOURS_IN_MINUTES);
-                const endIndex = Math.min(dataList.length - 1, i + TWO_HOURS_IN_MINUTES);
+                // 检查是否是局部峰值：
+                // 1. 左边的值都小于等于当前值
+                // 2. 右边的值都小于等于当前值
+                let isLocalPeak = true;
                 
-                for (let j = startIndex; j <= endIndex; j++) {
-                    if (j !== i && escape2hData[j] > currentValue) {
-                        isLocalMax = false;
+                // 检查左侧窗口
+                for (let j = i - PEAK_WINDOW; j < i; j++) {
+                    if (escape2hData[j] > currentValue) {
+                        isLocalPeak = false;
                         break;
                     }
                 }
                 
-                if (isLocalMax) {
-                    localMaxPoints.push({
-                        index: i,
-                        value: currentValue,
-                        datetime: dataList[i].datetime
-                    });
+                // 检查右侧窗口
+                if (isLocalPeak) {
+                    for (let j = i + 1; j <= i + PEAK_WINDOW; j++) {
+                        if (escape2hData[j] > currentValue) {
+                            isLocalPeak = false;
+                            break;
+                        }
+                    }
+                }
+                
+                // 如果是局部峰值，添加到列表
+                if (isLocalPeak) {
+                    // 避免重复标记相同值的连续点
+                    const lastPeak = localMaxPoints[localMaxPoints.length - 1];
+                    if (!lastPeak || lastPeak.value !== currentValue || (i - lastPeak.index) > PEAK_WINDOW) {
+                        localMaxPoints.push({
+                            index: i,
+                            value: currentValue,
+                            datetime: dataList[i].datetime
+                        });
+                    }
                 }
             }
             
-            console.log(`🔍 找到 ${localMaxPoints.length} 个局部最高点`);
+            console.log(`🔍 找到 ${localMaxPoints.length} 个局部峰值`);
             
             // 阶段2：检测事件触发和标记
             const triggeredEvents = []; // 存储触发的事件
