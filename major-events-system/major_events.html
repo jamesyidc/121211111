@@ -127,37 +127,133 @@
             </div>
         </div>
 
-        <!-- 多空单盈利统计（来自锚定系统） -->
-        <div class="chart-container">
-            <h2 class="text-xl font-bold mb-4 flex items-center">
-                <i class="fas fa-chart-area mr-2 text-blue-600"></i>
-                多空单盈利统计曲线
+        <!-- 5个重大事件规则 -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-xl font-bold mb-6 flex items-center">
+                <i class="fas fa-exclamation-triangle mr-2 text-orange-600"></i>
+                五大重大事件监控规则
             </h2>
-            <iframe src="/anchor-system-real" 
-                    style="width: 100%; height: 600px; border: none;" 
-                    frameborder="0"></iframe>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- 事件一：高强度见顶诱多 -->
+                <div class="event-card event-high bg-red-50 p-4 rounded-lg">
+                    <div class="flex items-center mb-2">
+                        <div class="w-8 h-8 bg-red-600 text-white rounded-full flex items-center justify-center font-bold mr-3">1</div>
+                        <h3 class="font-bold text-red-900">高强度见顶诱多</h3>
+                    </div>
+                    <p class="text-sm text-gray-700 mb-2">
+                        触发条件：<br/>
+                        1️⃣ 2h见顶信号 ≥ 120<br/>
+                        2️⃣ 10小时内再次出现 20-120 信号<br/>
+                        3️⃣ 27币涨跌幅和 > 0
+                    </p>
+                    <div class="action-short px-3 py-1 rounded text-sm font-bold">
+                        <i class="fas fa-arrow-down mr-1"></i>操作：开空
+                    </div>
+                </div>
+
+                <!-- 事件二：一般强度见顶诱多 -->
+                <div class="event-card event-medium bg-orange-50 p-4 rounded-lg">
+                    <div class="flex items-center mb-2">
+                        <div class="w-8 h-8 bg-orange-600 text-white rounded-full flex items-center justify-center font-bold mr-3">2</div>
+                        <h3 class="font-bold text-orange-900">一般强度见顶诱多</h3>
+                    </div>
+                    <p class="text-sm text-gray-700 mb-2">
+                        触发条件：<br/>
+                        1️⃣ 2h见顶信号 20-120<br/>
+                        2️⃣ 10小时内再次出现信号<br/>
+                        3️⃣ 第二次信号 < 第一次
+                    </p>
+                    <div class="action-short px-3 py-1 rounded text-sm font-bold">
+                        <i class="fas fa-arrow-down mr-1"></i>操作：开空
+                    </div>
+                </div>
+
+                <!-- 事件三：强空头爆仓 -->
+                <div class="event-card event-high bg-red-50 p-4 rounded-lg">
+                    <div class="flex items-center mb-2">
+                        <div class="w-8 h-8 bg-red-700 text-white rounded-full flex items-center justify-center font-bold mr-3">3</div>
+                        <h3 class="font-bold text-red-900">强空头爆仓</h3>
+                    </div>
+                    <p class="text-sm text-gray-700 mb-2">
+                        触发条件：<br/>
+                        1️⃣ 1h爆仓金额 ≥ 3000万美元<br/>
+                        2️⃣ 持续创新高 10分钟以上
+                    </p>
+                    <div class="action-short px-3 py-1 rounded text-sm font-bold">
+                        <i class="fas fa-arrow-down mr-1"></i>操作：开空
+                    </div>
+                </div>
+
+                <!-- 事件四：弱空头爆仓 -->
+                <div class="event-card event-medium bg-yellow-50 p-4 rounded-lg">
+                    <div class="flex items-center mb-2">
+                        <div class="w-8 h-8 bg-yellow-600 text-white rounded-full flex items-center justify-center font-bold mr-3">4</div>
+                        <h3 class="font-bold text-yellow-900">弱空头爆仓</h3>
+                    </div>
+                    <p class="text-sm text-gray-700 mb-2">
+                        触发条件：<br/>
+                        1️⃣ 1h爆仓金额 ≥ 3000万美元<br/>
+                        2️⃣ 10分钟未创新高
+                    </p>
+                    <div class="action-short px-3 py-1 rounded text-sm font-bold">
+                        <i class="fas fa-arrow-down mr-1"></i>操作：开空（谨慎）
+                    </div>
+                </div>
+
+                <!-- 事件五：多空盈利趋势反转 -->
+                <div class="event-card event-low bg-green-50 p-4 rounded-lg">
+                    <div class="flex items-center mb-2">
+                        <div class="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center font-bold mr-3">5</div>
+                        <h3 class="font-bold text-green-900">多空盈利趋势反转</h3>
+                    </div>
+                    <p class="text-sm text-gray-700 mb-2">
+                        触发条件：<br/>
+                        1️⃣ 空单亏损 ≥ 3（绿色标记）<br/>
+                        2️⃣ 转为空单盈利≥120% ≥ 3（红色标记）
+                    </p>
+                    <div class="action-long px-3 py-1 rounded text-sm font-bold">
+                        <i class="fas fa-arrow-up mr-1"></i>操作：反转信号
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- 2h见顶信号曲线（来自极致追踪系统） -->
+        <!-- 多空单盈利统计曲线 -->
         <div class="chart-container">
-            <h2 class="text-xl font-bold mb-4 flex items-center">
-                <i class="fas fa-arrow-trend-down mr-2 text-purple-600"></i>
-                2h见顶信号趋势
-            </h2>
-            <iframe src="/extreme-tracking" 
-                    style="width: 100%; height: 600px; border: none;" 
-                    frameborder="0"></iframe>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold flex items-center">
+                    <i class="fas fa-chart-area mr-2 text-blue-600"></i>
+                    多空单盈利统计曲线
+                </h2>
+                <div class="flex space-x-2">
+                    <button onclick="changePage(-1)" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition">
+                        <i class="fas fa-chevron-left mr-1"></i>前一天
+                    </button>
+                    <button onclick="changePage(1)" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition">
+                        后一天<i class="fas fa-chevron-right ml-1"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="profitStatsChart" style="width: 100%; height: 500px;"></div>
         </div>
 
-        <!-- 1h爆仓金额曲线（来自panic系统） -->
-        <div class="chart-container">
-            <h2 class="text-xl font-bold mb-4 flex items-center">
-                <i class="fas fa-fire mr-2 text-red-600"></i>
-                1h爆仓金额趋势
-            </h2>
-            <iframe src="/panic" 
-                    style="width: 100%; height: 600px; border: none;" 
-                    frameborder="0"></iframe>
+        <!-- 2h见顶信号趋势 & 1h爆仓金额趋势 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div class="chart-container">
+                <h2 class="text-xl font-bold mb-4 flex items-center">
+                    <i class="fas fa-arrow-trend-down mr-2 text-purple-600"></i>
+                    2h见顶信号趋势
+                </h2>
+                <div id="topSignalChart" style="width: 100%; height: 400px;"></div>
+            </div>
+
+            <div class="chart-container">
+                <h2 class="text-xl font-bold mb-4 flex items-center">
+                    <i class="fas fa-fire mr-2 text-red-600"></i>
+                    1h爆仓金额趋势
+                </h2>
+                <div id="liquidationChart" style="width: 100%; height: 400px;"></div>
+            </div>
         </div>
 
         <!-- 重大事件列表 -->
@@ -208,8 +304,11 @@
                     updateEventsList(eventsData.events || []);
                 }
 
-                // 获取锚定系统历史数据并渲染图表
+                // 获取锚定系统历史数据
                 await loadAnchorHistoryData();
+                
+                // 获取其他曲线数据
+                await loadChartData();
 
             } catch (error) {
                 console.error('刷新数据失败:', error);
