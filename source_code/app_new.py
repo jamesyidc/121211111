@@ -15204,6 +15204,56 @@ def trigger_event_check():
             'traceback': traceback.format_exc()
         })
 
+@app.route('/api/anchor-system/profit-history', methods=['GET'])
+def get_anchor_system_profit_history():
+    """获取锚定系统盈利历史数据（从JSONL读取）"""
+    try:
+        import json
+        from pathlib import Path
+        
+        # 获取参数
+        trade_mode = request.args.get('trade_mode', 'real')  # real or paper
+        hours = int(request.args.get('hours', 24))  # 默认24小时
+        
+        # JSONL文件路径
+        jsonl_file = Path('/home/user/webapp/major-events-system/data/anchor_profit_stats.jsonl')
+        
+        if not jsonl_file.exists():
+            return jsonify({
+                'success': False,
+                'error': 'JSONL文件不存在'
+            })
+        
+        # 读取JSONL数据
+        history_data = []
+        cutoff_time = int(time.time()) - (hours * 3600)
+        
+        with open(jsonl_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    data = json.loads(line.strip())
+                    # 过滤时间范围和交易模式
+                    if data.get('timestamp', 0) >= cutoff_time:
+                        if data.get('trade_mode') == trade_mode:
+                            history_data.append(data)
+                except:
+                    continue
+        
+        return jsonify({
+            'success': True,
+            'trade_mode': trade_mode,
+            'hours': hours,
+            'history': history_data,
+            'count': len(history_data)
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
 # ==================== Flask App 启动入口 ====================
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
