@@ -650,125 +650,120 @@
             console.log(`📍 空单盈利≥120%标记数: ${shortProfitMarks.length}, 空单亏损标记数: ${shortLossMarks.length}`);
             
             // 计算2h见顶信号的峰值标记和事件触发
-            // 新算法：基于50%下降识别独立峰值
+            // 新算法：动态峰值检测
             // 规则：
-            // 1. 峰值之间必须有下降超过50%的谷底
-            // 2. 每个峰值区域只保留最高点（相同高度取第一个）
-            // 3. 检测事件触发（10小时内第二个峰值<第一个峰值）
+            // 1. 第一个峰值必须>10
+            // 2. 第二个峰值可以是任意值（包括<10）
+            // 3. 事件完成条件：下降到第二个峰值的50%
             const escape2hMarks = [];
             const TEN_HOURS_IN_MINUTES = 600; // 10小时 = 600分钟
             
-            // 阶段1：基于50%下降识别独立峰值
+            // 阶段1：检测所有局部峰值（前后5分钟内的最大值）
             const localMaxPoints = [];
-            let currentPeakStart = -1;  // 当前峰值区域的起始索引
-            let currentPeakMax = 0;      // 当前峰值区域的最高值
-            let currentPeakMaxIndex = -1; // 当前峰值区域最高点的索引
-            let inPeakRegion = false;    // 是否在峰值区域内
+            const PEAK_WINDOW = 5; // 5分钟窗口检测局部峰值
             
+            // 检测所有局部峰值（前后5分钟内的最大值）
             for (let i = 0; i < dataList.length; i++) {
                 const currentValue = escape2hData[i];
                 
-                // 只处理信号值>10的点
-                if (currentValue <= 10) {
-                    // 如果在峰值区域内，且当前值<=10，结束峰值区域
-                    if (inPeakRegion && currentPeakMax > 10) {
-                        // 保存当前峰值
-                        localMaxPoints.push({
-                            index: currentPeakMaxIndex,
-                            value: currentPeakMax,
-                            datetime: dataList[currentPeakMaxIndex].datetime
-                        });
-                        console.log(`📍 峰值结束: 值=${currentPeakMax}, 时间=${utcToBeijing(dataList[currentPeakMaxIndex].datetime)}, 原因=信号降到10以下`);
-                        
-                        // 重置状态
-                        inPeakRegion = false;
-                        currentPeakMax = 0;
-                        currentPeakMaxIndex = -1;
-                        currentPeakStart = -1;
+                // 跳过<=10的值作为第一峰值的候选，但可以作为第二峰值
+                if (currentValue === 0 || currentValue === null) continue;
+                
+                // 检查是否为局部最大值
+                const startIdx = Math.max(0, i - PEAK_WINDOW);
+                const endIdx = Math.min(dataList.length - 1, i + PEAK_WINDOW);
+                
+                let isLocalMax = true;
+                for (let j = startIdx; j <= endIdx; j++) {
+                    if (j === i) continue;
+                    if (escape2hData[j] > currentValue) {
+                        isLocalMax = false;
+                        break;
+                    }
+                }
+                
+                if (isLocalMax) {
+                    localMaxPoints.push({
+                        index: i,
+                        value: currentValue,
+                        datetime: dataList[i].datetime
+                    });
+                    console.log(`🔍 检测到局部峰值: 值=${currentValue}, 时间=${utcToBeijing(dataList[i].datetime)}`);
+                }
+            }
+            
+            // 过滤：第一个峰值必须>10，合并相近的峰值（30分钟内只保留最高的）
+            const filteredPeaks = [];
+            for (let i = 0; i < localMaxPoints.length; i++) {
+                const currentPeak = localMaxPoints[i];
+                
+                // 如果是第一个峰值，必须>10
+                if (filteredPeaks.length === 0) {
+                    if (currentPeak.value > 10) {
+                        filteredPeaks.push(currentPeak);
+                        console.log(`✅ 第一峰值: 值=${currentPeak.value}, 时间=${utcToBeijing(currentPeak.datetime)}`);
                     }
                     continue;
                 }
                 
-                // 如果不在峰值区域内，开始新的峰值区域
-                if (!inPeakRegion) {
-                    inPeakRegion = true;
-                    currentPeakStart = i;
-                    currentPeakMax = currentValue;
-                    currentPeakMaxIndex = i;
-                    console.log(`🆕 峰值开始: 值=${currentValue}, 时间=${utcToBeijing(dataList[i].datetime)}`);
-                } else {
-                    // 在峰值区域内
-                    
-                    // 检查是否下降超过50%
-                    const dropPercent = (currentPeakMax - currentValue) / currentPeakMax;
-                    
-                    if (dropPercent >= 0.5) {
-                        // 下降超过50%，当前峰值区域结束
-                        localMaxPoints.push({
-                            index: currentPeakMaxIndex,
-                            value: currentPeakMax,
-                            datetime: dataList[currentPeakMaxIndex].datetime
-                        });
-                        console.log(`📍 峰值结束: 值=${currentPeakMax}, 时间=${utcToBeijing(dataList[currentPeakMaxIndex].datetime)}, 原因=下降${(dropPercent*100).toFixed(1)}% (${currentPeakMax} -> ${currentValue})`);
-                        
-                        // 如果当前值>10，开始新的峰值区域
-                        if (currentValue > 10) {
-                            inPeakRegion = true;
-                            currentPeakStart = i;
-                            currentPeakMax = currentValue;
-                            currentPeakMaxIndex = i;
-                            console.log(`🆕 峰值开始: 值=${currentValue}, 时间=${utcToBeijing(dataList[i].datetime)}`);
-                        } else {
-                            inPeakRegion = false;
-                            currentPeakMax = 0;
-                            currentPeakMaxIndex = -1;
-                            currentPeakStart = -1;
-                        }
-                    } else {
-                        // 未下降超过50%，更新峰值最大值（如果当前值更高）
-                        if (currentValue > currentPeakMax) {
-                            currentPeakMax = currentValue;
-                            currentPeakMaxIndex = i;
-                            console.log(`⬆️ 峰值更新: ${currentPeakMax}, 时间=${utcToBeijing(dataList[i].datetime)}`);
-                        }
-                        // 如果相等，保持第一个（不更新）
+                // 检查与最后一个峰值的时间间隔
+                const lastPeak = filteredPeaks[filteredPeaks.length - 1];
+                const timeDiff = currentPeak.index - lastPeak.index;
+                
+                // 如果在30分钟内，只保留更高的
+                if (timeDiff <= 30) {
+                    if (currentPeak.value > lastPeak.value) {
+                        filteredPeaks[filteredPeaks.length - 1] = currentPeak;
+                        console.log(`🔄 更新峰值: ${lastPeak.value} -> ${currentPeak.value}`);
                     }
+                } else {
+                    // 超过30分钟，作为新峰值
+                    filteredPeaks.push(currentPeak);
+                    console.log(`➕ 新峰值: 值=${currentPeak.value}, 时间=${utcToBeijing(currentPeak.datetime)}`);
                 }
             }
             
-            // 处理最后一个峰值区域（如果还在峰值区域内）
-            if (inPeakRegion && currentPeakMax > 10) {
-                localMaxPoints.push({
-                    index: currentPeakMaxIndex,
-                    value: currentPeakMax,
-                    datetime: dataList[currentPeakMaxIndex].datetime
-                });
-                console.log(`📍 峰值结束: 值=${currentPeakMax}, 时间=${utcToBeijing(dataList[currentPeakMaxIndex].datetime)}, 原因=数据结束`);
-            }
+            console.log(`✅ 过滤后剩余 ${filteredPeaks.length} 个峰值`);
             
-            console.log(`✅ 找到 ${localMaxPoints.length} 个独立峰值`);
+            // 阶段2：检测事件触发
+            // 规则：第一峰值>10，第二峰值<第一峰值，下降到第二峰值的50%时事件完成
+            const triggeredEvents = [];
             
-            // 阶段2：检测事件触发和标记
-            const triggeredEvents = []; // 存储触发的事件
-            
-            for (let i = 0; i < localMaxPoints.length; i++) {
-                const firstPeak = localMaxPoints[i];
-                let isTriggered = false;
-                let secondPeak = null;
+            for (let i = 0; i < filteredPeaks.length - 1; i++) {
+                const firstPeak = filteredPeaks[i];
                 
-                // 检查后续10小时内是否有第二个峰值
-                for (let j = i + 1; j < localMaxPoints.length; j++) {
-                    const candidatePeak = localMaxPoints[j];
-                    const timeDiff = candidatePeak.index - firstPeak.index;
+                // 第一峰值必须>10
+                if (firstPeak.value <= 10) continue;
+                
+                // 检查后续10小时内的第二个峰值
+                for (let j = i + 1; j < filteredPeaks.length; j++) {
+                    const secondPeak = filteredPeaks[j];
+                    const timeDiff = secondPeak.index - firstPeak.index;
                     
-                    // 超过10小时，停止检查
+                    // 超过10小时，停止
                     if (timeDiff > TEN_HOURS_IN_MINUTES) break;
                     
-                    // 找到第二个峰值且小于第一个峰值
-                    if (candidatePeak.value < firstPeak.value) {
-                        secondPeak = candidatePeak;
-                        isTriggered = true;
-                        
+                    // 第二峰值必须<第一峰值
+                    if (secondPeak.value >= firstPeak.value) continue;
+                    
+                    // 检查是否下降到第二峰值的50%
+                    const secondPeakHalf = secondPeak.value * 0.5;
+                    let eventCompleted = false;
+                    let completionIndex = -1;
+                    let completionValue = 0;
+                    
+                    // 从第二峰值之后开始检查
+                    for (let k = secondPeak.index + 1; k < dataList.length; k++) {
+                        const checkValue = escape2hData[k];
+                        if (checkValue < secondPeakHalf) {
+                            eventCompleted = true;
+                            completionIndex = k;
+                            completionValue = checkValue;
+                            break;
+                        }
+                    }
+                    
+                    if (eventCompleted) {
                         // 判断事件类型
                         const eventType = firstPeak.value === 120 ? '事件1' : '事件2';
                         
@@ -776,22 +771,69 @@
                             firstPeak,
                             secondPeak,
                             eventType,
-                            timeDiff: Math.round(timeDiff / 60 * 10) / 10 // 转换为小时，保留1位小数
+                            timeDiff: Math.round(timeDiff / 60 * 10) / 10,
+                            completionIndex,
+                            completionValue
                         });
                         
-                        console.log(`🚨 触发${eventType}! 第一峰值=${firstPeak.value}(${utcToBeijing(firstPeak.datetime)}) -> 第二峰值=${secondPeak.value}(${utcToBeijing(secondPeak.datetime)}), 间隔=${timeDiff}小时`);
-                        break; // 找到第一个满足条件的第二峰值即可
+                        console.log(`🚨 事件完成！${eventType}`);
+                        console.log(`   第一峰值: ${firstPeak.value} (${utcToBeijing(firstPeak.datetime)})`);
+                        console.log(`   第二峰值: ${secondPeak.value} (${utcToBeijing(secondPeak.datetime)})`);
+                        console.log(`   完成点: ${completionValue} < ${secondPeakHalf.toFixed(2)} (${utcToBeijing(dataList[completionIndex].datetime)})`);
+                        console.log(`   总耗时: ${Math.round((completionIndex - firstPeak.index) / 60 * 10) / 10} 小时`);
+                        
+                        break; // 找到第一个满足条件的事件即可
+                    }
+                }
+            }
+            
+            // 阶段3：标记峰值
+            // 标记所有过滤后的峰值
+            for (let i = 0; i < filteredPeaks.length; i++) {
+                const peak = filteredPeaks[i];
+                
+                // 检查这个峰值是否参与了某个事件
+                let isFirstPeakInEvent = false;
+                let isSecondPeakInEvent = false;
+                let relatedEvent = null;
+                
+                for (const event of triggeredEvents) {
+                    if (event.firstPeak.index === peak.index) {
+                        isFirstPeakInEvent = true;
+                        relatedEvent = event;
+                        break;
+                    }
+                    if (event.secondPeak.index === peak.index) {
+                        isSecondPeakInEvent = true;
+                        relatedEvent = event;
+                        break;
                     }
                 }
                 
-                // 标记第一个峰值（初始标记）
-                const isEvent1 = (firstPeak.value === 120);
-                const markColor = isEvent1 ? '#dc2626' : '#f97316';
-                const markSymbol = isEvent1 ? '⭐' : '🔥';
+                // 确定标记样式
+                let markColor, markSymbol, markLabel;
+                
+                if (isFirstPeakInEvent) {
+                    // 第一峰值（触发事件的）
+                    const isEvent1 = (peak.value === 120);
+                    markColor = isEvent1 ? '#dc2626' : '#f97316';
+                    markSymbol = isEvent1 ? '⭐' : '🔥';
+                    markLabel = `${markSymbol} ${peak.value}`;
+                } else if (isSecondPeakInEvent) {
+                    // 第二峰值（事件中的）
+                    markColor = '#9333ea'; // 紫色
+                    markSymbol = '⚡';
+                    markLabel = `${markSymbol} ${peak.value}`;
+                } else {
+                    // 普通峰值（未触发事件）
+                    markColor = '#64748b'; // 灰色
+                    markSymbol = '📌';
+                    markLabel = `${markSymbol} ${peak.value}`;
+                }
                 
                 escape2hMarks.push({
-                    coord: [firstPeak.index, firstPeak.value],
-                    value: firstPeak.value,
+                    coord: [peak.index, peak.value],
+                    value: peak.value,
                     itemStyle: {
                         color: markColor,
                         borderColor: '#fff',
@@ -799,7 +841,7 @@
                     },
                     label: {
                         show: true,
-                        formatter: `${markSymbol} ${firstPeak.value}`,
+                        formatter: markLabel,
                         position: 'top',
                         color: markColor,
                         fontSize: 14,
@@ -809,30 +851,6 @@
                         borderRadius: 4
                     }
                 });
-                
-                // 如果事件被触发，标记第二个峰值（用不同的样式）
-                if (isTriggered && secondPeak) {
-                    escape2hMarks.push({
-                        coord: [secondPeak.index, secondPeak.value],
-                        value: secondPeak.value,
-                        itemStyle: {
-                            color: '#9333ea', // 紫色表示触发点
-                            borderColor: '#fff',
-                            borderWidth: 3
-                        },
-                        label: {
-                            show: true,
-                            formatter: `⚡ ${secondPeak.value}\n触发`,
-                            position: 'top',
-                            color: '#9333ea',
-                            fontSize: 14,
-                            fontWeight: 'bold',
-                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                            padding: [6, 10],
-                            borderRadius: 4
-                        }
-                    });
-                }
             }
             
             console.log(`📍 2h见顶信号标记数: ${escape2hMarks.length}`);
