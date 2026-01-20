@@ -651,14 +651,15 @@
             
             // 计算2h见顶信号的最高点标记和事件触发
             // 阶段1：找出所有局部峰值（>10）- 检测上升后下降的拐点
-            // 阶段2：检测事件触发（10小时内第二个峰值<第一个峰值）
+            // 阶段2：合并相近的峰值，只保留最高的
+            // 阶段3：检测事件触发（10小时内第二个峰值<第一个峰值）
             const escape2hMarks = [];
-            const TWO_HOURS_IN_MINUTES = 120; // 2小时 = 120分钟（用于事件触发检测）
             const TEN_HOURS_IN_MINUTES = 600; // 10小时 = 600分钟
             const PEAK_WINDOW = 5; // 峰值检测窗口：5分钟
+            const MERGE_WINDOW = 30; // 峰值合并窗口：30分钟
             
             // 阶段1：找出所有局部峰值（拐点检测）
-            const localMaxPoints = []; // 存储 {index, value, datetime}
+            const rawPeaks = []; // 存储 {index, value, datetime}
             
             for (let i = PEAK_WINDOW; i < dataList.length - PEAK_WINDOW; i++) {
                 const currentValue = escape2hData[i];
@@ -691,19 +692,50 @@
                 
                 // 如果是局部峰值，添加到列表
                 if (isLocalPeak) {
-                    // 避免重复标记相同值的连续点
-                    const lastPeak = localMaxPoints[localMaxPoints.length - 1];
-                    if (!lastPeak || lastPeak.value !== currentValue || (i - lastPeak.index) > PEAK_WINDOW) {
-                        localMaxPoints.push({
-                            index: i,
-                            value: currentValue,
-                            datetime: dataList[i].datetime
-                        });
-                    }
+                    rawPeaks.push({
+                        index: i,
+                        value: currentValue,
+                        datetime: dataList[i].datetime
+                    });
                 }
             }
             
-            console.log(`🔍 找到 ${localMaxPoints.length} 个局部峰值`);
+            console.log(`🔍 找到 ${rawPeaks.length} 个原始峰值`);
+            
+            // 阶段2：合并相近的峰值，只保留30分钟内的最高峰值
+            const localMaxPoints = [];
+            
+            for (let i = 0; i < rawPeaks.length; i++) {
+                const currentPeak = rawPeaks[i];
+                let shouldAdd = true;
+                
+                // 检查是否与已有峰值在30分钟内
+                for (let j = localMaxPoints.length - 1; j >= 0; j--) {
+                    const existingPeak = localMaxPoints[j];
+                    const timeDiff = currentPeak.index - existingPeak.index;
+                    
+                    // 如果时间差超过30分钟，不需要再往前检查
+                    if (timeDiff > MERGE_WINDOW) break;
+                    
+                    // 如果在30分钟内
+                    if (timeDiff <= MERGE_WINDOW) {
+                        // 如果当前峰值更高，替换已有峰值
+                        if (currentPeak.value > existingPeak.value) {
+                            localMaxPoints[j] = currentPeak;
+                            console.log(`🔄 合并峰值: ${existingPeak.value} -> ${currentPeak.value} (${utcToBeijing(currentPeak.datetime)})`);
+                        }
+                        shouldAdd = false;
+                        break;
+                    }
+                }
+                
+                // 如果不在30分钟内，添加为新峰值
+                if (shouldAdd) {
+                    localMaxPoints.push(currentPeak);
+                }
+            }
+            
+            console.log(`✅ 合并后剩余 ${localMaxPoints.length} 个峰值`);
             
             // 阶段2：检测事件触发和标记
             const triggeredEvents = []; // 存储触发的事件
