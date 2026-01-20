@@ -511,9 +511,12 @@
             const day = String(targetDate.getDate()).padStart(2, '0');
             const datePrefix = `${year}-${month}-${day}`;
             
-            // 使用datetime字符串过滤（避免时区问题）
+            // 使用datetime字符串过滤，转换为北京时间后比较
             const dataList = allHistoryData.filter(d => {
-                return d.datetime && d.datetime.startsWith(datePrefix);
+                if (!d.datetime) return false;
+                // 将UTC时间转换为北京时间后再比较日期
+                const beijingDatetime = utcToBeijing(d.datetime);
+                return beijingDatetime.startsWith(datePrefix);
             });
             
             console.log(`📊 ${targetDate.toLocaleDateString()} 的数据条数:`, dataList.length);
