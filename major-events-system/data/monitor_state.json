@@ -4,74 +4,130 @@
   "liquidation_value": 0,
   "profit_marks_history": [
     {
-      "datetime": "2026-01-20 07:16:17",
+      "datetime": "2026-01-19 15:06:28",
       "mark": "red",
       "short_profit_120": 16,
       "short_loss": 0,
-      "time": "2026-01-20T07:17:04.858851"
+      "time": "2026-01-19T15:06:28"
     },
     {
-      "datetime": "2026-01-20 07:21:18",
+      "datetime": "2026-01-19 16:10:07",
       "mark": "red",
-      "short_profit_120": 16,
+      "short_profit_120": 15,
       "short_loss": 0,
-      "time": "2026-01-20T07:22:05.896361"
+      "time": "2026-01-19T16:10:07"
     },
     {
-      "datetime": "2026-01-20 07:26:18",
+      "datetime": "2026-01-19 17:00:59",
       "mark": "red",
-      "short_profit_120": 16,
+      "short_profit_120": 15,
       "short_loss": 0,
-      "time": "2026-01-20T07:27:07.257879"
+      "time": "2026-01-19T17:00:59"
     },
     {
-      "datetime": "2026-01-20 07:31:18",
+      "datetime": "2026-01-19 18:01:03",
       "mark": "red",
-      "short_profit_120": 16,
+      "short_profit_120": 15,
       "short_loss": 0,
-      "time": "2026-01-20T07:32:08.258242"
+      "time": "2026-01-19T18:01:03"
     },
     {
-      "datetime": "2026-01-20 07:36:19",
+      "datetime": "2026-01-19 19:01:11",
       "mark": "red",
-      "short_profit_120": 16,
+      "short_profit_120": 15,
       "short_loss": 0,
-      "time": "2026-01-20T07:36:19.692907"
+      "time": "2026-01-19T19:01:11"
     },
     {
-      "datetime": "2026-01-20 07:41:19",
+      "datetime": "2026-01-19 20:01:15",
       "mark": "red",
-      "short_profit_120": 16,
+      "short_profit_120": 14,
       "short_loss": 0,
-      "time": "2026-01-20T07:41:21.120460"
+      "time": "2026-01-19T20:01:15"
     },
     {
-      "datetime": "2026-01-20 07:46:21",
+      "datetime": "2026-01-19 21:01:27",
       "mark": "red",
-      "short_profit_120": 16,
+      "short_profit_120": 15,
       "short_loss": 0,
-      "time": "2026-01-20T07:46:24.384983"
+      "time": "2026-01-19T21:01:27"
     },
     {
-      "datetime": "2026-01-20 07:51:21",
+      "datetime": "2026-01-19 22:01:32",
       "mark": "red",
-      "short_profit_120": 16,
+      "short_profit_120": 15,
       "short_loss": 0,
-      "time": "2026-01-20T07:51:33.846666"
+      "time": "2026-01-19T22:01:32"
     },
     {
-      "datetime": "2026-01-20 07:56:22",
+      "datetime": "2026-01-19 23:01:38",
+      "mark": "red",
+      "short_profit_120": 15,
+      "short_loss": 0,
+      "time": "2026-01-19T23:01:38"
+    },
+    {
+      "datetime": "2026-01-20 00:01:42",
+      "mark": "red",
+      "short_profit_120": 15,
+      "short_loss": 0,
+      "time": "2026-01-20T00:01:42"
+    },
+    {
+      "datetime": "2026-01-20 01:02:02",
+      "mark": "red",
+      "short_profit_120": 15,
+      "short_loss": 0,
+      "time": "2026-01-20T01:02:02"
+    },
+    {
+      "datetime": "2026-01-20 02:02:06",
+      "mark": "red",
+      "short_profit_120": 15,
+      "short_loss": 0,
+      "time": "2026-01-20T02:02:06"
+    },
+    {
+      "datetime": "2026-01-20 03:07:25",
+      "mark": "red",
+      "short_profit_120": 15,
+      "short_loss": 0,
+      "time": "2026-01-20T03:07:25"
+    },
+    {
+      "datetime": "2026-01-20 04:02:31",
+      "mark": "red",
+      "short_profit_120": 15,
+      "short_loss": 0,
+      "time": "2026-01-20T04:02:31"
+    },
+    {
+      "datetime": "2026-01-20 05:04:28",
+      "mark": "red",
+      "short_profit_120": 15,
+      "short_loss": 0,
+      "time": "2026-01-20T05:04:28"
+    },
+    {
+      "datetime": "2026-01-20 06:01:11",
       "mark": "red",
       "short_profit_120": 16,
       "short_loss": 0,
-      "time": "2026-01-20T07:56:34.907501"
+      "time": "2026-01-20T06:01:11"
+    },
+    {
+      "datetime": "2026-01-20 07:01:16",
+      "mark": "red",
+      "short_profit_120": 16,
+      "short_loss": 0,
+      "time": "2026-01-20T07:01:16"
     },
     {
       "datetime": "2026-01-20 08:01:22",
       "mark": "red",
       "short_profit_120": 16,
       "short_loss": 0,
-      "time": "2026-01-20T08:01:34.534151"
+      "time": "2026-01-20T08:01:22"
     }
   ],
   "event3_triggered_time": null,
