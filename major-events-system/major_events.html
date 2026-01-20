@@ -630,6 +630,61 @@
             
             console.log(`📍 空单盈利≥120%标记数: ${shortProfitMarks.length}, 空单亏损标记数: ${shortLossMarks.length}`);
             
+            // 计算2h见顶信号的最高点标记
+            // 规则：在2小时范围内，找到信号值>10的最高点
+            // 事件1：信号值=120
+            // 事件2：信号值<120
+            const escape2hMarks = [];
+            const TWO_HOURS_IN_MINUTES = 120; // 2小时 = 120分钟
+            
+            for (let i = 0; i < dataList.length; i++) {
+                const currentValue = escape2hData[i];
+                
+                // 只处理信号值>10的点
+                if (currentValue <= 10) continue;
+                
+                // 检查2小时范围内（前后各1小时）是否是最高点
+                let isLocalMax = true;
+                const startIndex = Math.max(0, i - TWO_HOURS_IN_MINUTES);
+                const endIndex = Math.min(dataList.length - 1, i + TWO_HOURS_IN_MINUTES);
+                
+                for (let j = startIndex; j <= endIndex; j++) {
+                    if (j !== i && escape2hData[j] > currentValue) {
+                        isLocalMax = false;
+                        break;
+                    }
+                }
+                
+                // 如果是局部最高点，添加标记
+                if (isLocalMax) {
+                    const isEvent1 = (currentValue >= 120); // 事件1：信号值≥120
+                    const markColor = isEvent1 ? '#9333ea' : '#f97316'; // 紫色为事件1，橙色为事件2
+                    const markSymbol = isEvent1 ? '⭐' : '🔥';
+                    const eventType = isEvent1 ? '事件1' : '事件2';
+                    
+                    escape2hMarks.push({
+                        coord: [i, currentValue],
+                        value: currentValue,
+                        itemStyle: {
+                            color: markColor,
+                            borderColor: '#fff',
+                            borderWidth: 3
+                        },
+                        label: {
+                            show: true,
+                            formatter: `${markSymbol} ${currentValue}`,
+                            position: 'top',
+                            color: markColor,
+                            fontSize: 14,
+                            fontWeight: 'bold'
+                        }
+                    });
+                    console.log(`${markSymbol} 标记2h见顶信号${eventType}: ${dataList[i].datetime} - ${currentValue}`);
+                }
+            }
+            
+            console.log(`📍 2h见顶信号标记数: ${escape2hMarks.length}`);
+            
             // 格式化日期显示
             const dateStr = targetDate.toLocaleDateString('zh-CN', {
                 year: 'numeric',
@@ -758,6 +813,11 @@
                                 borderColor: '#f97316',
                                 borderWidth: 2
                             }
+                        },
+                        markPoint: {
+                            symbol: 'pin',
+                            symbolSize: 70,
+                            data: escape2hMarks
                         }
                     },
                     // 多头指标（绿色系）- 空单盈利低的情况 - 使用右Y轴
