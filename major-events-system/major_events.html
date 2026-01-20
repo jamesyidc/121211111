@@ -376,9 +376,7 @@
         }
 
         // 渲染多空单盈利统计图表
-        async function renderProfitStatsChart(pageOffset) {
-            if (!profitStatsChart || allHistoryData.length === 0) return;
-            
+        function renderProfitStatsChart(pageOffset) {
             console.log(`📈 渲染图表，页码偏移: ${pageOffset}天`);
             
             // 计算日期范围（显示24小时数据）
@@ -405,6 +403,7 @@
             
             if (dataList.length === 0) {
                 console.warn('⚠️ 该日期暂无数据');
+                // 显示空白图表并提示
                 profitStatsChart.setOption({
                     title: {
                         text: `⚠️ ${targetDate.toLocaleDateString()} 暂无数据`,
@@ -414,7 +413,10 @@
                             color: '#999',
                             fontSize: 20
                         }
-                    }
+                    },
+                    xAxis: { data: [] },
+                    yAxis: {},
+                    series: []
                 });
                 return;
             }
@@ -424,32 +426,58 @@
                 return `${dt.getHours().toString().padStart(2, '0')}:${dt.getMinutes().toString().padStart(2, '0')}`;
             });
             
-            // 空单数据
-            const short_lte40Data = dataList.map(d => d.stats?.short?.lte_40 || 0);
-            const short_lossData = dataList.map(d => d.stats?.short?.loss || 0);
-            const short_gte80Data = dataList.map(d => d.stats?.short?.gte_80 || 0);
-            const short_gte120Data = dataList.map(d => d.stats?.short?.gte_120 || 0);
+            // 多头数据（绿色系）
+            const long_lte40Data = dataList.map(d => d.stats?.long?.lte_40 || 0);
+            const long_lossData = dataList.map(d => d.stats?.long?.loss || 0);
+            const long_gte80Data = dataList.map(d => d.stats?.long?.gte_80 || 0);
+            const long_gte120Data = dataList.map(d => d.stats?.long?.gte_120 || 0);
             
-            // 计算标记点
+            // 空单数据（红色系）
+            const short_lte40Data = dataList.map(d => d.stats?.short?.lte_40 || d.stats?.lte_40 || 0);
+            const short_lossData = dataList.map(d => d.stats?.short?.loss || d.stats?.loss || 0);
+            const short_gte80Data = dataList.map(d => d.stats?.short?.gte_80 || d.stats?.gte_80 || 0);
+            const short_gte120Data = dataList.map(d => d.stats?.short?.gte_120 || d.stats?.gte_120 || 0);
+            
+            // 2小时逃顶信号（橙色）
+            const escape2hData = dataList.map(d => d.escape_signal_2h || 0);
+            
+            console.log('📊 图表数据:', {
+                times: times.slice(0, 3),
+                long: {
+                    lte40: long_lte40Data.slice(0, 3),
+                    loss: long_lossData.slice(0, 3),
+                    gte80: long_gte80Data.slice(0, 3),
+                    gte120: long_gte120Data.slice(0, 3)
+                },
+                short: {
+                    lte40: short_lte40Data.slice(0, 3),
+                    loss: short_lossData.slice(0, 3),
+                    gte80: short_gte80Data.slice(0, 3),
+                    gte120: short_gte120Data.slice(0, 3)
+                },
+                escape2h: escape2hData.slice(0, 3)
+            });
+            
+            // 计算空单盈利≥120%和空单亏损的标记点
             const shortProfitMarks = [];
             const shortLossMarks = [];
             let lastShortProfitHour = null;
             let lastShortLossHour = null;
             
             dataList.forEach((d, index) => {
-                const dt = new Date(d.timestamp * 1000);
+                const dt = new Date(d.datetime);
                 const hour = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')} ${String(dt.getHours()).padStart(2,'0')}`;
                 
                 const shortProfit120 = d.stats?.short?.gte_120 || 0;
                 const shortLoss = d.stats?.short?.loss || 0;
                 
-                // 空单盈利≥120%数量≥3，标记为红色
+                // 空单盈利≥120%数量≥3，每小时只标记一次
                 if (shortProfit120 >= 3 && hour !== lastShortProfitHour) {
                     shortProfitMarks.push({
                         coord: [index, shortProfit120],
                         value: shortProfit120,
                         itemStyle: {
-                            color: '#dc2626',
+                            color: '#dc2626',  // 红色
                             borderColor: '#fff',
                             borderWidth: 3
                         },
@@ -463,15 +491,16 @@
                         }
                     });
                     lastShortProfitHour = hour;
+                    console.log(`🔴 标记空单盈利≥120%: ${d.datetime} - ${shortProfit120}个`);
                 }
                 
-                // 空单亏损数量≥3，标记为绿色
+                // 空单亏损数量≥3，每小时只标记一次
                 if (shortLoss >= 3 && hour !== lastShortLossHour) {
                     shortLossMarks.push({
                         coord: [index, shortLoss],
                         value: shortLoss,
                         itemStyle: {
-                            color: '#10b981',
+                            color: '#10b981',  // 绿色
                             borderColor: '#fff',
                             borderWidth: 3
                         },
@@ -485,42 +514,64 @@
                         }
                     });
                     lastShortLossHour = hour;
+                    console.log(`🟢 标记空单亏损: ${d.datetime} - ${shortLoss}个`);
                 }
             });
             
-            console.log('🔴 红色标记数量:', shortProfitMarks.length);
-            console.log('🟢 绿色标记数量:', shortLossMarks.length);
+            console.log(`📍 空单盈利≥120%标记数: ${shortProfitMarks.length}, 空单亏损标记数: ${shortLossMarks.length}`);
             
-            const dateStr = targetDate.toLocaleDateString('zh-CN');
-            const dayLabel = pageOffset === 0 ? '今天' : pageOffset === -1 ? '昨天' : `${Math.abs(pageOffset)}天前`;
+            // 格式化日期显示
+            const dateStr = targetDate.toLocaleDateString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            });
+            const dayLabel = pageOffset === 0 ? '今天' : 
+                           pageOffset === -1 ? '昨天' : 
+                           pageOffset === -2 ? '前天' : 
+                           `${Math.abs(pageOffset)}天前`;
             
             const option = {
                 title: {
                     text: `多空单盈利分布趋势（${dateStr} ${dayLabel}）`,
                     left: 'center',
                     textStyle: {
-                        fontSize: 18,
-                        fontWeight: 'bold'
+                        color: '#2d3748',
+                        fontSize: 16
                     }
                 },
                 tooltip: {
                     trigger: 'axis',
-                    axisPointer: {
-                        type: 'cross'
+                    formatter: function(params) {
+                        let result = params[0].axisValue + '<br/>';
+                        params.forEach(param => {
+                            result += `${param.marker} ${param.seriesName}: ${param.value} 个<br/>`;
+                        });
+                        return result;
                     }
                 },
                 legend: {
-                    data: ['空单≤40%', '空单亏损', '空单≥80%', '空单≥120%'],
-                    top: 40,
+                    data: [
+                        {name: '【多头指标】', textStyle: {fontWeight: 'bold', color: '#10b981'}},
+                        '🟢 空单盈利≤40%',
+                        '🟢 空单亏损',
+                        {name: '【空头指标】', textStyle: {fontWeight: 'bold', color: '#ef4444'}},
+                        '🔴 空单盈利≥80%',
+                        '🔴 空单盈利≥120%',
+                        {name: '【逃顶信号】', textStyle: {fontWeight: 'bold', color: '#f97316'}},
+                        '⚡ 2h逃顶信号'
+                    ],
+                    top: 35,
                     textStyle: {
-                        fontSize: 12
+                        color: '#2d3748',
+                        fontSize: 11
                     }
                 },
                 grid: {
-                    left: '3%',
-                    right: '4%',
+                    left: '5%',
+                    right: '5%',
                     bottom: '3%',
-                    top: 80,
+                    top: 95,
                     containLabel: true
                 },
                 xAxis: {
@@ -529,71 +580,144 @@
                     data: times,
                     axisLabel: {
                         rotate: 45,
+                        color: '#718096',
                         fontSize: 10
                     }
                 },
-                yAxis: {
-                    type: 'value',
-                    name: '数量',
-                    minInterval: 1
-                },
-                series: [
+                yAxis: [
                     {
-                        name: '空单≤40%',
-                        type: 'line',
-                        data: short_lte40Data,
-                        smooth: true,
-                        lineStyle: { color: '#f97316', width: 2 },
-                        itemStyle: { color: '#f97316' },
-                        areaStyle: {
-                            color: {
-                                type: 'linear',
-                                x: 0, y: 0, x2: 0, y2: 1,
-                                colorStops: [
-                                    { offset: 0, color: 'rgba(249, 115, 22, 0.3)' },
-                                    { offset: 1, color: 'rgba(249, 115, 22, 0.05)' }
-                                ]
+                        // 左Y轴：2小时逃顶信号数量（橙色）
+                        type: 'value',
+                        name: '2h逃顶信号',
+                        position: 'left',
+                        minInterval: 1,
+                        axisLabel: {
+                            color: '#f97316',
+                            formatter: '{value}'
+                        },
+                        axisLine: {
+                            show: true,
+                            lineStyle: {
+                                color: '#f97316'
+                            }
+                        },
+                        splitLine: {
+                            show: true,
+                            lineStyle: {
+                                color: '#e5e7eb',
+                                type: 'dashed'
                             }
                         }
                     },
                     {
-                        name: '空单亏损',
+                        // 右Y轴：空单数量（多头+空头指标）
+                        type: 'value',
+                        name: '空单数量',
+                        position: 'right',
+                        minInterval: 1,
+                        axisLabel: {
+                            color: '#4b5563',
+                            formatter: '{value}'
+                        },
+                        axisLine: {
+                            show: true,
+                            lineStyle: {
+                                color: '#4b5563'
+                            }
+                        },
+                        splitLine: {
+                            show: false
+                        }
+                    }
+                ],
+                series: [
+                    // 2小时逃顶信号（橙色）- 使用左Y轴
+                    {
+                        name: '⚡ 2h逃顶信号',
                         type: 'line',
-                        data: short_lossData,
+                        yAxisIndex: 0,  // 使用左Y轴
+                        data: escape2hData,
                         smooth: true,
-                        lineStyle: { color: '#10b981', width: 3 },
-                        itemStyle: { color: '#10b981' },
-                        markPoint: {
-                            data: shortLossMarks,
-                            symbol: 'circle',
-                            symbolSize: 16
+                        itemStyle: { color: '#f97316' },
+                        lineStyle: { width: 3, color: '#f97316', type: 'solid' },
+                        symbol: 'diamond',
+                        symbolSize: 7,
+                        emphasis: {
+                            focus: 'series',
+                            itemStyle: {
+                                borderColor: '#f97316',
+                                borderWidth: 2
+                            }
                         }
                     },
+                    // 多头指标（绿色系）- 空单盈利低的情况 - 使用右Y轴
                     {
-                        name: '空单≥80%',
+                        name: '🟢 空单盈利≤40%',
                         type: 'line',
-                        data: short_gte80Data,
+                        yAxisIndex: 1,  // 使用右Y轴
+                        data: short_lte40Data,
                         smooth: true,
-                        lineStyle: { color: '#f59e0b', width: 2 },
-                        itemStyle: { color: '#f59e0b' }
+                        itemStyle: { color: '#10b981' },
+                        lineStyle: { width: 3, color: '#10b981' },
+                        symbol: 'circle',
+                        symbolSize: 6
                     },
                     {
-                        name: '空单≥120%',
+                        name: '🟢 空单亏损',
                         type: 'line',
+                        yAxisIndex: 1,  // 使用右Y轴
+                        data: short_lossData,
+                        smooth: true,
+                        itemStyle: { color: '#059669' },
+                        lineStyle: { width: 3, color: '#059669' },
+                        symbol: 'circle',
+                        symbolSize: 6,
+                        markPoint: {
+                            symbol: 'pin',
+                            symbolSize: 60,
+                            data: shortLossMarks
+                        }
+                    },
+                    // 空头指标（红色系）- 空单盈利高的情况 - 使用右Y轴
+                    {
+                        name: '🔴 空单盈利≥80%',
+                        type: 'line',
+                        yAxisIndex: 1,  // 使用右Y轴
+                        data: short_gte80Data,
+                        smooth: true,
+                        itemStyle: { color: '#ef4444' },
+                        lineStyle: { width: 3, color: '#ef4444' },
+                        symbol: 'circle',
+                        symbolSize: 6
+                    },
+                    {
+                        name: '🔴 空单盈利≥120%',
+                        type: 'line',
+                        yAxisIndex: 1,  // 使用右Y轴
                         data: short_gte120Data,
                         smooth: true,
-                        lineStyle: { color: '#dc2626', width: 3 },
-                        itemStyle: { color: '#dc2626' },
+                        itemStyle: { color: '#991b1b' },
+                        lineStyle: { width: 3, color: '#991b1b' },
+                        symbol: 'circle',
+                        symbolSize: 6,
                         markPoint: {
-                            data: shortProfitMarks,
-                            symbol: 'circle',
-                            symbolSize: 16
+                            symbol: 'pin',
+                            symbolSize: 60,
+                            data: shortProfitMarks
                         }
                     }
                 ]
             };
             
             profitStatsChart.setOption(option);
+            
+            // 强制刷新图表尺寸
+            setTimeout(() => {
+                profitStatsChart.resize();
+                console.log('🔄 图表尺寸已刷新');
+            }, 100);
+            
+            console.log('✅ 多空单盈利统计图表渲染完成');
         }
 
         // 加载其他图表数据
