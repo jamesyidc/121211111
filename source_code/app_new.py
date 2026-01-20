@@ -15097,6 +15097,23 @@ def live_trading_api(endpoint):
             'traceback': traceback.format_exc()
         })
 
+# ==================== 服务健康监控 API ====================
+@app.route('/api/service-health')
+def service_health():
+    """获取所有数据采集服务的健康状态"""
+    try:
+        from service_health_monitor import get_health_status
+        result = get_health_status()
+        return jsonify({
+            'success': True,
+            **result
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
 # ==================== 重大事件系统 API ====================
 @app.route('/major-events')
 def major_events_page():
