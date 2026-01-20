@@ -4,27 +4,6 @@
   "liquidation_value": 0,
   "profit_marks_history": [
     {
-      "datetime": "2026-01-20 14:09:20",
-      "mark": "red",
-      "short_profit_120": 18,
-      "short_loss": 0,
-      "time": "2026-01-20T22:09:39.808408+08:00"
-    },
-    {
-      "datetime": "2026-01-20 14:14:20",
-      "mark": "red",
-      "short_profit_120": 18,
-      "short_loss": 0,
-      "time": "2026-01-20T22:14:40.892000+08:00"
-    },
-    {
-      "datetime": "2026-01-20 14:19:20",
-      "mark": "red",
-      "short_profit_120": 19,
-      "short_loss": 0,
-      "time": "2026-01-20T22:19:51.755722+08:00"
-    },
-    {
       "datetime": "2026-01-20 14:24:21",
       "mark": "red",
       "short_profit_120": 19,
@@ -72,15 +51,36 @@
       "short_profit_120": 18,
       "short_loss": 0,
       "time": "2026-01-20T22:55:09.333753+08:00"
+    },
+    {
+      "datetime": "2026-01-20 14:59:22",
+      "mark": "red",
+      "short_profit_120": 18,
+      "short_loss": 0,
+      "time": "2026-01-20T23:00:10.427791+08:00"
+    },
+    {
+      "datetime": "2026-01-20 15:04:23",
+      "mark": "red",
+      "short_profit_120": 19,
+      "short_loss": 0,
+      "time": "2026-01-20T23:05:13.974508+08:00"
+    },
+    {
+      "datetime": "2026-01-20 15:09:23",
+      "mark": "red",
+      "short_profit_120": 19,
+      "short_loss": 0,
+      "time": "2026-01-20T23:10:15.458145+08:00"
     }
   ],
   "event3_triggered_time": null,
   "event3_first_high_time": null,
-  "event3_max_amount": 4285.09,
-  "event4_triggered_time": null,
-  "event4_start_time": "2026-01-20T22:52:08.682478+08:00",
-  "event4_start_amount": 4285.09,
-  "event4_max_amount": 4285.09,
-  "event3_start_time": "2026-01-20T22:52:08.575012+08:00",
-  "event3_start_amount": 4285.09
+  "event3_max_amount": 7047.25,
+  "event4_triggered_time": "2026-01-20T23:02:10.866331+08:00",
+  "event4_start_time": null,
+  "event4_start_amount": 0,
+  "event4_max_amount": 0,
+  "event3_start_time": "2026-01-20T23:03:13.406909+08:00",
+  "event3_start_amount": 4217.1
 }

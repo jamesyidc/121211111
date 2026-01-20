@@ -142,8 +142,8 @@
                     </div>
                     <p class="text-sm text-gray-700 mb-2">
                         触发条件：<br/>
-                        1️⃣ 2h见顶信号 ≥ 120<br/>
-                        2️⃣ 10小时内再次出现 20-120 信号<br/>
+                        1️⃣ 2h见顶信号 = 120（精确匹配）<br/>
+                        2️⃣ 10小时内再次出现 10-120 信号<br/>
                         3️⃣ 27币涨跌幅和 > 0
                     </p>
                     <div class="action-short px-3 py-1 rounded text-sm font-bold">
@@ -159,7 +159,7 @@
                     </div>
                     <p class="text-sm text-gray-700 mb-2">
                         触发条件：<br/>
-                        1️⃣ 2h见顶信号 20-120<br/>
+                        1️⃣ 2h见顶信号 > 10 且 < 120<br/>
                         2️⃣ 10小时内再次出现信号<br/>
                         3️⃣ 第二次信号 < 第一次
                     </p>
@@ -632,8 +632,8 @@
             
             // 计算2h见顶信号的最高点标记
             // 规则：在2小时范围内，找到信号值>10的最高点
-            // 事件1：信号值=120
-            // 事件2：信号值<120
+            // 事件1：信号值 = 120（精确匹配）
+            // 事件2：10 < 信号值 < 120
             const escape2hMarks = [];
             const TWO_HOURS_IN_MINUTES = 120; // 2小时 = 120分钟
             
@@ -657,10 +657,10 @@
                 
                 // 如果是局部最高点，添加标记
                 if (isLocalMax) {
-                    const isEvent1 = (currentValue >= 120); // 事件1：信号值≥120
-                    const markColor = isEvent1 ? '#9333ea' : '#f97316'; // 紫色为事件1，橙色为事件2
+                    const isEvent1 = (currentValue === 120); // 事件1：信号值精确等于120
+                    const markColor = isEvent1 ? '#dc2626' : '#f97316'; // 红色为事件1，橙色为事件2
                     const markSymbol = isEvent1 ? '⭐' : '🔥';
-                    const eventType = isEvent1 ? '事件1' : '事件2';
+                    const eventType = isEvent1 ? '事件1(=120)' : '事件2(<120)';
                     
                     escape2hMarks.push({
                         coord: [i, currentValue],
@@ -676,10 +676,13 @@
                             position: 'top',
                             color: markColor,
                             fontSize: 14,
-                            fontWeight: 'bold'
+                            fontWeight: 'bold',
+                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                            padding: [4, 8],
+                            borderRadius: 4
                         }
                     });
-                    console.log(`${markSymbol} 标记2h见顶信号${eventType}: ${dataList[i].datetime} - ${currentValue}`);
+                    console.log(`${markSymbol} 标记2h见顶信号${eventType}: ${dataList[i].datetime} - 信号值=${currentValue}`);
                 }
             }
             
