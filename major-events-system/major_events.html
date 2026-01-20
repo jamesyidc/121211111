@@ -498,11 +498,16 @@
                 const hour = timeParts[0];
                 const minute = timeParts[1];
                 
-                // 只在00分或30分标记
-                if (minute !== '00' && minute !== '30') return;
+                // 找最接近00分或30分的时间点（容差±3分钟）
+                const isNear00 = Math.abs(parseInt(minute) - 0) <= 3;
+                const isNear30 = Math.abs(parseInt(minute) - 30) <= 3;
+                if (!isNear00 && !isNear30) return;
                 
-                // 生成时间槽标识（格式：YYYY-MM-DD HH:MM）
-                const timeSlot = `${datetimeParts[0]} ${hour}:${minute}`;
+                // 根据最接近的目标时间生成时间槽标识
+                const targetMinute = isNear00 ? '00' : '30';
+                
+                // 生成时间槽标识（格式：YYYY-MM-DD HH:目标分钟）
+                const timeSlot = `${datetimeParts[0]} ${hour}:${targetMinute}`;
                 
                 const shortProfit120 = d.stats?.short?.gte_120 || 0;
                 const shortLoss = d.stats?.short?.loss || 0;
