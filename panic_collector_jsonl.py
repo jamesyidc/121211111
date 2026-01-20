@@ -269,4 +269,4 @@ if __name__ == '__main__':
     if len(sys.argv) > 1 and sys.argv[1] == 'once':
         collector.collect_once()
     else:
-        collector.run(interval=60)  # 1分钟
+        collector.run(interval=180)  # 3分钟

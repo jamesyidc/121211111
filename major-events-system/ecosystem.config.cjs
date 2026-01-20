@@ -145,7 +145,7 @@ module.exports = {
     },
     {
       name: 'panic-wash-collector',
-      script: '/home/user/webapp/source_code/panic_wash_collector.py',
+      script: '/home/user/webapp/panic_collector_jsonl.py',
       interpreter: 'python3',
       cwd: '/home/user/webapp',
       instances: 1,
@@ -155,8 +155,8 @@ module.exports = {
       env: {
         PYTHONUNBUFFERED: '1'
       },
-      error_file: '/home/user/webapp/logs/panic_wash_collector_error.log',
-      out_file: '/home/user/webapp/logs/panic_wash_collector_out.log',
+      error_file: '/home/user/webapp/logs/panic_collector_error.log',
+      out_file: '/home/user/webapp/logs/panic_collector_out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       merge_logs: true,
       min_uptime: '10s',
