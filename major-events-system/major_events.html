@@ -468,6 +468,21 @@
             }
         }
 
+        // UTC时间转北京时间的辅助函数
+        function utcToBeijing(utcDatetimeStr) {
+            // 输入格式：YYYY-MM-DD HH:MM:SS (UTC)
+            // 输出格式：YYYY-MM-DD HH:MM:SS (北京时间 UTC+8)
+            const utcDate = new Date(utcDatetimeStr + ' UTC');
+            const beijingDate = new Date(utcDate.getTime() + 8 * 60 * 60 * 1000);
+            const year = beijingDate.getUTCFullYear();
+            const month = String(beijingDate.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(beijingDate.getUTCDate()).padStart(2, '0');
+            const hours = String(beijingDate.getUTCHours()).padStart(2, '0');
+            const minutes = String(beijingDate.getUTCMinutes()).padStart(2, '0');
+            const seconds = String(beijingDate.getUTCSeconds()).padStart(2, '0');
+            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        }
+
         // 渲染多空单盈利统计图表
         function renderProfitStatsChart(pageOffset) {
             console.log(`📈 渲染图表，页码偏移: ${pageOffset}天`);
@@ -524,9 +539,13 @@
             }
             
             const times = dataList.map(d => {
-                // 直接从datetime字符串提取时间（格式：YYYY-MM-DD HH:MM:SS）
-                const timePart = d.datetime.split(' ')[1];  // HH:MM:SS
-                return timePart.substring(0, 5);  // HH:MM
+                // 将UTC时间转换为北京时间（UTC+8）
+                // 格式：YYYY-MM-DD HH:MM:SS
+                const utcDate = new Date(d.datetime + ' UTC'); // 明确指定为UTC时间
+                const beijingDate = new Date(utcDate.getTime() + 8 * 60 * 60 * 1000); // 加8小时
+                const hours = String(beijingDate.getUTCHours()).padStart(2, '0');
+                const minutes = String(beijingDate.getUTCMinutes()).padStart(2, '0');
+                return `${hours}:${minutes}`;  // HH:MM（北京时间）
             });
             
             // 多头数据（绿色系）
@@ -601,7 +620,7 @@
                         }
                     });
                     lastShortProfitHour = hour;
-                    console.log(`🔴 标记空单盈利≥120%: ${d.datetime} - ${shortProfit120}个`);
+                    console.log(`🔴 标记空单盈利≥120%: ${utcToBeijing(d.datetime)} (北京时间) - ${shortProfit120}个`);
                 }
                 
                 // 空单亏损数量≥3，每小时只标记一次
@@ -624,7 +643,7 @@
                         }
                     });
                     lastShortLossHour = hour;
-                    console.log(`🟢 标记空单亏损: ${d.datetime} - ${shortLoss}个`);
+                    console.log(`🟢 标记空单亏损: ${utcToBeijing(d.datetime)} (北京时间) - ${shortLoss}个`);
                 }
             });
             
@@ -700,7 +719,7 @@
                             timeDiff: Math.round(timeDiff / 60 * 10) / 10 // 转换为小时，保留1位小数
                         });
                         
-                        console.log(`🚨 触发${eventType}! 第一峰值=${firstPeak.value}(${firstPeak.datetime}) -> 第二峰值=${secondPeak.value}(${secondPeak.datetime}), 间隔=${timeDiff}分钟`);
+                        console.log(`🚨 触发${eventType}! 第一峰值=${firstPeak.value}(${utcToBeijing(firstPeak.datetime)}) -> 第二峰值=${secondPeak.value}(${utcToBeijing(secondPeak.datetime)}), 间隔=${timeDiff}小时`);
                         break; // 找到第一个满足条件的第二峰值即可
                     }
                 }
@@ -772,7 +791,7 @@
             
             const option = {
                 title: {
-                    text: `多空单盈利分布趋势（${dateStr} ${dayLabel}）`,
+                    text: `多空单盈利分布趋势（${dateStr} ${dayLabel} - 北京时间 UTC+8）`,
                     left: 'center',
                     textStyle: {
                         color: '#2d3748',
