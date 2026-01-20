@@ -70,19 +70,33 @@ class UnifiedDataCollector:
                 return None
             
             # 统计2h级别见顶信号的币种数量
+            # 见顶信号判断条件：
+            # 1. sar_position = 'bullish' (多头位置)
+            # 2. slope_direction = 'down' (斜率向下)
+            # 3. sar_quadrant in ('Q1', 'Q2') (在Q1或Q2象限)
             top_signal_count = 0
+            detected_symbols = []
+            
             for coin_data in api_data.get('data', []):
-                # 检查2h级别
-                timeframes = coin_data.get('timeframes', {})
-                tf_2h = timeframes.get('2h', {})
-                if tf_2h.get('is_topping', False):
+                # 检查是否满足见顶信号条件
+                sar_position = coin_data.get('sar_position', '')
+                slope_direction = coin_data.get('slope_direction', '')
+                sar_quadrant = coin_data.get('sar_quadrant', '')
+                symbol = coin_data.get('symbol', '')
+                
+                # 见顶条件：多头 + 斜率向下 + Q1或Q2象限
+                if (sar_position == 'bullish' and 
+                    slope_direction == 'down' and 
+                    sar_quadrant in ('Q1', 'Q2')):
                     top_signal_count += 1
+                    detected_symbols.append(symbol)
             
             data = {
                 'timestamp': int(time.time()),
                 'timeframe': '2h',
                 'signal_type': 'top_signal',
                 'count': top_signal_count,
+                'symbols': detected_symbols,
                 'time_range': '1h',
                 'collected_at': datetime.now().isoformat()
             }
@@ -91,7 +105,10 @@ class UnifiedDataCollector:
             with open(self.sar_slope_file, 'a', encoding='utf-8') as f:
                 f.write(json.dumps(data, ensure_ascii=False) + '\n')
             
-            logger.info(f"✅ 2h见顶信号数据收集完成: {top_signal_count}个")
+            if top_signal_count > 0:
+                logger.info(f"✅ 2h见顶信号数据收集完成: {top_signal_count}个 ({', '.join(detected_symbols)})")
+            else:
+                logger.info(f"✅ 2h见顶信号数据收集完成: {top_signal_count}个")
             return data
             
         except Exception as e:
