@@ -457,8 +457,9 @@
             }
             
             const times = dataList.map(d => {
-                const dt = new Date(d.timestamp * 1000);
-                return `${dt.getHours().toString().padStart(2, '0')}:${dt.getMinutes().toString().padStart(2, '0')}`;
+                // 直接从datetime字符串提取时间（格式：YYYY-MM-DD HH:MM:SS）
+                const timePart = d.datetime.split(' ')[1];  // HH:MM:SS
+                return timePart.substring(0, 5);  // HH:MM
             });
             
             // 多头数据（绿色系）
