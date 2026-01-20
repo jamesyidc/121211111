@@ -76,6 +76,7 @@ pm2 save
 - panic-wash-collector
 - anchor-profit-monitor
 - liquidation-1h-collector
+- gdrive-detector
 
 ### 步骤 2：启动 Flask 应用
 
@@ -113,7 +114,7 @@ curl http://localhost:5000/
 pm2 list
 ```
 
-**预期结果**：应该看到 **11 个进程**全部 `online`：
+**预期结果**：应该看到 **12 个进程**全部 `online`：
 
 | ID | 进程名 | 状态 |
 |----|--------|------|
@@ -128,6 +129,7 @@ pm2 list
 | 9 | panic-wash-collector | online |
 | 10 | anchor-profit-monitor | online |
 | 11 | liquidation-1h-collector | online |
+| 12 | gdrive-detector | online |
 
 ### 2. Flask 应用检查
 
