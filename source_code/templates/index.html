@@ -297,6 +297,32 @@
                 <a href="/panic" class="module-btn" style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);">查看详情 🔥</a>
             </div>
             
+            <!-- 重大事件监控系统 -->
+            <div class="module-card" onclick="location.href='/major-events'" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.95) 0%, rgba(217, 119, 6, 0.95) 100%); border: 2px solid #f59e0b;">
+                <div class="module-icon">🚨</div>
+                <h2>重大事件监控</h2>
+                <p>实时监控市场三大信号：2h逃顶信号、27币涨跌幅、1h爆仓金额，触发阈值自动告警</p>
+                <div class="module-stats">
+                    <div class="module-stats-row">
+                        <span class="stats-label">2h逃顶信号:</span>
+                        <span class="stats-value" id="major-events-top-signal">-</span>
+                    </div>
+                    <div class="module-stats-row">
+                        <span class="stats-label">27币涨跌幅:</span>
+                        <span class="stats-value" id="major-events-coins-change" style="font-weight: bold;">-</span>
+                    </div>
+                    <div class="module-stats-row">
+                        <span class="stats-label">1h爆仓金额:</span>
+                        <span class="stats-value" id="major-events-liquidation">-</span>
+                    </div>
+                    <div class="module-stats-row">
+                        <span class="stats-label">24h事件数:</span>
+                        <span class="stats-value" style="color: #f59e0b;" id="major-events-count">-</span>
+                    </div>
+                </div>
+                <a href="/major-events" class="module-btn" style="background: linear-gradient(135deg, #d97706 0%, #b45309 100%);">查看监控 🚨</a>
+            </div>
+            
             <!-- 交易管理系统已移除 (2026-01-14) -->
             
             <!-- 逃顶信号系统 -->
@@ -1222,6 +1248,72 @@
             })
             .catch(err => {
                 console.error('获取27币追踪器数据失败:', err);
+            });
+        
+        // 加载重大事件监控系统数据
+        fetch('/api/major-events/current-status')
+            .then(res => res.json())
+            .then(response => {
+                if (response.success && response.current_data) {
+                    const data = response.current_data;
+                    
+                    // 更新2h逃顶信号
+                    const topSignalEl = document.getElementById('major-events-top-signal');
+                    if (topSignalEl) {
+                        const count = data.top_signal_2h || 0;
+                        topSignalEl.textContent = count + ' 个';
+                        // 根据信号数设置颜色
+                        if (count >= 120) {
+                            topSignalEl.style.color = '#ef4444';  // 红色 - 高风险
+                        } else if (count >= 100) {
+                            topSignalEl.style.color = '#f59e0b';  // 橙色 - 中等
+                        } else {
+                            topSignalEl.style.color = '#10b981';  // 绿色 - 正常
+                        }
+                    }
+                    
+                    // 更新27币涨跌幅
+                    const coinsChangeEl = document.getElementById('major-events-coins-change');
+                    if (coinsChangeEl) {
+                        const change = data.coins_change_sum || 0;
+                        coinsChangeEl.textContent = change.toFixed(2) + '%';
+                        // 根据涨跌幅设置颜色
+                        if (Math.abs(change) >= 100) {
+                            coinsChangeEl.style.color = '#ef4444';  // 红色 - 极值
+                        } else if (Math.abs(change) >= 80) {
+                            coinsChangeEl.style.color = '#f59e0b';  // 橙色 - 警戒
+                        } else if (change > 0) {
+                            coinsChangeEl.style.color = '#10b981';  // 绿色 - 上涨
+                        } else {
+                            coinsChangeEl.style.color = '#8b5cf6';  // 紫色 - 正常
+                        }
+                    }
+                    
+                    // 更新1h爆仓金额
+                    const liquidationEl = document.getElementById('major-events-liquidation');
+                    if (liquidationEl) {
+                        const amount = data.liquidation_1h || 0;
+                        liquidationEl.textContent = amount.toFixed(2) + ' 万$';
+                        // 根据金额设置颜色
+                        if (amount >= 3000) {
+                            liquidationEl.style.color = '#ef4444';  // 红色 - 高爆仓
+                        } else if (amount >= 2000) {
+                            liquidationEl.style.color = '#f59e0b';  // 橙色 - 中等
+                        } else {
+                            liquidationEl.style.color = '#10b981';  // 绿色 - 正常
+                        }
+                    }
+                    
+                    // 更新24h事件数
+                    const eventCountEl = document.getElementById('major-events-count');
+                    if (eventCountEl) {
+                        const count = response.total_events_24h || 0;
+                        eventCountEl.textContent = count + ' 次';
+                    }
+                }
+            })
+            .catch(err => {
+                console.error('获取重大事件监控数据失败:', err);
             });
         
         // 加载Google Drive检测器状态
