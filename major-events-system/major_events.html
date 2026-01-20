@@ -770,7 +770,7 @@
                 console.log(`   总耗时: ${Math.round((completionIndex - firstPeak.index) / 60 * 10) / 10} 小时`);
             }
             
-            // 阶段3：标记峰值
+            // 阶段3：标记峰值和完成点
             // 标记所有检测到的峰值
             for (let i = 0; i < detectedPeaks.length; i++) {
                 const peak = detectedPeaks[i];
@@ -834,6 +834,35 @@
                         borderRadius: 4
                     }
                 });
+            }
+            
+            // 标记所有事件的完成点
+            for (const event of triggeredEvents) {
+                // 添加完成点标记（红色心形）
+                escape2hMarks.push({
+                    coord: [event.completionIndex, event.completionValue],
+                    value: event.completionValue,
+                    symbol: 'pin', // 大头针样式
+                    symbolSize: 50,
+                    itemStyle: {
+                        color: '#ef4444', // 红色
+                        borderColor: '#fff',
+                        borderWidth: 3
+                    },
+                    label: {
+                        show: true,
+                        formatter: `✓ ${event.completionValue}`,
+                        position: 'bottom',
+                        color: '#ef4444',
+                        fontSize: 14,
+                        fontWeight: 'bold',
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        padding: [4, 8],
+                        borderRadius: 4
+                    }
+                });
+                
+                console.log(`✓ 标记完成点: 值=${event.completionValue}, 索引=${event.completionIndex}`);
             }
             
             console.log(`📍 2h见顶信号标记数: ${escape2hMarks.length}`);
