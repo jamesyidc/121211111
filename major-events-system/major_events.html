@@ -237,13 +237,44 @@
             <div id="profitStatsChart" style="width: 100%; height: 500px;"></div>
         </div>
 
-        <!-- 1h爆仓金额趋势 -->
+        <!-- 1小时爆仓金额曲线图 -->
         <div class="chart-container mb-8">
-            <h2 class="text-xl font-bold mb-4 flex items-center">
-                <i class="fas fa-fire mr-2 text-red-600"></i>
-                1h爆仓金额趋势
-            </h2>
-            <div id="liquidationChart" style="width: 100%; height: 400px;"></div>
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 class="text-xl font-bold flex items-center">
+                        <i class="fas fa-fire mr-2 text-red-600"></i>
+                        💥 1小时爆仓金额曲线图 
+                        <span style="font-size: 12px; color: #fbbf24; margin-left: 10px;">[实时追踪]</span>
+                    </h2>
+                    
+                    <!-- 分页控制器 -->
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <button 
+                            style="padding: 8px 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.3s;"
+                            id="liqPrevPageBtn" 
+                            onclick="loadLiquidationPreviousPage()" 
+                            title="查看更早的数据"
+                            onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.4)';"
+                            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
+                            <span>◀ 更早</span>
+                        </button>
+                        <div style="padding: 8px 16px; background: rgba(102, 126, 234, 0.1); border-radius: 8px; font-weight: 600; color: #667eea; min-width: 200px; text-align: center;" id="liqPageInfo">加载中...</div>
+                        <button 
+                            style="padding: 8px 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.3s;"
+                            id="liqNextPageBtn" 
+                            onclick="loadLiquidationNextPage()" 
+                            title="查看更新的数据"
+                            onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.4)';"
+                            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
+                            <span>更新 ▶</span>
+                        </button>
+                    </div>
+                </div>
+                <div id="liquidation1hChart" style="width: 100%; height: 400px; border-radius: 15px;"></div>
+                <div style="font-size: 11px; color: #9ca3af; margin-top: 10px; text-align: center;">
+                    数据采集频率: 每分钟一次 | 数据来源: OKX API | 单位: 万美元 | 每页显示12小时
+                </div>
+            </div>
         </div>
 
         <!-- 重大事件列表 -->
@@ -265,12 +296,17 @@
         let currentPage = 0;
         let allHistoryData = [];
         let profitStatsChart = null;
-        let liquidationChart = null;
+        let liquidation1hChart = null;  // 爆仓图表
+        let liqCurrentPage = 0;  // 当前页码（0=最新12小时）
+        let liqAllData = [];     // 所有历史数据
+        const LIQ_HOURS_PER_PAGE = 12;  // 每页显示12小时
+        const LIQ_RECORDS_PER_HOUR = 60;  // 每小时60条记录（1分钟一次）
+        const LIQ_RECORDS_PER_PAGE = LIQ_HOURS_PER_PAGE * LIQ_RECORDS_PER_HOUR;  // 每页720条记录
 
         // 初始化图表
         function initCharts() {
             profitStatsChart = echarts.init(document.getElementById('profitStatsChart'));
-            liquidationChart = echarts.init(document.getElementById('liquidationChart'));
+            initLiquidation1hChart();
         }
 
         // 刷新数据
@@ -719,69 +755,250 @@
             }
         }
 
-        // 渲染爆仓金额图表（从JSONL数据）
-        async function renderLiquidationChartFromData() {
-            if (!liquidationChart) return;
-            
+        
+        function initLiquidation1hChart() {
+            const chartDom = document.getElementById('liquidation1hChart');
+            if (!chartDom) {
+                console.error('❌ 找不到liquidation1hChart容器');
+                return;
+            }
+            liquidation1hChart = echarts.init(chartDom);
+            loadAllLiquidationData();
+        }
+
+        // 加载所有数据
+        async function loadAllLiquidationData() {
             try {
-                // 读取最近1小时的数据
-                const response = await fetch('/api/major-events/data/liquidation?hours=1');
+                console.log('📊 加载1小时爆仓金额全部数据...');
+                
+                const response = await fetch('/api/liquidation-1h/history?limit=10000');
                 const result = await response.json();
                 
                 if (!result.success || !result.data || result.data.length === 0) {
-                    console.warn('爆仓数据为空');
+                    console.warn('⚠️ 暂无1小时爆仓金额数据');
+                    if (liquidation1hChart) {
+                        liquidation1hChart.setOption({
+                            title: {
+                                text: '⚠️ 暂无数据',
+                                left: 'center',
+                                top: 'middle',
+                                textStyle: {
+                                    color: 'rgba(255, 255, 255, 0.6)',
+                                    fontSize: 16
+                                }
+                            }
+                        });
+                    }
                     return;
                 }
                 
-                const data = result.data.slice(-7); // 最近7条数据
-                const times = data.map((d, i) => {
-                    const minAgo = (data.length - i - 1) * 5;
-                    return minAgo === 0 ? '现在' : `${minAgo}分钟前`;
-                });
-                const amounts = data.map(d => (d.liquidation_amount || 0) / 10000); // 转换为万美元
+                liqAllData = result.data;
+                console.log(`✅ 加载成功: ${liqAllData.length}条记录`);
                 
-                const option = {
-                    title: {
-                        text: '1h爆仓金额趋势',
-                        left: 'center'
+                // 显示最新一页
+                liqCurrentPage = 0;
+                updateLiquidationChartForCurrentPage();
+                updateLiquidationPageInfo();
+                
+            } catch (error) {
+                console.error('❌ 加载1小时爆仓金额数据失败:', error);
+            }
+        }
+
+        // 更新当前页的图表
+        function updateLiquidationChartForCurrentPage() {
+            if (!liqAllData || liqAllData.length === 0) {
+                console.warn('⚠️ 没有数据可显示');
+                return;
+            }
+            
+            // 计算当前页的数据范围
+            const totalRecords = liqAllData.length;
+            const startIndex = Math.max(0, totalRecords - (liqCurrentPage + 1) * LIQ_RECORDS_PER_PAGE);
+            const endIndex = Math.max(0, totalRecords - liqCurrentPage * LIQ_RECORDS_PER_PAGE);
+            
+            const pageData = liqAllData.slice(startIndex, endIndex);
+            console.log(`📄 显示第${liqCurrentPage + 1}页: ${pageData.length}条数据 (${startIndex}-${endIndex})`);
+            
+            if (pageData.length === 0) {
+                console.warn('⚠️ 当前页无数据');
+                return;
+            }
+            
+            // 提取时间和金额
+            const times = pageData.map(d => {
+                const dt = new Date(d.timestamp * 1000);
+                return `${dt.getMonth()+1}/${dt.getDate()} ${dt.getHours().toString().padStart(2, '0')}:${dt.getMinutes().toString().padStart(2, '0')}`;
+            });
+            
+            const amounts = pageData.map(d => d.hour_1_amount);
+            
+            // 计算平均值
+            const avgAmount = (amounts.reduce((a, b) => a + b, 0) / amounts.length).toFixed(2);
+            
+            // 找到24小时范围内1小时爆仓金额的最大值
+            const maxAmount = Math.max(...amounts);
+            const maxIndex = amounts.indexOf(maxAmount);
+            const maxTime = times[maxIndex];
+            
+            // 获取时间范围
+            const startTime = pageData[0].datetime.substring(5, 16);  // MM-DD HH:MM
+            const endTime = pageData[pageData.length - 1].datetime.substring(5, 16);
+            
+            // 配置图表
+            const option = {
+                backgroundColor: 'transparent',  // 透明背景，融入页面紫色渐变
+                title: {
+                    text: `1小时爆仓金额走势（${startTime} ~ ${endTime}）`,
+                    left: 'center',
+                    top: 10,
+                    textStyle: {
+                        color: 'rgba(255, 255, 255, 0.9)',
+                        fontSize: 14
+                    }
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    borderColor: 'rgba(255, 255, 255, 0.2)',
+                    textStyle: {
+                        color: '#fff'
                     },
-                    tooltip: {
-                        trigger: 'axis',
-                        formatter: '{b}: ${c}万'
+                    formatter: function(params) {
+                        const p = params[0];
+                        const amount = p.value;
+                        const color = amount > avgAmount ? '#ef4444' : amount < avgAmount * 0.8 ? '#10b981' : '#fbbf24';
+                        const currentIndex = p.dataIndex;
+                        const isMax = currentIndex === maxIndex;
+                        return `<div style="padding: 8px;">
+                            <div style="font-weight: 600; margin-bottom: 5px;">${p.name}</div>
+                            <div style="color: ${color}; font-size: 16px; font-weight: 600;">
+                                💥 1H爆仓: ${amount} 万美元${isMax ? ' 🔥' : ''}
+                            </div>
+                            <div style="font-size: 11px; color: #9ca3af; margin-top: 5px;">
+                                平均值: ${avgAmount} 万美元
+                            </div>
+                            ${isMax ? '<div style="font-size: 12px; color: #ef4444; margin-top: 5px; font-weight: 700; background: rgba(239, 68, 68, 0.2); padding: 3px 6px; border-radius: 3px;">🔥 24小时内1H爆仓最大值！</div>' : ''}
+                        </div>`;
+                    }
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '10%',
+                    top: '15%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: times,
+                    axisLabel: {
+                        color: 'rgba(255, 255, 255, 0.6)',
+                        fontSize: 10,
+                        rotate: 45,
+                        interval: Math.floor(times.length / 20)  // 显示约20个标签
                     },
-                    xAxis: {
-                        type: 'category',
-                        data: times
+                    axisLine: {
+                        lineStyle: {
+                            color: 'rgba(255, 255, 255, 0.2)'
+                        }
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    name: '万美元',
+                    nameTextStyle: {
+                        color: 'rgba(255, 255, 255, 0.6)',
+                        fontSize: 11
                     },
-                    yAxis: {
-                        type: 'value',
-                        name: '金额(万美元)',
-                        minInterval: 100
+                    axisLabel: {
+                        color: 'rgba(255, 255, 255, 0.6)',
+                        fontSize: 11
                     },
-                    series: [{
-                        name: '爆仓金额',
+                    axisLine: {
+                        lineStyle: {
+                            color: 'rgba(255, 255, 255, 0.2)'
+                        }
+                    },
+                    splitLine: {
+                        lineStyle: {
+                            color: 'rgba(255, 255, 255, 0.1)',
+                            type: 'dashed'
+                        }
+                    }
+                },
+                series: [
+                    {
+                        name: '1小时爆仓金额',
                         type: 'line',
                         data: amounts,
                         smooth: true,
-                        lineStyle: { color: '#dc2626', width: 2 },
-                        itemStyle: { color: '#dc2626' },
+                        symbol: 'circle',
+                        symbolSize: 4,
+                        lineStyle: {
+                            color: '#f59e0b',
+                            width: 2
+                        },
+                        itemStyle: {
+                            color: '#f59e0b'
+                        },
                         areaStyle: {
                             color: {
                                 type: 'linear',
-                                x: 0, y: 0, x2: 0, y2: 1,
+                                x: 0,
+                                y: 0,
+                                x2: 0,
+                                y2: 1,
                                 colorStops: [
-                                    { offset: 0, color: 'rgba(220, 38, 38, 0.3)' },
-                                    { offset: 1, color: 'rgba(220, 38, 38, 0.05)' }
+                                    { offset: 0, color: 'rgba(245, 158, 11, 0.3)' },
+                                    { offset: 1, color: 'rgba(245, 158, 11, 0.05)' }
                                 ]
                             }
+                        },
+                        markLine: {
+                            silent: true,
+                            symbol: 'none',
+                            label: {
+                                position: 'end',
+                                formatter: '平均: {c}万'
+                            },
+                            lineStyle: {
+                                color: 'rgba(255, 255, 255, 0.4)',
+                                type: 'dashed',
+                                width: 1
+                            },
+                            data: [
+                                { yAxis: avgAmount }
+                            ]
+                        },
+                        markPoint: {
+                            symbol: 'pin',
+                            symbolSize: 60,
+                            label: {
+                                show: true,
+                                formatter: function(params) {
+                                    return `${params.value}万`;
+                                },
+                                color: '#fff',
+                                fontSize: 16,
+                                fontWeight: 'bold'
+                            },
+                            itemStyle: {
+                                color: '#ef4444'
+                            },
+                            data: [
+                                {
+                                    coord: [maxIndex, maxAmount],
+                                    value: maxAmount.toFixed(2),
+                                    name: '24小时内1H爆仓最大值'
+                                }
+                            ]
                         }
-                    }]
-                };
-                
-                liquidationChart.setOption(option);
-            } catch (error) {
-                console.error('渲染爆仓金额图表失败:', error);
-            }
+                    }
+                ]
+            };
+            
+            liquidation1hChart.setOption(option);
         }
 
         // 渲染2h见顶信号图表（旧方法，保留作为备用）
@@ -825,50 +1042,6 @@
             };
             
             topSignalChart.setOption(option);
-        }
-
-        // 渲染爆仓金额图表
-        function renderLiquidationChart() {
-            if (!liquidationChart) return;
-            
-            const option = {
-                title: {
-                    text: '1h爆仓金额趋势',
-                    left: 'center'
-                },
-                tooltip: {
-                    trigger: 'axis',
-                    formatter: '{b}: ${c}万'
-                },
-                xAxis: {
-                    type: 'category',
-                    data: ['1h前', '50min前', '40min前', '30min前', '20min前', '10min前', '现在']
-                },
-                yAxis: {
-                    type: 'value',
-                    name: '金额(万美元)'
-                },
-                series: [{
-                    name: '爆仓金额',
-                    type: 'line',
-                    data: [0, 0, 0, 0, 0, 0, 0],
-                    smooth: true,
-                    lineStyle: { color: '#dc2626', width: 2 },
-                    itemStyle: { color: '#dc2626' },
-                    areaStyle: {
-                        color: {
-                            type: 'linear',
-                            x: 0, y: 0, x2: 0, y2: 1,
-                            colorStops: [
-                                { offset: 0, color: 'rgba(220, 38, 38, 0.3)' },
-                                { offset: 1, color: 'rgba(220, 38, 38, 0.05)' }
-                            ]
-                        }
-                    }
-                }]
-            };
-            
-            liquidationChart.setOption(option);
         }
 
         // 更新事件列表
@@ -926,6 +1099,28 @@
             renderProfitStatsChart(currentPage);
         }
 
+        // 加载爆仓数据的前一页
+        function loadLiquidationPreviousPage() {
+            const maxPage = Math.floor((liqAllData.length - 1) / LIQ_RECORDS_PER_PAGE);
+            if (liqCurrentPage >= maxPage) {
+                alert('⚠️ 已经是最早的数据了');
+                return;
+            }
+            liqCurrentPage++;
+            updateLiquidationChartForCurrentPage();
+        }
+
+        // 加载爆仓数据的后一页
+        function loadLiquidationNextPage() {
+            if (liqCurrentPage <= 0) {
+                alert('⚠️ 已经是最新的数据了');
+                return;
+            }
+            liqCurrentPage--;
+            updateLiquidationChartForCurrentPage();
+        }
+
+
         // 页面加载时初始化
         window.addEventListener('load', () => {
             initCharts();
@@ -938,7 +1133,7 @@
         // 窗口大小改变时重新调整图表
         window.addEventListener('resize', () => {
             profitStatsChart?.resize();
-            liquidationChart?.resize();
+            liquidation1hChart?.resize();
         });
     </script>
 </body>
