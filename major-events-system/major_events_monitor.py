@@ -334,8 +334,8 @@ class MajorEventsMonitor:
         1. 当爆仓金额首次>=3000万时，记录开始时间和初始金额
         2. 从开始时间计时10分钟
         3. 10分钟一到，立即检查：
-           - 如果期间有创新高（增幅>=5%）→ 触发事件3（强空头）
-           - 如果期间没创新高（增幅<5%）→ 不触发事件3，由事件4处理
+           - 如果期间有创过新高 → 触发事件3（强空头）
+           - 如果期间从未创过新高 → 不触发事件3，由事件4处理
         4. 触发后设置冷却期1小时
         """
         current_amount = self.get_1h_liquidation_amount()
@@ -386,8 +386,11 @@ class MajorEventsMonitor:
             
             # 10分钟一到，立即检查是否触发
             if duration >= timedelta(minutes=10):
-                # 如果增幅>=5%，说明有明显创新高，触发强空头
-                if increase_pct >= 0.05:
+                # 检查是否创过新高（最大值 > 起始值）
+                has_new_high = self.event_states['event3_max_amount'] > self.event_states['event3_start_amount']
+                
+                if has_new_high:
+                    # 期间创过新高，触发强空头
                     event = {
                         'event_type': 'strong_short_liquidation',
                         'event_id': 3,
@@ -399,10 +402,10 @@ class MajorEventsMonitor:
                         'duration_minutes': int(duration.total_seconds() / 60),
                         'action': '开空',
                         'confidence': '高',
-                        'description': f'强空头信号：1h爆仓金额从{self.event_states["event3_start_amount"]:.2f}万持续上涨至{self.event_states["event3_max_amount"]:.2f}万（增幅{increase_pct*100:.2f}%），持续{int(duration.total_seconds()/60)}分钟'
+                        'description': f'强空头信号：1h爆仓金额从{self.event_states["event3_start_amount"]:.2f}万上涨至{self.event_states["event3_max_amount"]:.2f}万（增幅{increase_pct*100:.2f}%），10分钟内持续创新高'
                     }
                     
-                    logger.warning(f"🚨 事件三触发：强空头爆仓 - 开空！增幅{increase_pct*100:.2f}% >= 5%")
+                    logger.warning(f"🚨 事件三触发：强空头爆仓 - 开空！10分钟内创过新高（峰值{self.event_states['event3_max_amount']:.2f}万 > 起始{self.event_states['event3_start_amount']:.2f}万）")
                     self.save_event(event)
                     
                     # 设置触发时间和冷却
@@ -413,8 +416,8 @@ class MajorEventsMonitor:
                     
                     return event
                 else:
-                    # 增幅<5%，不触发事件3，重置状态让事件4处理
-                    logger.info(f"📊 10分钟到达，增幅{increase_pct*100:.2f}% < 5%，不触发事件3，重置状态")
+                    # 10分钟内从未创新高，不触发事件3，重置状态让事件4处理
+                    logger.info(f"📊 10分钟到达，从未创过新高（峰值{self.event_states['event3_max_amount']:.2f}万 = 起始{self.event_states['event3_start_amount']:.2f}万），不触发事件3，重置状态")
                     self.event_states['event3_start_time'] = None
                     self.event_states['event3_start_amount'] = 0
                     self.event_states['event3_max_amount'] = 0
@@ -432,13 +435,14 @@ class MajorEventsMonitor:
         """
         事件四：1h爆仓金额 >= 3000万弱空头
         - 1h爆仓金额 >= 3000万
-        - 10分钟内未创新高
+        - 10分钟内未创过新高
         - 操作提示：开空（谨慎）
         
-        逻辑修正：
+        正确逻辑：
         1. 当爆仓金额>=3000万时，记录初始值和时间
-        2. 如果10分钟后，爆仓金额没有显著增长（<5%），触发弱空头事件
-        3. 如果创新高超过5%，则重置状态
+        2. 10分钟一到，检查是否创过新高
+        3. 如果从未创过新高，触发弱空头事件
+        4. 如果创过新高，不触发（由事件3处理）
         """
         current_amount = self.get_1h_liquidation_amount()
         now = datetime.now()
@@ -484,8 +488,11 @@ class MajorEventsMonitor:
             logger.info(f"⏱️  事件4监控中: 持续{duration_minutes:.2f}分钟, 增幅{increase_pct*100:.2f}%")
             
             if duration >= timedelta(minutes=10):
-                # 10分钟内增幅小于5%，触发弱空头
-                if increase_pct < 0.05:
+                # 检查是否创过新高
+                has_new_high = self.event_states['event4_max_amount'] > self.event_states['event4_start_amount']
+                
+                if not has_new_high:
+                    # 10分钟内从未创过新高，触发弱空头
                     event = {
                         'event_type': 'weak_short_liquidation',
                         'event_id': 4,
@@ -497,10 +504,10 @@ class MajorEventsMonitor:
                         'duration_minutes': int(duration.total_seconds() / 60),
                         'action': '开空（谨慎）',
                         'confidence': '中',
-                        'description': f'弱空头信号：1h爆仓金额{current_amount:.2f}万美元，10分钟内增幅仅{increase_pct*100:.2f}%，未创显著新高'
+                        'description': f'弱空头信号：1h爆仓金额{current_amount:.2f}万美元，10分钟内从未创过新高（保持{self.event_states["event4_start_amount"]:.2f}万）'
                     }
                     
-                    logger.warning(f"🚨 事件四触发：弱空头爆仓 - 开空（谨慎）！")
+                    logger.warning(f"🚨 事件四触发：弱空头爆仓 - 开空（谨慎）！10分钟内未创新高")
                     self.save_event(event)
                     
                     # 设置触发时间和冷却
@@ -510,12 +517,6 @@ class MajorEventsMonitor:
                     self.event_states['event4_max_amount'] = 0
                     
                     return event
-                else:
-                    # 增幅>=5%，说明在创新高，重置为强空头监控
-                    logger.info(f"爆仓金额增幅{increase_pct*100:.2f}%>=5%，转为强空头模式")
-                    self.event_states['event4_start_time'] = None
-                    self.event_states['event4_start_amount'] = 0
-                    self.event_states['event4_max_amount'] = 0
         else:
             # 爆仓金额低于3000万
             # 【修改】如果之前有记录，且持续时间>=10分钟，先检查是否触发事件再重置

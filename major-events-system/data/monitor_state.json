@@ -2,13 +2,85 @@
   "top_signal_120": null,
   "liquidation_high": null,
   "liquidation_value": 0,
-  "profit_marks_history": [],
+  "profit_marks_history": [
+    {
+      "datetime": "2026-01-20 07:11:17",
+      "mark": "red",
+      "short_profit_120": 16,
+      "short_loss": 0,
+      "time": "2026-01-20T07:14:02.128809"
+    },
+    {
+      "datetime": "2026-01-20 07:16:17",
+      "mark": "red",
+      "short_profit_120": 16,
+      "short_loss": 0,
+      "time": "2026-01-20T07:17:04.858851"
+    },
+    {
+      "datetime": "2026-01-20 07:21:18",
+      "mark": "red",
+      "short_profit_120": 16,
+      "short_loss": 0,
+      "time": "2026-01-20T07:22:05.896361"
+    },
+    {
+      "datetime": "2026-01-20 07:26:18",
+      "mark": "red",
+      "short_profit_120": 16,
+      "short_loss": 0,
+      "time": "2026-01-20T07:27:07.257879"
+    },
+    {
+      "datetime": "2026-01-20 07:31:18",
+      "mark": "red",
+      "short_profit_120": 16,
+      "short_loss": 0,
+      "time": "2026-01-20T07:32:08.258242"
+    },
+    {
+      "datetime": "2026-01-20 07:36:19",
+      "mark": "red",
+      "short_profit_120": 16,
+      "short_loss": 0,
+      "time": "2026-01-20T07:36:19.692907"
+    },
+    {
+      "datetime": "2026-01-20 07:41:19",
+      "mark": "red",
+      "short_profit_120": 16,
+      "short_loss": 0,
+      "time": "2026-01-20T07:41:21.120460"
+    },
+    {
+      "datetime": "2026-01-20 07:46:21",
+      "mark": "red",
+      "short_profit_120": 16,
+      "short_loss": 0,
+      "time": "2026-01-20T07:46:24.384983"
+    },
+    {
+      "datetime": "2026-01-20 07:51:21",
+      "mark": "red",
+      "short_profit_120": 16,
+      "short_loss": 0,
+      "time": "2026-01-20T07:51:33.846666"
+    },
+    {
+      "datetime": "2026-01-20 07:56:22",
+      "mark": "red",
+      "short_profit_120": 16,
+      "short_loss": 0,
+      "time": "2026-01-20T07:56:34.907501"
+    }
+  ],
   "event3_triggered_time": null,
-  "event3_start_time": null,
-  "event3_start_amount": 0,
+  "event3_first_high_time": null,
   "event3_max_amount": 0,
   "event4_triggered_time": null,
   "event4_start_time": null,
   "event4_start_amount": 0,
-  "event4_max_amount": 0
+  "event4_max_amount": 0,
+  "event3_start_time": null,
+  "event3_start_amount": 0
 }
