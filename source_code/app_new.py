@@ -15252,8 +15252,8 @@ def get_anchor_system_profit_history():
         trade_mode = request.args.get('trade_mode', 'real')  # real or paper
         hours = int(request.args.get('hours', 24))  # 默认24小时
         
-        # JSONL文件路径
-        jsonl_file = Path('/home/user/webapp/major-events-system/data/anchor_profit_stats.jsonl')
+        # JSONL文件路径 - 使用主数据文件
+        jsonl_file = Path('/home/user/webapp/data/anchor_profit_stats/anchor_profit_stats.jsonl')
         
         if not jsonl_file.exists():
             return jsonify({
