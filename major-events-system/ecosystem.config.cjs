@@ -202,6 +202,26 @@ module.exports = {
       min_uptime: '10s',
       max_restarts: 10,
       restart_delay: 5000
+    },
+    {
+      name: 'gdrive-detector',
+      script: '/home/user/webapp/source_code/gdrive_final_detector.py',
+      interpreter: 'python3',
+      cwd: '/home/user/webapp',
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '300M',
+      env: {
+        PYTHONUNBUFFERED: '1'
+      },
+      error_file: '/home/user/webapp/logs/gdrive_detector_error.log',
+      out_file: '/home/user/webapp/logs/gdrive_detector_out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      merge_logs: true,
+      min_uptime: '10s',
+      max_restarts: 10,
+      restart_delay: 5000
     }
   ]
 };
