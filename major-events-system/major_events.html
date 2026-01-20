@@ -232,23 +232,38 @@
             </div>
         </div>
 
-        <!-- 多空单盈利统计曲线 -->
-        <div class="chart-container">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-bold flex items-center">
-                    <i class="fas fa-chart-area mr-2 text-blue-600"></i>
-                    多空单盈利统计曲线
-                </h2>
-                <div class="flex space-x-2">
-                    <button onclick="changePage(-1)" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition">
-                        <i class="fas fa-chevron-left mr-1"></i>前一天
-                    </button>
-                    <button onclick="changePage(1)" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition">
-                        后一天<i class="fas fa-chevron-right ml-1"></i>
-                    </button>
+        <!-- 空单盈利统计图表 -->
+        <div class="card" style="margin-bottom: 30px;">
+            <div class="card-header">
+                <div class="card-title">
+                    <span>💰</span>
+                    多空单盈利统计
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="update-time" id="profitStatsUpdateTime" style="font-size: 14px; color: #718096;">
+                        最后更新: --
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button onclick="changeProfitStatsPage(-1)" 
+                                style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                                       color: white; border: none; padding: 8px 16px; 
+                                       border-radius: 8px; cursor: pointer; font-size: 14px; 
+                                       font-weight: 600; transition: all 0.3s; display: flex; 
+                                       align-items: center; gap: 5px;">
+                            ← 前一天
+                        </button>
+                        <button onclick="changeProfitStatsPage(1)" 
+                                style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                                       color: white; border: none; padding: 8px 16px; 
+                                       border-radius: 8px; cursor: pointer; font-size: 14px; 
+                                       font-weight: 600; transition: all 0.3s; display: flex; 
+                                       align-items: center; gap: 5px;">
+                            后一天 →
+                        </button>
+                    </div>
                 </div>
             </div>
-            <div id="profitStatsChart" style="width: 100%; height: 500px; background: rgba(30, 27, 75, 0.95); border-radius: 15px; border: 1px solid rgba(245, 158, 11, 0.2);"></div>
+            <div class="chart-container" id="profitStatsChart" style="height: 400px; background: white; border-radius: 0 0 15px 15px;"></div>
         </div>
 
         <!-- 1小时爆仓金额曲线图 -->
@@ -1201,8 +1216,8 @@
             }).join('');
         }
 
-        // 切换页面
-        function changePage(offset) {
+        // 切换多空单盈利统计图表页面
+        function changeProfitStatsPage(offset) {
             currentPage += offset;
             if (currentPage > 0) {
                 currentPage = 0;
