@@ -1,0 +1,21 @@
+{
+  "top_signal_120": null,
+  "liquidation_high": null,
+  "liquidation_value": 0,
+  "profit_marks_history": [
+    {
+      "datetime": "2026-01-20 07:11:17",
+      "mark": "red",
+      "short_profit_120": 16,
+      "short_loss": 0,
+      "time": "2026-01-20T07:14:02.128809"
+    }
+  ],
+  "event3_triggered_time": null,
+  "event3_first_high_time": "2026-01-20T07:14:02.044661",
+  "event3_max_amount": 4071.98,
+  "event4_triggered_time": null,
+  "event4_start_time": "2026-01-20T07:14:02.127557",
+  "event4_start_amount": 4071.98,
+  "event4_max_amount": 4071.98
+}

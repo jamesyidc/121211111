@@ -30,6 +30,9 @@ class MajorEventsMonitor:
         # 事件历史记录文件
         self.events_file = self.data_dir / 'major_events.jsonl'
         
+        # 状态持久化文件
+        self.state_file = self.data_dir / 'monitor_state.json'
+        
         # 27个交易对列表
         self.symbols = [
             'BTC-USDT-SWAP', 'ETH-USDT-SWAP', 'XRP-USDT-SWAP', 'BNB-USDT-SWAP',
@@ -49,11 +52,72 @@ class MajorEventsMonitor:
             'profit_marks_history': [],  # 多空盈利标记历史
         }
         
+        # 加载持久化状态
+        self.load_state()
+        
         logger.info("重大事件监控系统初始化完成")
     
     def get_db_connection(self):
         """获取数据库连接"""
         return sqlite3.connect(self.db_path)
+    
+    def load_state(self):
+        """从文件加载状态"""
+        try:
+            if self.state_file.exists():
+                with open(self.state_file, 'r', encoding='utf-8') as f:
+                    saved_state = json.load(f)
+                    
+                    # 恢复时间类型的字段
+                    for key in ['top_signal_120', 'liquidation_high', 'event3_triggered_time', 
+                                'event3_first_high_time', 'event4_triggered_time', 'event4_start_time']:
+                        if key in saved_state and saved_state[key]:
+                            saved_state[key] = datetime.fromisoformat(saved_state[key])
+                    
+                    # 恢复profit_marks_history中的时间
+                    if 'profit_marks_history' in saved_state:
+                        for mark in saved_state['profit_marks_history']:
+                            if 'time' in mark and mark['time']:
+                                mark['time'] = datetime.fromisoformat(mark['time'])
+                    
+                    self.event_states.update(saved_state)
+                    logger.info(f"✅ 已加载持久化状态: {len(saved_state)} 个字段")
+            else:
+                logger.info("📝 首次运行，创建新状态")
+        except Exception as e:
+            logger.error(f"加载状态失败: {e}")
+    
+    def save_state(self):
+        """保存状态到文件"""
+        try:
+            # 序列化状态（datetime转为ISO格式）
+            serializable_state = {}
+            for key, value in self.event_states.items():
+                if isinstance(value, datetime):
+                    serializable_state[key] = value.isoformat()
+                elif isinstance(value, list):
+                    # 处理列表中的datetime
+                    serializable_list = []
+                    for item in value:
+                        if isinstance(item, dict):
+                            serialized_item = {}
+                            for k, v in item.items():
+                                if isinstance(v, datetime):
+                                    serialized_item[k] = v.isoformat()
+                                else:
+                                    serialized_item[k] = v
+                            serializable_list.append(serialized_item)
+                        else:
+                            serializable_list.append(item)
+                    serializable_state[key] = serializable_list
+                else:
+                    serializable_state[key] = value
+            
+            with open(self.state_file, 'w', encoding='utf-8') as f:
+                json.dump(serializable_state, f, ensure_ascii=False, indent=2)
+                
+        except Exception as e:
+            logger.error(f"保存状态失败: {e}")
     
     def get_2h_top_signal_count(self):
         """
@@ -308,6 +372,9 @@ class MajorEventsMonitor:
             # 检查持续创新高的时间
             if self.event_states['event3_first_high_time']:
                 duration = now - self.event_states['event3_first_high_time']
+                duration_minutes = duration.total_seconds() / 60
+                
+                logger.info(f"⏱️  事件3监控中: 持续{duration_minutes:.2f}分钟, 最大{self.event_states['event3_max_amount']:.2f}万")
                 
                 # 持续10分钟以上创新高，触发事件
                 if duration >= timedelta(minutes=10):
@@ -388,7 +455,10 @@ class MajorEventsMonitor:
             
             # 检查是否满足触发条件
             duration = now - self.event_states['event4_start_time']
+            duration_minutes = duration.total_seconds() / 60
             increase_pct = (self.event_states['event4_max_amount'] - self.event_states['event4_start_amount']) / self.event_states['event4_start_amount']
+            
+            logger.info(f"⏱️  事件4监控中: 持续{duration_minutes:.2f}分钟, 增幅{increase_pct*100:.2f}%")
             
             if duration >= timedelta(minutes=10):
                 # 10分钟内增幅小于5%，触发弱空头
@@ -640,6 +710,9 @@ class MajorEventsMonitor:
                     logger.warning(f"  - {event['event_name']}: {event['action']}")
             else:
                 logger.info("本周期无事件触发")
+            
+            # 保存状态到文件
+            self.save_state()
             
             return triggered_events
             
