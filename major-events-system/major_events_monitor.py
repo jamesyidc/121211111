@@ -113,27 +113,36 @@ class MajorEventsMonitor:
     
     def get_1h_liquidation_amount(self):
         """
-        获取1h爆仓金额（从JSONL读取）
+        获取1h爆仓金额（从API读取）
         返回: float, 爆仓金额（万美元）
         """
         try:
-            jsonl_file = self.data_dir / 'liquidation_data.jsonl'
-            if not jsonl_file.exists():
-                logger.warning(f"爆仓数据文件不存在: {jsonl_file}")
-                return 0
+            # 从Flask API读取恐慌指数数据
+            import requests
             
-            # 读取最后一行（最新数据）
-            with open(jsonl_file, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-                if not lines:
-                    return 0
-                
-                last_line = lines[-1]
-                data = json.loads(last_line)
-                amount = data.get('liquidation_amount', 0) / 10000  # 转换为万美元
-                
-                logger.info(f"1h爆仓金额: {amount:.2f}万美元")
-                return amount
+            response = requests.get('http://localhost:5000/api/panic/latest', timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('success'):
+                    panic_data = data.get('data', {})
+                    amount = panic_data.get('hour_1_amount', 0)
+                    logger.info(f"1h爆仓金额（从API）: {amount:.2f}万美元")
+                    return amount
+            
+            # API失败，尝试从JSONL读取
+            jsonl_file = self.data_dir / 'liquidation_data.jsonl'
+            if jsonl_file.exists():
+                with open(jsonl_file, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                    if lines:
+                        last_line = lines[-1]
+                        data = json.loads(last_line)
+                        amount = data.get('liquidation_amount', 0) / 10000  # 转换为万美元
+                        logger.info(f"1h爆仓金额（从JSONL）: {amount:.2f}万美元")
+                        return amount
+            
+            logger.warning("无法获取1h爆仓金额数据")
+            return 0
             
         except Exception as e:
             logger.error(f"获取爆仓金额失败: {e}")
@@ -257,44 +266,78 @@ class MajorEventsMonitor:
         """
         事件三：1h爆仓金额 >= 3000万强空头
         - 1h爆仓金额 >= 3000万
-        - 持续10分钟创新高
+        - 持续10分钟以上创新高
         - 操作提示：开空
+        
+        逻辑修正：
+        1. 当爆仓金额>=3000万时，开始记录
+        2. 如果持续创新高，更新最高值和时间
+        3. 当持续创新高时间>=10分钟时，触发事件
+        4. 一旦触发后，设置冷却期，避免重复触发
         """
         current_amount = self.get_1h_liquidation_amount()
+        now = datetime.now()
+        
+        # 初始化事件3的状态
+        if 'event3_triggered_time' not in self.event_states:
+            self.event_states['event3_triggered_time'] = None
+        if 'event3_first_high_time' not in self.event_states:
+            self.event_states['event3_first_high_time'] = None
+        if 'event3_max_amount' not in self.event_states:
+            self.event_states['event3_max_amount'] = 0
+        
+        # 冷却期检查（触发后1小时内不再触发）
+        if self.event_states['event3_triggered_time']:
+            time_since_trigger = now - self.event_states['event3_triggered_time']
+            if time_since_trigger < timedelta(hours=1):
+                logger.debug(f"事件3冷却中，距离上次触发: {time_since_trigger}")
+                return None
         
         if current_amount >= 3000:
-            now = datetime.now()
-            
             # 检查是否创新高
-            if current_amount > self.event_states['liquidation_value']:
-                self.event_states['liquidation_value'] = current_amount
-                self.event_states['liquidation_high'] = now
-                logger.info(f"💰 爆仓金额创新高: {current_amount:.2f}万美元")
-            
-            # 检查是否持续10分钟创新高
-            if self.event_states['liquidation_high']:
-                time_diff = now - self.event_states['liquidation_high']
+            if current_amount > self.event_states['event3_max_amount']:
+                self.event_states['event3_max_amount'] = current_amount
                 
-                if time_diff <= timedelta(minutes=10):
+                # 第一次达到3000万以上
+                if not self.event_states['event3_first_high_time']:
+                    self.event_states['event3_first_high_time'] = now
+                    logger.info(f"💰 首次检测到大额爆仓: {current_amount:.2f}万美元")
+                else:
+                    logger.info(f"💰 爆仓金额创新高: {current_amount:.2f}万美元")
+            
+            # 检查持续创新高的时间
+            if self.event_states['event3_first_high_time']:
+                duration = now - self.event_states['event3_first_high_time']
+                
+                # 持续10分钟以上创新高，触发事件
+                if duration >= timedelta(minutes=10):
                     event = {
                         'event_type': 'strong_short_liquidation',
                         'event_id': 3,
-                        'event_name': '1h爆仓金额>=3000万强空头',
+                        'event_name': '强空头爆仓',
                         'liquidation_amount': current_amount,
-                        'duration': str(time_diff),
+                        'max_amount': self.event_states['event3_max_amount'],
+                        'duration_minutes': int(duration.total_seconds() / 60),
                         'action': '开空',
-                        'confidence': 'high',
-                        'description': f'强空头信号：爆仓金额{current_amount:.2f}万美元，持续创新高{time_diff}'
+                        'confidence': '高',
+                        'description': f'强空头信号：1h爆仓金额达到{current_amount:.2f}万美元，持续创新高超过{int(duration.total_seconds()/60)}分钟'
                     }
                     
-                    logger.warning(f"🚨 事件三触发：强空头爆仓 - 开空！")
+                    logger.warning(f"🚨 事件三触发：强空头爆仓 - 开空！爆仓金额: {current_amount:.2f}万美元")
                     self.save_event(event)
+                    
+                    # 设置触发时间和冷却
+                    self.event_states['event3_triggered_time'] = now
+                    self.event_states['event3_first_high_time'] = None
+                    self.event_states['event3_max_amount'] = 0
+                    
                     return event
         else:
-            # 爆仓金额不足，重置状态
-            if self.event_states['liquidation_value'] >= 3000:
-                self.event_states['liquidation_value'] = current_amount
-                self.event_states['liquidation_high'] = None
+            # 爆仓金额低于3000万，重置状态
+            if self.event_states['event3_max_amount'] >= 3000:
+                logger.info(f"爆仓金额降至{current_amount:.2f}万美元，低于3000万阈值，重置事件3状态")
+                self.event_states['event3_first_high_time'] = None
+                self.event_states['event3_max_amount'] = 0
         
         return None
     
@@ -302,52 +345,91 @@ class MajorEventsMonitor:
         """
         事件四：1h爆仓金额 >= 3000万弱空头
         - 1h爆仓金额 >= 3000万
-        - 持续10分钟没有创新高
-        - 操作提示：开多
+        - 10分钟内未创新高
+        - 操作提示：开空（谨慎）
+        
+        逻辑修正：
+        1. 当爆仓金额>=3000万时，记录初始值和时间
+        2. 如果10分钟后，爆仓金额没有显著增长（<5%），触发弱空头事件
+        3. 如果创新高超过5%，则重置状态
         """
         current_amount = self.get_1h_liquidation_amount()
+        now = datetime.now()
+        
+        # 初始化事件4的状态
+        if 'event4_triggered_time' not in self.event_states:
+            self.event_states['event4_triggered_time'] = None
+        if 'event4_start_time' not in self.event_states:
+            self.event_states['event4_start_time'] = None
+        if 'event4_start_amount' not in self.event_states:
+            self.event_states['event4_start_amount'] = 0
+        if 'event4_max_amount' not in self.event_states:
+            self.event_states['event4_max_amount'] = 0
+        
+        # 冷却期检查（触发后1小时内不再触发）
+        if self.event_states['event4_triggered_time']:
+            time_since_trigger = now - self.event_states['event4_triggered_time']
+            if time_since_trigger < timedelta(hours=1):
+                logger.debug(f"事件4冷却中，距离上次触发: {time_since_trigger}")
+                return None
         
         if current_amount >= 3000:
-            now = datetime.now()
+            # 第一次检测到>=3000万
+            if not self.event_states['event4_start_time']:
+                self.event_states['event4_start_time'] = now
+                self.event_states['event4_start_amount'] = current_amount
+                self.event_states['event4_max_amount'] = current_amount
+                logger.info(f"💰 开始监控弱空头：初始爆仓金额 {current_amount:.2f}万美元")
+                return None
             
-            # 记录爆仓金额
-            if not self.event_states.get('weak_liquidation_start'):
-                self.event_states['weak_liquidation_start'] = {
-                    'amount': current_amount,
-                    'time': now
-                }
-                logger.info(f"💰 检测到大额爆仓: {current_amount:.2f}万美元")
+            # 更新最大值
+            if current_amount > self.event_states['event4_max_amount']:
+                self.event_states['event4_max_amount'] = current_amount
             
-            # 检查是否10分钟内没有创新高
-            start_info = self.event_states.get('weak_liquidation_start')
-            if start_info:
-                time_diff = now - start_info['time']
-                
-                if time_diff >= timedelta(minutes=10):
-                    # 检查是否没有创新高
-                    if current_amount <= start_info['amount'] * 1.05:  # 允许5%误差
-                        event = {
-                            'event_type': 'weak_short_liquidation',
-                            'event_id': 4,
-                            'event_name': '1h爆仓金额>=3000万弱空头',
-                            'liquidation_amount': current_amount,
-                            'start_amount': start_info['amount'],
-                            'duration': str(time_diff),
-                            'action': '开多',
-                            'confidence': 'medium',
-                            'description': f'弱空头信号：爆仓金额{current_amount:.2f}万美元，10分钟未创新高'
-                        }
-                        
-                        logger.warning(f"🚨 事件四触发：弱空头爆仓 - 开多！")
-                        self.save_event(event)
-                        self.event_states['weak_liquidation_start'] = None
-                        return event
-                    else:
-                        # 创新高了，重置
-                        self.event_states['weak_liquidation_start'] = None
+            # 检查是否满足触发条件
+            duration = now - self.event_states['event4_start_time']
+            increase_pct = (self.event_states['event4_max_amount'] - self.event_states['event4_start_amount']) / self.event_states['event4_start_amount']
+            
+            if duration >= timedelta(minutes=10):
+                # 10分钟内增幅小于5%，触发弱空头
+                if increase_pct < 0.05:
+                    event = {
+                        'event_type': 'weak_short_liquidation',
+                        'event_id': 4,
+                        'event_name': '弱空头爆仓',
+                        'liquidation_amount': current_amount,
+                        'start_amount': self.event_states['event4_start_amount'],
+                        'max_amount': self.event_states['event4_max_amount'],
+                        'increase_pct': f'{increase_pct*100:.2f}%',
+                        'duration_minutes': int(duration.total_seconds() / 60),
+                        'action': '开空（谨慎）',
+                        'confidence': '中',
+                        'description': f'弱空头信号：1h爆仓金额{current_amount:.2f}万美元，10分钟内增幅仅{increase_pct*100:.2f}%，未创显著新高'
+                    }
+                    
+                    logger.warning(f"🚨 事件四触发：弱空头爆仓 - 开空（谨慎）！")
+                    self.save_event(event)
+                    
+                    # 设置触发时间和冷却
+                    self.event_states['event4_triggered_time'] = now
+                    self.event_states['event4_start_time'] = None
+                    self.event_states['event4_start_amount'] = 0
+                    self.event_states['event4_max_amount'] = 0
+                    
+                    return event
+                else:
+                    # 增幅>=5%，说明在创新高，重置为强空头监控
+                    logger.info(f"爆仓金额增幅{increase_pct*100:.2f}%>=5%，转为强空头模式")
+                    self.event_states['event4_start_time'] = None
+                    self.event_states['event4_start_amount'] = 0
+                    self.event_states['event4_max_amount'] = 0
         else:
-            # 爆仓金额不足，重置
-            self.event_states['weak_liquidation_start'] = None
+            # 爆仓金额低于3000万，重置状态
+            if self.event_states['event4_start_amount'] >= 3000:
+                logger.info(f"爆仓金额降至{current_amount:.2f}万美元，低于3000万阈值，重置事件4状态")
+                self.event_states['event4_start_time'] = None
+                self.event_states['event4_start_amount'] = 0
+                self.event_states['event4_max_amount'] = 0
         
         return None
     
