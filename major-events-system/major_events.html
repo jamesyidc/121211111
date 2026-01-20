@@ -328,10 +328,10 @@
             });
             
             // 空单数据
-            const short_lte40Data = dataList.map(d => d.short?.lte_40 || 0);
-            const short_lossData = dataList.map(d => d.short?.loss || 0);
-            const short_gte80Data = dataList.map(d => d.short?.gte_80 || 0);
-            const short_gte120Data = dataList.map(d => d.short?.gte_120 || 0);
+            const short_lte40Data = dataList.map(d => d.stats?.short?.lte_40 || 0);
+            const short_lossData = dataList.map(d => d.stats?.short?.loss || 0);
+            const short_gte80Data = dataList.map(d => d.stats?.short?.gte_80 || 0);
+            const short_gte120Data = dataList.map(d => d.stats?.short?.gte_120 || 0);
             
             // 计算标记点
             const shortProfitMarks = [];
@@ -343,8 +343,8 @@
                 const dt = new Date(d.timestamp * 1000);
                 const hour = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')} ${String(dt.getHours()).padStart(2,'0')}`;
                 
-                const shortProfit120 = d.short?.gte_120 || 0;
-                const shortLoss = d.short?.loss || 0;
+                const shortProfit120 = d.stats?.short?.gte_120 || 0;
+                const shortLoss = d.stats?.short?.loss || 0;
                 
                 // 空单盈利≥120%数量≥3，标记为红色
                 if (shortProfit120 >= 3 && hour !== lastShortProfitHour) {
