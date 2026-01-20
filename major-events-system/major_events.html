@@ -237,23 +237,13 @@
             <div id="profitStatsChart" style="width: 100%; height: 500px;"></div>
         </div>
 
-        <!-- 2h见顶信号趋势 & 1h爆仓金额趋势 -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div class="chart-container">
-                <h2 class="text-xl font-bold mb-4 flex items-center">
-                    <i class="fas fa-arrow-trend-down mr-2 text-purple-600"></i>
-                    2h见顶信号趋势
-                </h2>
-                <div id="topSignalChart" style="width: 100%; height: 400px;"></div>
-            </div>
-
-            <div class="chart-container">
-                <h2 class="text-xl font-bold mb-4 flex items-center">
-                    <i class="fas fa-fire mr-2 text-red-600"></i>
-                    1h爆仓金额趋势
-                </h2>
-                <div id="liquidationChart" style="width: 100%; height: 400px;"></div>
-            </div>
+        <!-- 1h爆仓金额趋势 -->
+        <div class="chart-container mb-8">
+            <h2 class="text-xl font-bold mb-4 flex items-center">
+                <i class="fas fa-fire mr-2 text-red-600"></i>
+                1h爆仓金额趋势
+            </h2>
+            <div id="liquidationChart" style="width: 100%; height: 400px;"></div>
         </div>
 
         <!-- 重大事件列表 -->
@@ -275,13 +265,11 @@
         let currentPage = 0;
         let allHistoryData = [];
         let profitStatsChart = null;
-        let topSignalChart = null;
         let liquidationChart = null;
 
         // 初始化图表
         function initCharts() {
             profitStatsChart = echarts.init(document.getElementById('profitStatsChart'));
-            topSignalChart = echarts.init(document.getElementById('topSignalChart'));
             liquidationChart = echarts.init(document.getElementById('liquidationChart'));
         }
 
@@ -723,79 +711,11 @@
         // 加载其他图表数据
         async function loadChartData() {
             try {
-                // 获取SAR斜率数据 - 从JSONL读取
-                await renderTopSignalChartFromData();
-
                 // 获取爆仓数据 - 从JSONL读取
                 await renderLiquidationChartFromData();
 
             } catch (error) {
                 console.error('加载图表数据失败:', error);
-            }
-        }
-
-        // 渲染2h见顶信号图表（从JSONL数据）
-        async function renderTopSignalChartFromData() {
-            if (!topSignalChart) return;
-            
-            try {
-                // 读取最近1小时的数据
-                const response = await fetch('/api/major-events/data/sar-slope?hours=1');
-                const result = await response.json();
-                
-                if (!result.success || !result.data || result.data.length === 0) {
-                    console.warn('2h见顶信号数据为空');
-                    return;
-                }
-                
-                const data = result.data.slice(-7); // 最近7条数据
-                const times = data.map((d, i) => {
-                    const minAgo = (data.length - i - 1) * 5;
-                    return minAgo === 0 ? '现在' : `${minAgo}分钟前`;
-                });
-                const counts = data.map(d => d.count || 0);
-                
-                const option = {
-                    title: {
-                        text: '2h见顶信号数量趋势',
-                        left: 'center'
-                    },
-                    tooltip: {
-                        trigger: 'axis',
-                        formatter: '{b}: {c}个'
-                    },
-                    xAxis: {
-                        type: 'category',
-                        data: times
-                    },
-                    yAxis: {
-                        type: 'value',
-                        name: '信号数量',
-                        minInterval: 1
-                    },
-                    series: [{
-                        name: '见顶信号',
-                        type: 'line',
-                        data: counts,
-                        smooth: true,
-                        lineStyle: { color: '#8b5cf6', width: 2 },
-                        itemStyle: { color: '#8b5cf6' },
-                        areaStyle: {
-                            color: {
-                                type: 'linear',
-                                x: 0, y: 0, x2: 0, y2: 1,
-                                colorStops: [
-                                    { offset: 0, color: 'rgba(139, 92, 246, 0.3)' },
-                                    { offset: 1, color: 'rgba(139, 92, 246, 0.05)' }
-                                ]
-                            }
-                        }
-                    }]
-                };
-                
-                topSignalChart.setOption(option);
-            } catch (error) {
-                console.error('渲染2h见顶信号图表失败:', error);
             }
         }
 
@@ -1018,7 +938,6 @@
         // 窗口大小改变时重新调整图表
         window.addEventListener('resize', () => {
             profitStatsChart?.resize();
-            topSignalChart?.resize();
             liquidationChart?.resize();
         });
     </script>
