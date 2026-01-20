@@ -4,20 +4,6 @@
   "liquidation_value": 0,
   "profit_marks_history": [
     {
-      "datetime": "2026-01-20 13:34:08",
-      "mark": "red",
-      "short_profit_120": 18,
-      "short_loss": 0,
-      "time": "2026-01-20T21:34:21.091645+08:00"
-    },
-    {
-      "datetime": "2026-01-20 13:39:08",
-      "mark": "red",
-      "short_profit_120": 18,
-      "short_loss": 0,
-      "time": "2026-01-20T21:39:23.157514+08:00"
-    },
-    {
       "datetime": "2026-01-20 13:44:09",
       "mark": "red",
       "short_profit_120": 18,
@@ -72,6 +58,20 @@
       "short_profit_120": 19,
       "short_loss": 0,
       "time": "2026-01-20T22:25:02.687390+08:00"
+    },
+    {
+      "datetime": "2026-01-20 14:29:21",
+      "mark": "red",
+      "short_profit_120": 19,
+      "short_loss": 0,
+      "time": "2026-01-20T22:30:04.115978+08:00"
+    },
+    {
+      "datetime": "2026-01-20 14:34:21",
+      "mark": "red",
+      "short_profit_120": 19,
+      "short_loss": 0,
+      "time": "2026-01-20T22:35:05.192098+08:00"
     }
   ],
   "event3_triggered_time": null,
