@@ -408,19 +408,15 @@
             const targetDate = new Date(now);
             targetDate.setDate(targetDate.getDate() + pageOffset);
             
-            // 设置为目标日期的00:00:00
-            const startOfDay = new Date(targetDate);
-            startOfDay.setHours(0, 0, 0, 0);
-            const startTimestamp = Math.floor(startOfDay.getTime() / 1000);
+            // 格式化目标日期为 YYYY-MM-DD
+            const year = targetDate.getFullYear();
+            const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+            const day = String(targetDate.getDate()).padStart(2, '0');
+            const datePrefix = `${year}-${month}-${day}`;
             
-            // 设置为目标日期的23:59:59
-            const endOfDay = new Date(targetDate);
-            endOfDay.setHours(23, 59, 59, 999);
-            const endTimestamp = Math.floor(endOfDay.getTime() / 1000);
-            
-            // 过滤出24小时内的数据
+            // 使用datetime字符串过滤（避免时区问题）
             const dataList = allHistoryData.filter(d => {
-                return d.timestamp >= startTimestamp && d.timestamp <= endTimestamp;
+                return d.datetime && d.datetime.startsWith(datePrefix);
             });
             
             console.log(`📊 ${targetDate.toLocaleDateString()} 的数据条数:`, dataList.length);
