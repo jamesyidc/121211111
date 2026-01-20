@@ -402,12 +402,14 @@
         // 加载锚定系统历史数据
         async function loadAnchorHistoryData() {
             try {
-                const response = await fetch('/api/anchor-system/profit-history?trade_mode=real');
+                const response = await fetch('/api/anchor-profit/history?limit=10080');  // 7天的数据（每分钟一条）
                 const data = await response.json();
                 
-                if (data.success && data.history) {
-                    allHistoryData = data.history;
+                if (data.success && data.data) {
+                    allHistoryData = data.data;
                     renderProfitStatsChart(currentPage);
+                } else {
+                    console.error('加载数据失败:', data);
                 }
             } catch (error) {
                 console.error('加载锚定系统历史数据失败:', error);
