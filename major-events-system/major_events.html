@@ -127,41 +127,37 @@
             </div>
         </div>
 
-        <!-- 数据曲线图 -->
+        <!-- 多空单盈利统计（来自锚定系统） -->
         <div class="chart-container">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-bold flex items-center">
-                    <i class="fas fa-chart-area mr-2 text-blue-600"></i>
-                    多空单盈利统计曲线
-                </h2>
-                <div class="flex space-x-2">
-                    <button onclick="changePage(-1)" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition">
-                        <i class="fas fa-chevron-left mr-1"></i>前一天
-                    </button>
-                    <button onclick="changePage(1)" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition">
-                        后一天<i class="fas fa-chevron-right ml-1"></i>
-                    </button>
-                </div>
-            </div>
-            <div id="profitStatsChart" style="width: 100%; height: 500px;"></div>
+            <h2 class="text-xl font-bold mb-4 flex items-center">
+                <i class="fas fa-chart-area mr-2 text-blue-600"></i>
+                多空单盈利统计曲线
+            </h2>
+            <iframe src="/anchor-system-real" 
+                    style="width: 100%; height: 600px; border: none;" 
+                    frameborder="0"></iframe>
         </div>
 
-        <!-- 2h见顶信号曲线 -->
+        <!-- 2h见顶信号曲线（来自极致追踪系统） -->
         <div class="chart-container">
             <h2 class="text-xl font-bold mb-4 flex items-center">
                 <i class="fas fa-arrow-trend-down mr-2 text-purple-600"></i>
                 2h见顶信号趋势
             </h2>
-            <div id="topSignalChart" style="width: 100%; height: 400px;"></div>
+            <iframe src="/extreme-tracking" 
+                    style="width: 100%; height: 600px; border: none;" 
+                    frameborder="0"></iframe>
         </div>
 
-        <!-- 爆仓金额曲线 -->
+        <!-- 1h爆仓金额曲线（来自panic系统） -->
         <div class="chart-container">
             <h2 class="text-xl font-bold mb-4 flex items-center">
                 <i class="fas fa-fire mr-2 text-red-600"></i>
                 1h爆仓金额趋势
             </h2>
-            <div id="liquidationChart" style="width: 100%; height: 400px;"></div>
+            <iframe src="/panic" 
+                    style="width: 100%; height: 600px; border: none;" 
+                    frameborder="0"></iframe>
         </div>
 
         <!-- 重大事件列表 -->
@@ -212,11 +208,8 @@
                     updateEventsList(eventsData.events || []);
                 }
 
-                // 获取锚定系统历史数据
+                // 获取锚定系统历史数据并渲染图表
                 await loadAnchorHistoryData();
-                
-                // 获取其他曲线数据
-                await loadChartData();
 
             } catch (error) {
                 console.error('刷新数据失败:', error);
