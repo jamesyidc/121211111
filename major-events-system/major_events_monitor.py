@@ -12,6 +12,10 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import logging
 import requests
+import pytz
+
+# 北京时区
+BEIJING_TZ = pytz.timezone('Asia/Shanghai')
 
 # 配置日志
 logging.basicConfig(
@@ -24,6 +28,10 @@ logger = logging.getLogger('MajorEventsMonitor')
 TG_BOT_TOKEN = "8437045462:AAFePnwdC21cqeWhZISMQHGGgjmroVqE2H0"
 TG_CHAT_ID = "-1003227444260"
 TG_API_BASE = f"https://api.telegram.org/bot{TG_BOT_TOKEN}"
+
+def get_beijing_time():
+    """获取当前北京时间"""
+    return datetime.now(BEIJING_TZ)
 
 class MajorEventsMonitor:
     """重大事件监控器"""
@@ -231,7 +239,7 @@ class MajorEventsMonitor:
         # 第一阶段：检测到120见顶信号
         if current_count >= 120:
             if not self.event_states['top_signal_120']:
-                self.event_states['top_signal_120'] = datetime.now()
+                self.event_states['top_signal_120'] = get_beijing_time()
                 logger.info(f"🔴 检测到高强度见顶信号: {current_count}")
                 self.save_event({
                     'event_type': 'high_intensity_top_phase1',
@@ -243,7 +251,7 @@ class MajorEventsMonitor:
         
         # 第二阶段：检测10小时内的第二次信号
         if self.event_states['top_signal_120']:
-            time_diff = datetime.now() - self.event_states['top_signal_120']
+            time_diff = get_beijing_time() - self.event_states['top_signal_120']
             
             if time_diff <= timedelta(hours=10):
                 # 检查是否满足第二次信号条件
@@ -291,7 +299,7 @@ class MajorEventsMonitor:
                 # 记录第一次信号
                 self.event_states['normal_top_first'] = {
                     'count': current_count,
-                    'time': datetime.now()
+                    'time': get_beijing_time()
                 }
                 logger.info(f"🟡 检测到一般强度见顶信号: {current_count}")
                 self.save_event({
@@ -304,7 +312,7 @@ class MajorEventsMonitor:
         # 检查第二次信号
         if self.event_states.get('normal_top_first'):
             first_signal = self.event_states['normal_top_first']
-            time_diff = datetime.now() - first_signal['time']
+            time_diff = get_beijing_time() - first_signal['time']
             
             if time_diff <= timedelta(hours=10):
                 # 检查是否满足第二次信号条件（小于第一次）
@@ -345,7 +353,7 @@ class MajorEventsMonitor:
         4. 触发后设置冷却期1小时
         """
         current_amount = self.get_1h_liquidation_amount()
-        now = datetime.now()
+        now = get_beijing_time()
         
         # 初始化事件3的状态
         if 'event3_triggered_time' not in self.event_states:
@@ -451,7 +459,7 @@ class MajorEventsMonitor:
         4. 如果创过新高，不触发（由事件3处理）
         """
         current_amount = self.get_1h_liquidation_amount()
-        now = datetime.now()
+        now = get_beijing_time()
         
         # 初始化事件4的状态
         if 'event4_triggered_time' not in self.event_states:
@@ -654,7 +662,7 @@ class MajorEventsMonitor:
                     'mark': current_mark,
                     'short_profit_120': short_profit_120,
                     'short_loss': short_loss,
-                    'time': datetime.now()
+                    'time': get_beijing_time()
                 }
                 history.append(mark_data)
                 
@@ -727,7 +735,7 @@ class MajorEventsMonitor:
     
     def save_event(self, event):
         """保存事件到JSONL文件"""
-        event['timestamp'] = datetime.now().isoformat()
+        event['timestamp'] = get_beijing_time().isoformat()
         
         with open(self.events_file, 'a', encoding='utf-8') as f:
             f.write(json.dumps(event, ensure_ascii=False) + '\n')
@@ -852,7 +860,7 @@ class MajorEventsMonitor:
         if not self.events_file.exists():
             return []
         
-        cutoff_time = datetime.now() - timedelta(hours=hours)
+        cutoff_time = get_beijing_time() - timedelta(hours=hours)
         events = []
         
         with open(self.events_file, 'r', encoding='utf-8') as f:
