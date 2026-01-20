@@ -320,7 +320,32 @@
 
         // 初始化图表
         function initCharts() {
-            profitStatsChart = echarts.init(document.getElementById('profitStatsChart'));
+            console.log('🔧 开始初始化图表...');
+            
+            // 检查ECharts是否加载
+            if (typeof echarts === 'undefined') {
+                console.error('❌ ECharts库未加载');
+                return;
+            }
+            
+            // 检查图表容器是否存在
+            const profitContainer = document.getElementById('profitStatsChart');
+            if (!profitContainer) {
+                console.error('❌ 找不到profitStatsChart容器');
+                return;
+            }
+            
+            console.log('✅ profitStatsChart容器存在，尺寸:', profitContainer.offsetWidth, 'x', profitContainer.offsetHeight);
+            
+            // 初始化多空单盈利图表
+            try {
+                profitStatsChart = echarts.init(profitContainer);
+                console.log('✅ profitStatsChart初始化成功');
+            } catch (error) {
+                console.error('❌ profitStatsChart初始化失败:', error);
+            }
+            
+            // 初始化爆仓图表
             initLiquidation1hChart();
         }
 
@@ -428,6 +453,19 @@
         // 渲染多空单盈利统计图表
         function renderProfitStatsChart(pageOffset) {
             console.log(`📈 渲染图表，页码偏移: ${pageOffset}天`);
+            
+            // 检查图表是否已初始化
+            if (!profitStatsChart) {
+                console.error('❌ profitStatsChart未初始化，尝试重新初始化...');
+                const profitContainer = document.getElementById('profitStatsChart');
+                if (profitContainer) {
+                    profitStatsChart = echarts.init(profitContainer);
+                    console.log('✅ profitStatsChart重新初始化成功');
+                } else {
+                    console.error('❌ 找不到profitStatsChart容器');
+                    return;
+                }
+            }
             
             // 计算日期范围（显示24小时数据）
             const now = new Date();
