@@ -15254,6 +15254,84 @@ def get_anchor_system_profit_history():
             'traceback': traceback.format_exc()
         })
 
+@app.route('/api/major-events/data/sar-slope', methods=['GET'])
+def get_sar_slope_data():
+    """获取SAR斜率数据（从JSONL读取）"""
+    try:
+        import json
+        from pathlib import Path
+        
+        hours = int(request.args.get('hours', 1))  # 默认1小时
+        jsonl_file = Path('/home/user/webapp/major-events-system/data/sar_slope_data.jsonl')
+        
+        if not jsonl_file.exists():
+            return jsonify({'success': False, 'error': 'JSONL文件不存在'})
+        
+        data_list = []
+        cutoff_time = int(time.time()) - (hours * 3600)
+        
+        with open(jsonl_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    data = json.loads(line.strip())
+                    if data.get('timestamp', 0) >= cutoff_time:
+                        data_list.append(data)
+                except:
+                    continue
+        
+        return jsonify({
+            'success': True,
+            'hours': hours,
+            'data': data_list,
+            'count': len(data_list)
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/major-events/data/liquidation', methods=['GET'])
+def get_liquidation_data():
+    """获取爆仓数据（从JSONL读取）"""
+    try:
+        import json
+        from pathlib import Path
+        
+        hours = int(request.args.get('hours', 1))  # 默认1小时
+        jsonl_file = Path('/home/user/webapp/major-events-system/data/liquidation_data.jsonl')
+        
+        if not jsonl_file.exists():
+            return jsonify({'success': False, 'error': 'JSONL文件不存在'})
+        
+        data_list = []
+        cutoff_time = int(time.time()) - (hours * 3600)
+        
+        with open(jsonl_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    data = json.loads(line.strip())
+                    if data.get('timestamp', 0) >= cutoff_time:
+                        data_list.append(data)
+                except:
+                    continue
+        
+        return jsonify({
+            'success': True,
+            'hours': hours,
+            'data': data_list,
+            'count': len(data_list)
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
 # ==================== Flask App 启动入口 ====================
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)

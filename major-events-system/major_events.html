@@ -502,24 +502,148 @@
         // 加载其他图表数据
         async function loadChartData() {
             try {
-                // 获取SAR斜率数据
-                const sarResponse = await fetch('/api/sar-slope/latest');
-                if (sarResponse.ok) {
-                    const sarData = await sarResponse.json();
-                    if (sarData.success) {
-                        renderTopSignalChart(sarData);
-                    }
-                }
+                // 获取SAR斜率数据 - 从JSONL读取
+                await renderTopSignalChartFromData();
 
-                // 获取爆仓数据（模拟数据）
-                renderLiquidationChart();
+                // 获取爆仓数据 - 从JSONL读取
+                await renderLiquidationChartFromData();
 
             } catch (error) {
                 console.error('加载图表数据失败:', error);
             }
         }
 
-        // 渲染2h见顶信号图表
+        // 渲染2h见顶信号图表（从JSONL数据）
+        async function renderTopSignalChartFromData() {
+            if (!topSignalChart) return;
+            
+            try {
+                // 读取最近1小时的数据
+                const response = await fetch('/api/major-events/data/sar-slope?hours=1');
+                const result = await response.json();
+                
+                if (!result.success || !result.data || result.data.length === 0) {
+                    console.warn('2h见顶信号数据为空');
+                    return;
+                }
+                
+                const data = result.data.slice(-7); // 最近7条数据
+                const times = data.map((d, i) => {
+                    const minAgo = (data.length - i - 1) * 5;
+                    return minAgo === 0 ? '现在' : `${minAgo}分钟前`;
+                });
+                const counts = data.map(d => d.count || 0);
+                
+                const option = {
+                    title: {
+                        text: '2h见顶信号数量趋势',
+                        left: 'center'
+                    },
+                    tooltip: {
+                        trigger: 'axis',
+                        formatter: '{b}: {c}个'
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: times
+                    },
+                    yAxis: {
+                        type: 'value',
+                        name: '信号数量',
+                        minInterval: 1
+                    },
+                    series: [{
+                        name: '见顶信号',
+                        type: 'line',
+                        data: counts,
+                        smooth: true,
+                        lineStyle: { color: '#8b5cf6', width: 2 },
+                        itemStyle: { color: '#8b5cf6' },
+                        areaStyle: {
+                            color: {
+                                type: 'linear',
+                                x: 0, y: 0, x2: 0, y2: 1,
+                                colorStops: [
+                                    { offset: 0, color: 'rgba(139, 92, 246, 0.3)' },
+                                    { offset: 1, color: 'rgba(139, 92, 246, 0.05)' }
+                                ]
+                            }
+                        }
+                    }]
+                };
+                
+                topSignalChart.setOption(option);
+            } catch (error) {
+                console.error('渲染2h见顶信号图表失败:', error);
+            }
+        }
+
+        // 渲染爆仓金额图表（从JSONL数据）
+        async function renderLiquidationChartFromData() {
+            if (!liquidationChart) return;
+            
+            try {
+                // 读取最近1小时的数据
+                const response = await fetch('/api/major-events/data/liquidation?hours=1');
+                const result = await response.json();
+                
+                if (!result.success || !result.data || result.data.length === 0) {
+                    console.warn('爆仓数据为空');
+                    return;
+                }
+                
+                const data = result.data.slice(-7); // 最近7条数据
+                const times = data.map((d, i) => {
+                    const minAgo = (data.length - i - 1) * 5;
+                    return minAgo === 0 ? '现在' : `${minAgo}分钟前`;
+                });
+                const amounts = data.map(d => (d.liquidation_amount || 0) / 10000); // 转换为万美元
+                
+                const option = {
+                    title: {
+                        text: '1h爆仓金额趋势',
+                        left: 'center'
+                    },
+                    tooltip: {
+                        trigger: 'axis',
+                        formatter: '{b}: ${c}万'
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: times
+                    },
+                    yAxis: {
+                        type: 'value',
+                        name: '金额(万美元)',
+                        minInterval: 100
+                    },
+                    series: [{
+                        name: '爆仓金额',
+                        type: 'line',
+                        data: amounts,
+                        smooth: true,
+                        lineStyle: { color: '#dc2626', width: 2 },
+                        itemStyle: { color: '#dc2626' },
+                        areaStyle: {
+                            color: {
+                                type: 'linear',
+                                x: 0, y: 0, x2: 0, y2: 1,
+                                colorStops: [
+                                    { offset: 0, color: 'rgba(220, 38, 38, 0.3)' },
+                                    { offset: 1, color: 'rgba(220, 38, 38, 0.05)' }
+                                ]
+                            }
+                        }
+                    }]
+                };
+                
+                liquidationChart.setOption(option);
+            } catch (error) {
+                console.error('渲染爆仓金额图表失败:', error);
+            }
+        }
+
+        // 渲染2h见顶信号图表（旧方法，保留作为备用）
         function renderTopSignalChart(data) {
             if (!topSignalChart) return;
             
