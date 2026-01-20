@@ -481,15 +481,28 @@
             // 计算空单盈利≥120%和空单亏损的标记点
             const shortProfitMarks = [];
             const shortLossMarks = [];
-            let lastShortProfitHour = null;
-            let lastShortLossHour = null;
+            let lastShortProfitSlot = null;  // 改为时间槽标识
+            let lastShortLossSlot = null;
             
             // 新增：存储所有标记点（红色和绿色）
             const allMarks = [];
             
             dataList.forEach((d, index) => {
-                const dt = new Date(d.datetime);
-                const hour = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')} ${String(dt.getHours()).padStart(2,'0')}`;
+                // 直接从datetime字符串解析（格式：YYYY-MM-DD HH:MM:SS）
+                const datetimeParts = d.datetime.split(' ');
+                if (datetimeParts.length < 2) return;
+                
+                const timeParts = datetimeParts[1].split(':');
+                if (timeParts.length < 2) return;
+                
+                const hour = timeParts[0];
+                const minute = timeParts[1];
+                
+                // 只在00分或30分标记
+                if (minute !== '00' && minute !== '30') return;
+                
+                // 生成时间槽标识（格式：YYYY-MM-DD HH:MM）
+                const timeSlot = `${datetimeParts[0]} ${hour}:${minute}`;
                 
                 const shortProfit120 = d.stats?.short?.gte_120 || 0;
                 const shortLoss = d.stats?.short?.loss || 0;
@@ -498,8 +511,8 @@
                 let markType = null;
                 let markValue = 0;
                 
-                // 空单盈利≥120%数量≥3，每小时只标记一次
-                if (shortProfit120 >= 3 && hour !== lastShortProfitHour) {
+                // 空单盈利≥120%数量≥3，每30分钟只标记一次（00分或30分）
+                if (shortProfit120 >= 3 && timeSlot !== lastShortProfitSlot) {
                     markType = 'red';
                     markValue = shortProfit120;
                     shortProfitMarks.push({
@@ -519,12 +532,12 @@
                             fontWeight: 'bold'
                         }
                     });
-                    lastShortProfitHour = hour;
+                    lastShortProfitSlot = timeSlot;
                     console.log(`🔴 标记空单盈利≥120%: ${d.datetime} - ${shortProfit120}个`);
                 }
                 
-                // 空单亏损数量≥3，每小时只标记一次
-                if (shortLoss >= 3 && hour !== lastShortLossHour) {
+                // 空单亏损数量≥3，每30分钟只标记一次（00分或30分）
+                if (shortLoss >= 3 && timeSlot !== lastShortLossSlot) {
                     markType = 'green';
                     markValue = shortLoss;
                     shortLossMarks.push({
@@ -544,7 +557,7 @@
                             fontWeight: 'bold'
                         }
                     });
-                    lastShortLossHour = hour;
+                    lastShortLossSlot = timeSlot;
                     console.log(`🟢 标记空单亏损: ${d.datetime} - ${shortLoss}个`);
                 }
                 
