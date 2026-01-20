@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>峰值标记可视化测试</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            font-size: 28px;
+            color: #1a202c;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .subtitle {
+            color: #718096;
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+        #chart {
+            width: 100%;
+            height: 600px;
+            margin-bottom: 20px;
+        }
+        .legend {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            padding: 16px;
+            background: #f7fafc;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+        .legend-symbol {
+            font-size: 18px;
+        }
+        .info-box {
+            padding: 16px;
+            background: #edf2f7;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .info-box h3 {
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: #2d3748;
+        }
+        .info-box pre {
+            background: white;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>
+            <span>📊</span>
+            <span>峰值标记可视化测试</span>
+        </h1>
+        <div class="subtitle">基于您提供的图片数据 - 完整事件标记系统</div>
+        
+        <div class="legend">
+            <div class="legend-item">
+                <span class="legend-symbol" style="color: #f97316;">🔥</span>
+                <span>峰值1 (橙色 - 第一峰值)</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-symbol" style="color: #9333ea;">⚡</span>
+                <span>峰值2 (紫色 - 第二峰值)</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-symbol" style="color: #ef4444;">✓</span>
+                <span>完成点 (红色 - 事件结束)</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-symbol" style="color: #dc2626;">⭐</span>
+                <span>特殊峰值1 (红色 - 值=120)</span>
+            </div>
+        </div>
+        
+        <div id="chart"></div>
+        
+        <div class="info-box">
+            <h3>🎯 测试数据说明</h3>
+            <pre id="eventInfo">加载中...</pre>
+        </div>
+    </div>
+
+    <script>
+        // 模拟数据：基于图片中的峰值
+        function generateTestData() {
+            const baseTime = new Date('2026-01-18 14:00:00');
+            const data = [];
+            
+            // 第一个事件周期
+            // 上升到峰值1=16
+            for (let i = 0; i < 60; i += 5) {
+                const time = new Date(baseTime.getTime() + i * 60000);
+                let value;
+                if (i < 30) {
+                    value = 11 + (i / 30) * 5; // 11 -> 16
+                } else if (i < 45) {
+                    value = 16; // 保持在16
+                } else {
+                    value = 16 - ((i - 45) / 15) * 9; // 16 -> 7
+                }
+                data.push({
+                    datetime: time.toISOString(),
+                    value: Math.round(value * 10) / 10
+                });
+            }
+            
+            // 低点后回升到峰值2=12
+            for (let i = 60; i < 120; i += 5) {
+                const time = new Date(baseTime.getTime() + i * 60000);
+                let value;
+                if (i < 90) {
+                    value = 7 + ((i - 60) / 30) * 5; // 7 -> 12
+                } else if (i < 105) {
+                    value = 12; // 保持在12
+                } else {
+                    value = 12 - ((i - 105) / 15) * 7; // 12 -> 5
+                }
+                data.push({
+                    datetime: time.toISOString(),
+                    value: Math.round(value * 10) / 10
+                });
+            }
+            
+            // 完成后的低值
+            for (let i = 120; i < 150; i += 5) {
+                const time = new Date(baseTime.getTime() + i * 60000);
+                data.push({
+                    datetime: time.toISOString(),
+                    value: 3 + Math.random() * 2
+                });
+            }
+            
+            return data;
+        }
+
+        // 峰值检测算法（与实际代码一致）
+        function detectPeaks(data) {
+            let inPeakRegion = false;
+            let currentPeak = null;
+            let currentPeakIndex = -1;
+            const peakRegions = [];
+
+            for (let i = 0; i < data.length; i++) {
+                const value = data[i].value;
+                
+                if (!inPeakRegion) {
+                    // 等待进入峰值区域
+                    if (value > 10) {
+                        inPeakRegion = true;
+                        currentPeak = value;
+                        currentPeakIndex = i;
+                        console.log(`[峰值区域开始] 索引=${i}, 值=${value}, 时间=${data[i].datetime}`);
+                    }
+                } else {
+                    // 在峰值区域内
+                    if (value > currentPeak) {
+                        // 更新峰值
+                        currentPeak = value;
+                        currentPeakIndex = i;
+                        console.log(`[峰值更新] 索引=${i}, 新峰值=${value}, 时间=${data[i].datetime}`);
+                    }
+                    
+                    // 检查是否应该结束峰值区域
+                    const halfPeak = currentPeak * 0.5;
+                    if (value < halfPeak) {
+                        // 保存峰值区域
+                        peakRegions.push({
+                            index: currentPeakIndex,
+                            value: currentPeak,
+                            datetime: data[currentPeakIndex].datetime
+                        });
+                        console.log(`[峰值区域结束] 峰值=${currentPeak}, 当前值=${value}, 下降到${halfPeak}以下`);
+                        
+                        // 重置状态
+                        inPeakRegion = false;
+                        currentPeak = null;
+                        currentPeakIndex = -1;
+                        
+                        // 立即检查是否开始新区域
+                        if (value > 10) {
+                            inPeakRegion = true;
+                            currentPeak = value;
+                            currentPeakIndex = i;
+                            console.log(`[新峰值区域开始] 索引=${i}, 值=${value}, 时间=${data[i].datetime}`);
+                        }
+                    }
+                }
+            }
+            
+            // 数据结束时仍在峰值区域
+            if (inPeakRegion && currentPeak !== null) {
+                peakRegions.push({
+                    index: currentPeakIndex,
+                    value: currentPeak,
+                    datetime: data[currentPeakIndex].datetime
+                });
+                console.log(`[数据结束] 保存最后峰值=${currentPeak}`);
+            }
+            
+            return peakRegions;
+        }
+
+        // 检测完整事件
+        function detectEvents(data, peaks) {
+            const events = [];
+            
+            for (let i = 0; i < peaks.length - 1; i++) {
+                const firstPeak = peaks[i];
+                const secondPeak = peaks[i + 1];
+                
+                // 第一峰值必须 > 10
+                if (firstPeak.value <= 10) continue;
+                
+                // 在第二峰值之后查找完成点（< 第二峰值 * 0.5）
+                const secondPeakHalf = secondPeak.value * 0.5;
+                let completionPoint = null;
+                
+                for (let j = secondPeak.index + 1; j < data.length; j++) {
+                    if (data[j].value < secondPeakHalf) {
+                        completionPoint = {
+                            index: j,
+                            value: data[j].value,
+                            datetime: data[j].datetime
+                        };
+                        break;
+                    }
+                }
+                
+                if (completionPoint) {
+                    const eventType = firstPeak.value === 120 ? '事件1' : '事件2';
+                    events.push({
+                        firstPeak,
+                        secondPeak,
+                        completionPoint,
+                        eventType
+                    });
+                    
+                    console.log(`\n[完整事件] ${eventType}`);
+                    console.log(`  峰值1: ${firstPeak.value} (${firstPeak.datetime})`);
+                    console.log(`  峰值2: ${secondPeak.value} (${secondPeak.datetime})`);
+                    console.log(`  完成点: ${completionPoint.value} (${completionPoint.datetime})`);
+                }
+            }
+            
+            return events;
+        }
+
+        // 创建标记点
+        function createMarks(data, events) {
+            const marks = [];
+            
+            events.forEach(event => {
+                // 峰值1标记
+                const color1 = event.eventType === '事件1' ? '#dc2626' : '#f97316';
+                const symbol1 = event.eventType === '事件1' ? '⭐' : '🔥';
+                marks.push({
+                    coord: [event.firstPeak.datetime, event.firstPeak.value],
+                    value: `${symbol1} ${event.firstPeak.value}`,
+                    itemStyle: { color: color1 },
+                    label: {
+                        show: true,
+                        position: 'top',
+                        color: color1,
+                        fontSize: 14,
+                        fontWeight: 'bold'
+                    }
+                });
+                
+                // 峰值2标记
+                marks.push({
+                    coord: [event.secondPeak.datetime, event.secondPeak.value],
+                    value: `⚡ ${event.secondPeak.value}`,
+                    itemStyle: { color: '#9333ea' },
+                    label: {
+                        show: true,
+                        position: 'top',
+                        color: '#9333ea',
+                        fontSize: 14,
+                        fontWeight: 'bold'
+                    }
+                });
+                
+                // 完成点标记
+                marks.push({
+                    coord: [event.completionPoint.datetime, event.completionPoint.value],
+                    value: `✓ ${event.completionPoint.value}`,
+                    itemStyle: { color: '#ef4444' },
+                    symbol: 'pin',
+                    symbolSize: 50,
+                    label: {
+                        show: true,
+                        position: 'bottom',
+                        color: '#ef4444',
+                        fontSize: 14,
+                        fontWeight: 'bold'
+                    }
+                });
+            });
+            
+            return marks;
+        }
+
+        // 初始化图表
+        function initChart() {
+            const data = generateTestData();
+            const peaks = detectPeaks(data);
+            const events = detectEvents(data, peaks);
+            const marks = createMarks(data, events);
+            
+            console.log(`\n检测到 ${peaks.length} 个峰值区域`);
+            console.log(`检测到 ${events.length} 个完整事件`);
+            console.log(`创建了 ${marks.length} 个标记点`);
+            
+            // 显示事件信息
+            const eventInfo = events.map((e, i) => 
+                `事件 ${i + 1} (${e.eventType}):\n` +
+                `  🔥 峰值1: ${e.firstPeak.value} (${new Date(e.firstPeak.datetime).toLocaleString('zh-CN', { hour12: false })})\n` +
+                `  ⚡ 峰值2: ${e.secondPeak.value} (${new Date(e.secondPeak.datetime).toLocaleString('zh-CN', { hour12: false })})\n` +
+                `  ✓ 完成点: ${e.completionPoint.value} (${new Date(e.completionPoint.datetime).toLocaleString('zh-CN', { hour12: false })})\n` +
+                `  完成条件: ${e.completionPoint.value} < ${e.secondPeak.value * 0.5} (峰值2的50%)`
+            ).join('\n\n');
+            
+            document.getElementById('eventInfo').textContent = 
+                `峰值区域: ${peaks.length} 个\n` +
+                `完整事件: ${events.length} 个\n` +
+                `标记点: ${marks.length} 个\n\n` +
+                eventInfo;
+            
+            // 创建ECharts
+            const chart = echarts.init(document.getElementById('chart'));
+            
+            const option = {
+                title: {
+                    text: '2小时逃顶信号 - 完整事件标记',
+                    left: 'center',
+                    textStyle: {
+                        fontSize: 18,
+                        fontWeight: 'bold'
+                    }
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    formatter: function(params) {
+                        const time = new Date(params[0].axisValue).toLocaleString('zh-CN', { hour12: false });
+                        let html = `<div style="font-weight:bold;margin-bottom:8px;">${time}</div>`;
+                        params.forEach(p => {
+                            html += `<div style="display:flex;align-items:center;gap:8px;">
+                                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${p.color};"></span>
+                                <span>${p.seriesName}: ${p.value}</span>
+                            </div>`;
+                        });
+                        return html;
+                    }
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '10%',
+                    top: '15%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'time',
+                    boundaryGap: false,
+                    axisLabel: {
+                        formatter: function(value) {
+                            const date = new Date(value);
+                            return date.toLocaleString('zh-CN', { 
+                                hour: '2-digit', 
+                                minute: '2-digit',
+                                hour12: false 
+                            });
+                        }
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    name: '信号值',
+                    min: 0,
+                    axisLabel: {
+                        formatter: '{value}'
+                    }
+                },
+                series: [
+                    {
+                        name: '2h逃顶信号',
+                        type: 'line',
+                        data: data.map(d => [d.datetime, d.value]),
+                        smooth: true,
+                        lineStyle: {
+                            width: 3,
+                            color: '#3b82f6'
+                        },
+                        itemStyle: {
+                            color: '#3b82f6'
+                        },
+                        areaStyle: {
+                            color: {
+                                type: 'linear',
+                                x: 0,
+                                y: 0,
+                                x2: 0,
+                                y2: 1,
+                                colorStops: [
+                                    { offset: 0, color: 'rgba(59, 130, 246, 0.3)' },
+                                    { offset: 1, color: 'rgba(59, 130, 246, 0.05)' }
+                                ]
+                            }
+                        },
+                        markPoint: {
+                            data: marks,
+                            symbolSize: function(val, params) {
+                                return params.data.symbolSize || 60;
+                            }
+                        },
+                        markLine: {
+                            silent: true,
+                            lineStyle: {
+                                type: 'dashed',
+                                color: '#94a3b8'
+                            },
+                            data: [
+                                {
+                                    yAxis: 10,
+                                    label: {
+                                        formatter: '峰值阈值: 10',
+                                        position: 'end'
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            };
+            
+            chart.setOption(option);
+            
+            // 响应式
+            window.addEventListener('resize', () => {
+                chart.resize();
+            });
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', initChart);
+    </script>
+</body>
+</html>

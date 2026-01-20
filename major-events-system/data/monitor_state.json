@@ -4,20 +4,6 @@
   "liquidation_value": 0,
   "profit_marks_history": [
     {
-      "datetime": "2026-01-20 15:09:23",
-      "mark": "red",
-      "short_profit_120": 19,
-      "short_loss": 0,
-      "time": "2026-01-20T23:10:15.458145+08:00"
-    },
-    {
-      "datetime": "2026-01-20 15:14:23",
-      "mark": "red",
-      "short_profit_120": 19,
-      "short_loss": 0,
-      "time": "2026-01-20T23:15:18.933691+08:00"
-    },
-    {
       "datetime": "2026-01-20 15:19:24",
       "mark": "red",
       "short_profit_120": 19,
@@ -72,15 +58,29 @@
       "short_profit_120": 19,
       "short_loss": 0,
       "time": "2026-01-20T23:54:29.095592+08:00"
+    },
+    {
+      "datetime": "2026-01-20 15:59:27",
+      "mark": "red",
+      "short_profit_120": 19,
+      "short_loss": 0,
+      "time": "2026-01-20T23:59:30.194402+08:00"
+    },
+    {
+      "datetime": "2026-01-20 16:04:27",
+      "mark": "red",
+      "short_profit_120": 19,
+      "short_loss": 0,
+      "time": "2026-01-21T00:04:31.233455+08:00"
     }
   ],
   "event3_triggered_time": "2026-01-20T23:13:16.004861+08:00",
   "event3_first_high_time": null,
   "event3_max_amount": 0,
-  "event4_triggered_time": "2026-01-20T23:02:10.866331+08:00",
-  "event4_start_time": null,
-  "event4_start_amount": 0,
-  "event4_max_amount": 0,
+  "event4_triggered_time": null,
+  "event4_start_time": "2026-01-21T00:02:30.865646+08:00",
+  "event4_start_amount": 4182.63,
+  "event4_max_amount": 4182.63,
   "event3_start_time": null,
   "event3_start_amount": 0
 }
