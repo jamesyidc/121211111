@@ -182,6 +182,26 @@ module.exports = {
       min_uptime: '10s',
       max_restarts: 10,
       restart_delay: 5000
+    },
+    {
+      name: 'liquidation-1h-collector',
+      script: '/home/user/webapp/source_code/liquidation_1h_collector.py',
+      interpreter: 'python3',
+      cwd: '/home/user/webapp',
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '300M',
+      env: {
+        PYTHONUNBUFFERED: '1'
+      },
+      error_file: '/home/user/webapp/logs/liquidation_1h_collector_error.log',
+      out_file: '/home/user/webapp/logs/liquidation_1h_collector_out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      merge_logs: true,
+      min_uptime: '10s',
+      max_restarts: 10,
+      restart_delay: 5000
     }
   ]
 };
