@@ -40,6 +40,32 @@ def log(message):
     except:
         pass
 
+def update_daily_config(target_date, folder_id, parent_folder_id):
+    """更新每日配置文件"""
+    try:
+        config_file = '/home/user/webapp/daily_folder_config.json'
+        config = {
+            "root_folder_odd": parent_folder_id,
+            "root_folder_even": parent_folder_id,
+            "current_date": target_date,
+            "folder_id": folder_id,
+            "parent_folder_id": parent_folder_id,
+            "updated_at": datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S'),
+            "update_reason": "自动更新到今天的文件夹",
+            "folder_name": target_date,
+            "auto_updated": True,
+            "auto_update_time": datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S')
+        }
+        
+        with open(config_file, 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+        
+        log(f"✅ 已更新配置文件: {target_date} -> {folder_id}")
+        return True
+    except Exception as e:
+        log(f"⚠️  更新配置文件失败: {e}")
+        return False
+
 def get_date_folder_id(parent_folder_id, target_date):
     """从父文件夹中获取指定日期文件夹的ID"""
     try:
@@ -57,6 +83,8 @@ def get_date_folder_id(parent_folder_id, target_date):
                 if href_match:
                     folder_id = href_match.group(1)
                     log(f"✅ 找到 {target_date} 文件夹ID: {folder_id}")
+                    # 自动更新配置文件
+                    update_daily_config(target_date, folder_id, parent_folder_id)
                     return folder_id
         
         log(f"❌ 未找到 {target_date} 文件夹")
