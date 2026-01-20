@@ -379,6 +379,8 @@
         async function renderProfitStatsChart(pageOffset) {
             if (!profitStatsChart || allHistoryData.length === 0) return;
             
+            console.log(`📈 渲染图表，页码偏移: ${pageOffset}天`);
+            
             // 计算日期范围（显示24小时数据）
             const now = new Date();
             const targetDate = new Date(now);
@@ -399,7 +401,10 @@
                 return d.timestamp >= startTimestamp && d.timestamp <= endTimestamp;
             });
             
+            console.log(`📊 ${targetDate.toLocaleDateString()} 的数据条数:`, dataList.length);
+            
             if (dataList.length === 0) {
+                console.warn('⚠️ 该日期暂无数据');
                 profitStatsChart.setOption({
                     title: {
                         text: `⚠️ ${targetDate.toLocaleDateString()} 暂无数据`,
@@ -418,36 +423,6 @@
                 const dt = new Date(d.timestamp * 1000);
                 return `${dt.getHours().toString().padStart(2, '0')}:${dt.getMinutes().toString().padStart(2, '0')}`;
             });
-            
-            // 获取2h见顶信号数据
-            let topSignalData = [];
-            try {
-                // 获取24小时的SAR数据
-                const hours = pageOffset === 0 ? 24 : Math.abs(pageOffset * 24);
-                const response = await fetch(`/api/major-events/data/sar-slope?hours=${hours}`);
-                const result = await response.json();
-                
-                if (result.success && result.data && result.data.length > 0) {
-                    // 过滤出与当前日期范围匹配的数据
-                    const sarList = result.data.filter(d => {
-                        return d.timestamp >= startTimestamp && d.timestamp <= endTimestamp;
-                    });
-                    
-                    // 将SAR数据与盈利数据时间对齐
-                    topSignalData = times.map((time, index) => {
-                        const profitTimestamp = dataList[index].timestamp;
-                        // 找最接近的SAR数据点
-                        const closestSar = sarList.reduce((prev, curr) => {
-                            return (Math.abs(curr.timestamp - profitTimestamp) < Math.abs(prev.timestamp - profitTimestamp)) ? curr : prev;
-                        }, sarList[0] || { count: 0 });
-                        return closestSar.count || 0;
-                    });
-                }
-            } catch (error) {
-                console.error('获取2h见顶信号数据失败:', error);
-                // 如果获取失败，使用空数据
-                topSignalData = times.map(() => 0);
-            }
             
             // 空单数据
             const short_lte40Data = dataList.map(d => d.stats?.short?.lte_40 || 0);
@@ -535,7 +510,7 @@
                     }
                 },
                 legend: {
-                    data: ['空单≤40%', '空单亏损', '空单≥80%', '空单≥120%', '2h见顶信号'],
+                    data: ['空单≤40%', '空单亏损', '空单≥80%', '空单≥120%'],
                     top: 40,
                     textStyle: {
                         fontSize: 12
@@ -543,7 +518,7 @@
                 },
                 grid: {
                     left: '3%',
-                    right: '8%',
+                    right: '4%',
                     bottom: '3%',
                     top: 80,
                     containLabel: true
@@ -557,28 +532,11 @@
                         fontSize: 10
                     }
                 },
-                yAxis: [
-                    {
-                        type: 'value',
-                        name: '数量',
-                        position: 'left',
-                        minInterval: 1
-                    },
-                    {
-                        type: 'value',
-                        name: '2h见顶信号',
-                        position: 'right',
-                        minInterval: 1,
-                        axisLine: {
-                            lineStyle: {
-                                color: '#8b5cf6'
-                            }
-                        },
-                        axisLabel: {
-                            color: '#8b5cf6'
-                        }
-                    }
-                ],
+                yAxis: {
+                    type: 'value',
+                    name: '数量',
+                    minInterval: 1
+                },
                 series: [
                     {
                         name: '空单≤40%',
@@ -626,38 +584,10 @@
                         smooth: true,
                         lineStyle: { color: '#dc2626', width: 3 },
                         itemStyle: { color: '#dc2626' },
-                        yAxisIndex: 0,
                         markPoint: {
                             data: shortProfitMarks,
                             symbol: 'circle',
                             symbolSize: 16
-                        }
-                    },
-                    {
-                        name: '2h见顶信号',
-                        type: 'line',
-                        data: topSignalData,
-                        smooth: true,
-                        lineStyle: { color: '#8b5cf6', width: 3 },
-                        itemStyle: { color: '#8b5cf6' },
-                        yAxisIndex: 1,
-                        markLine: {
-                            silent: true,
-                            lineStyle: {
-                                color: '#ef4444',
-                                type: 'dashed',
-                                width: 2
-                            },
-                            data: [
-                                {
-                                    yAxis: 120,
-                                    label: {
-                                        formatter: '高强度见顶阈值: 120',
-                                        position: 'end',
-                                        color: '#ef4444'
-                                    }
-                                }
-                            ]
                         }
                     }
                 ]
