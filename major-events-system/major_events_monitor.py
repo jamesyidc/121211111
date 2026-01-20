@@ -11,6 +11,7 @@ import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
 import logging
+import requests
 
 # 配置日志
 logging.basicConfig(
@@ -18,6 +19,11 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger('MajorEventsMonitor')
+
+# Telegram配置
+TG_BOT_TOKEN = "8437045462:AAFePnwdC21cqeWhZISMQHGGgjmroVqE2H0"
+TG_CHAT_ID = "-1003227444260"
+TG_API_BASE = f"https://api.telegram.org/bot{TG_BOT_TOKEN}"
 
 class MajorEventsMonitor:
     """重大事件监控器"""
@@ -727,6 +733,119 @@ class MajorEventsMonitor:
             f.write(json.dumps(event, ensure_ascii=False) + '\n')
         
         logger.info(f"事件已保存: {event.get('event_type', 'unknown')}")
+        
+        # 发送Telegram通知（连发3次）
+        self.send_telegram_notification(event, repeat=3)
+    
+    def send_telegram_notification(self, event, repeat=3):
+        """发送Telegram通知
+        
+        Args:
+            event: 事件字典
+            repeat: 重复发送次数（默认3次）
+        """
+        try:
+            # 构建消息内容
+            message = self.format_event_message(event)
+            
+            # 连发指定次数
+            success_count = 0
+            for i in range(repeat):
+                if self.send_telegram_message(message):
+                    success_count += 1
+                    logger.info(f"📱 第{i+1}次TG通知发送成功")
+                else:
+                    logger.error(f"❌ 第{i+1}次TG通知发送失败")
+                
+                # 每次发送间隔0.5秒，避免频率限制
+                if i < repeat - 1:
+                    time.sleep(0.5)
+            
+            logger.info(f"TG通知完成: {success_count}/{repeat} 次成功")
+            
+        except Exception as e:
+            logger.error(f"发送TG通知异常: {e}")
+    
+    def format_event_message(self, event):
+        """格式化事件为TG消息
+        
+        Args:
+            event: 事件字典
+            
+        Returns:
+            str: 格式化的消息文本
+        """
+        # 事件类型对应的emoji
+        event_emoji = {
+            'high_intensity_top': '🔴',
+            'normal_intensity_top': '🟠',
+            'strong_short_liquidation': '💥',
+            'weak_short_liquidation': '⚠️',
+            'profit_trend_reversal': '🔄'
+        }
+        
+        emoji = event_emoji.get(event.get('event_type'), '📢')
+        
+        # 构建消息
+        lines = [
+            f"{emoji} <b>{event.get('event_name', '重大事件')}</b>",
+            "",
+            f"📝 {event.get('description', '')}",
+            "",
+            f"⚡ <b>操作建议</b>: {event.get('action', '')}",
+            f"🎯 <b>置信度</b>: {event.get('confidence', '')}",
+            f"⏰ <b>时间</b>: {event.get('timestamp', '')[:19].replace('T', ' ')}",
+        ]
+        
+        # 添加额外的详情
+        if 'liquidation_amount' in event:
+            lines.append(f"💰 <b>爆仓金额</b>: {event['liquidation_amount']:.2f}万美元")
+        
+        if 'max_amount' in event:
+            lines.append(f"📈 <b>峰值</b>: {event['max_amount']:.2f}万美元")
+        
+        if 'increase_pct' in event:
+            lines.append(f"📊 <b>增幅</b>: {event['increase_pct']}")
+        
+        if 'duration_minutes' in event:
+            lines.append(f"⏱️ <b>持续</b>: {event['duration_minutes']}分钟")
+        
+        lines.append("")
+        lines.append("🤖 重大事件监控系统")
+        
+        return "\n".join(lines)
+    
+    def send_telegram_message(self, text, parse_mode='HTML'):
+        """发送Telegram消息
+        
+        Args:
+            text: 消息内容
+            parse_mode: 解析模式（HTML或Markdown）
+            
+        Returns:
+            bool: 是否发送成功
+        """
+        try:
+            url = f"{TG_API_BASE}/sendMessage"
+            data = {
+                'chat_id': TG_CHAT_ID,
+                'text': text,
+                'parse_mode': parse_mode,
+                'disable_web_page_preview': True
+            }
+            
+            response = requests.post(url, json=data, timeout=10)
+            result = response.json()
+            
+            if result.get('ok'):
+                return True
+            else:
+                logger.error(f"TG API错误: {result.get('description')}")
+                return False
+        
+        except Exception as e:
+            logger.error(f"发送TG消息异常: {e}")
+            return False
     
     def get_recent_events(self, hours=24):
         """获取最近的事件"""
