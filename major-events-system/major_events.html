@@ -630,12 +630,15 @@
             
             console.log(`📍 空单盈利≥120%标记数: ${shortProfitMarks.length}, 空单亏损标记数: ${shortLossMarks.length}`);
             
-            // 计算2h见顶信号的最高点标记
-            // 规则：在2小时范围内，找到信号值>10的最高点
-            // 事件1：信号值 = 120（精确匹配）
-            // 事件2：10 < 信号值 < 120
+            // 计算2h见顶信号的最高点标记和事件触发
+            // 阶段1：找出所有局部最高点（>10）
+            // 阶段2：检测事件触发（10小时内第二个峰值<第一个峰值）
             const escape2hMarks = [];
             const TWO_HOURS_IN_MINUTES = 120; // 2小时 = 120分钟
+            const TEN_HOURS_IN_MINUTES = 600; // 10小时 = 600分钟
+            
+            // 阶段1：找出所有局部最高点
+            const localMaxPoints = []; // 存储 {index, value, datetime}
             
             for (let i = 0; i < dataList.length; i++) {
                 const currentValue = escape2hData[i];
@@ -655,38 +658,106 @@
                     }
                 }
                 
-                // 如果是局部最高点，添加标记
                 if (isLocalMax) {
-                    const isEvent1 = (currentValue === 120); // 事件1：信号值精确等于120
-                    const markColor = isEvent1 ? '#dc2626' : '#f97316'; // 红色为事件1，橙色为事件2
-                    const markSymbol = isEvent1 ? '⭐' : '🔥';
-                    const eventType = isEvent1 ? '事件1(=120)' : '事件2(<120)';
-                    
-                    escape2hMarks.push({
-                        coord: [i, currentValue],
+                    localMaxPoints.push({
+                        index: i,
                         value: currentValue,
+                        datetime: dataList[i].datetime
+                    });
+                }
+            }
+            
+            console.log(`🔍 找到 ${localMaxPoints.length} 个局部最高点`);
+            
+            // 阶段2：检测事件触发和标记
+            const triggeredEvents = []; // 存储触发的事件
+            
+            for (let i = 0; i < localMaxPoints.length; i++) {
+                const firstPeak = localMaxPoints[i];
+                let isTriggered = false;
+                let secondPeak = null;
+                
+                // 检查后续10小时内是否有第二个峰值
+                for (let j = i + 1; j < localMaxPoints.length; j++) {
+                    const candidatePeak = localMaxPoints[j];
+                    const timeDiff = candidatePeak.index - firstPeak.index;
+                    
+                    // 超过10小时，停止检查
+                    if (timeDiff > TEN_HOURS_IN_MINUTES) break;
+                    
+                    // 找到第二个峰值且小于第一个峰值
+                    if (candidatePeak.value < firstPeak.value) {
+                        secondPeak = candidatePeak;
+                        isTriggered = true;
+                        
+                        // 判断事件类型
+                        const eventType = firstPeak.value === 120 ? '事件1' : '事件2';
+                        
+                        triggeredEvents.push({
+                            firstPeak,
+                            secondPeak,
+                            eventType,
+                            timeDiff: Math.round(timeDiff / 60 * 10) / 10 // 转换为小时，保留1位小数
+                        });
+                        
+                        console.log(`🚨 触发${eventType}! 第一峰值=${firstPeak.value}(${firstPeak.datetime}) -> 第二峰值=${secondPeak.value}(${secondPeak.datetime}), 间隔=${timeDiff}分钟`);
+                        break; // 找到第一个满足条件的第二峰值即可
+                    }
+                }
+                
+                // 标记第一个峰值（初始标记）
+                const isEvent1 = (firstPeak.value === 120);
+                const markColor = isEvent1 ? '#dc2626' : '#f97316';
+                const markSymbol = isEvent1 ? '⭐' : '🔥';
+                
+                escape2hMarks.push({
+                    coord: [firstPeak.index, firstPeak.value],
+                    value: firstPeak.value,
+                    itemStyle: {
+                        color: markColor,
+                        borderColor: '#fff',
+                        borderWidth: 3
+                    },
+                    label: {
+                        show: true,
+                        formatter: `${markSymbol} ${firstPeak.value}`,
+                        position: 'top',
+                        color: markColor,
+                        fontSize: 14,
+                        fontWeight: 'bold',
+                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                        padding: [4, 8],
+                        borderRadius: 4
+                    }
+                });
+                
+                // 如果事件被触发，标记第二个峰值（用不同的样式）
+                if (isTriggered && secondPeak) {
+                    escape2hMarks.push({
+                        coord: [secondPeak.index, secondPeak.value],
+                        value: secondPeak.value,
                         itemStyle: {
-                            color: markColor,
+                            color: '#9333ea', // 紫色表示触发点
                             borderColor: '#fff',
                             borderWidth: 3
                         },
                         label: {
                             show: true,
-                            formatter: `${markSymbol} ${currentValue}`,
+                            formatter: `⚡ ${secondPeak.value}\n触发`,
                             position: 'top',
-                            color: markColor,
+                            color: '#9333ea',
                             fontSize: 14,
                             fontWeight: 'bold',
-                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                            padding: [4, 8],
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                            padding: [6, 10],
                             borderRadius: 4
                         }
                     });
-                    console.log(`${markSymbol} 标记2h见顶信号${eventType}: ${dataList[i].datetime} - 信号值=${currentValue}`);
                 }
             }
             
             console.log(`📍 2h见顶信号标记数: ${escape2hMarks.length}`);
+            console.log(`🚨 触发事件数: ${triggeredEvents.length}`);
             
             // 格式化日期显示
             const dateStr = targetDate.toLocaleDateString('zh-CN', {
