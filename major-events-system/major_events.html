@@ -645,12 +645,11 @@
                            `${Math.abs(pageOffset)}天前`;
             
             const option = {
-                backgroundColor: 'rgba(30, 27, 75, 0.95)',  // 深色背景
                 title: {
                     text: `多空单盈利分布趋势（${dateStr} ${dayLabel}）`,
                     left: 'center',
                     textStyle: {
-                        color: 'rgba(255, 255, 255, 0.9)',
+                        color: '#2d3748',
                         fontSize: 16
                     }
                 },
@@ -677,7 +676,7 @@
                     ],
                     top: 35,
                     textStyle: {
-                        color: 'rgba(255, 255, 255, 0.85)',
+                        color: '#2d3748',
                         fontSize: 11
                     }
                 },
@@ -692,17 +691,9 @@
                     type: 'category',
                     boundaryGap: false,
                     data: times,
-                    axisLine: {
-                        lineStyle: {
-                            color: 'rgba(255, 255, 255, 0.3)'
-                        }
-                    },
-                    axisLabel: {
-                        color: 'rgba(255, 255, 255, 0.7)'
-                    },
                     axisLabel: {
                         rotate: 45,
-                        color: 'rgba(255, 255, 255, 0.7)',
+                        color: '#718096',
                         fontSize: 10
                     }
                 },
@@ -726,7 +717,7 @@
                         splitLine: {
                             show: true,
                             lineStyle: {
-                                color: 'rgba(255, 255, 255, 0.1)',
+                                color: '#e5e7eb',
                                 type: 'dashed'
                             }
                         }
@@ -738,13 +729,13 @@
                         position: 'right',
                         minInterval: 1,
                         axisLabel: {
-                            color: 'rgba(255, 255, 255, 0.7)',
+                            color: '#4b5563',
                             formatter: '{value}'
                         },
                         axisLine: {
                             show: true,
                             lineStyle: {
-                                color: 'rgba(255, 255, 255, 0.5)'
+                                color: '#4b5563'
                             }
                         },
                         splitLine: {
