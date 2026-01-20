@@ -1230,6 +1230,35 @@
             renderProfitStatsChart(currentPage);
         }
 
+        // 更新爆仓数据分页信息（显示当前页码等）
+        function updateLiquidationPageInfo() {
+            // 这个函数用于更新分页信息显示
+            // 如果有分页信息元素，可以在这里更新
+            const totalPages = Math.ceil(liqAllData.length / LIQ_RECORDS_PER_PAGE);
+            const currentPageNum = liqCurrentPage + 1;
+            console.log(`📄 当前页: ${currentPageNum}/${totalPages}`);
+            
+            // 更新按钮状态
+            const prevBtn = document.getElementById('liqPrevPageBtn');
+            const nextBtn = document.getElementById('liqNextPageBtn');
+            
+            if (prevBtn) {
+                const maxPage = Math.floor((liqAllData.length - 1) / LIQ_RECORDS_PER_PAGE);
+                prevBtn.disabled = (liqCurrentPage >= maxPage);
+            }
+            
+            if (nextBtn) {
+                nextBtn.disabled = (liqCurrentPage <= 0);
+            }
+        }
+
+        // 从数据渲染爆仓图表（占位函数，实际由loadAllLiquidationData处理）
+        async function renderLiquidationChartFromData() {
+            // 这个函数的功能已经由 loadAllLiquidationData 和 updateLiquidationChartForCurrentPage 处理
+            // 保留作为兼容性占位
+            console.log('📊 爆仓图表渲染由其他函数处理');
+        }
+
         // 加载爆仓数据的前一页
         function loadLiquidationPreviousPage() {
             const maxPage = Math.floor((liqAllData.length - 1) / LIQ_RECORDS_PER_PAGE);
