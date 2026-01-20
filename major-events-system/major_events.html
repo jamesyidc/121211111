@@ -314,6 +314,7 @@
         let liquidation1hChart = null;  // 爆仓图表
         let liqCurrentPage = 0;  // 当前页码（0=最新12小时）
         let liqAllData = [];     // 所有历史数据
+        let isLoadingData = false;  // 防止重复加载
         const LIQ_HOURS_PER_PAGE = 12;  // 每页显示12小时
         const LIQ_RECORDS_PER_HOUR = 60;  // 每小时60条记录（1分钟一次）
         const LIQ_RECORDS_PER_PAGE = LIQ_HOURS_PER_PAGE * LIQ_RECORDS_PER_HOUR;  // 每页720条记录
@@ -426,6 +427,21 @@
 
         // 加载锚定系统历史数据（按日期加载）
         async function loadAnchorHistoryData(dateStr = null) {
+            // 防止重复加载
+            if (isLoadingData) {
+                console.log('⚠️ 数据正在加载中，跳过重复请求');
+                return;
+            }
+            
+            // 如果数据已经加载过，直接使用缓存
+            if (allHistoryData.length > 0 && !dateStr) {
+                console.log('✅ 使用缓存数据，跳过网络请求');
+                renderProfitStatsChart(currentPage);
+                return;
+            }
+            
+            isLoadingData = true;
+            
             try {
                 // 如果没有指定日期，加载最近2天的数据（以支持"昨天"和"今天"）
                 const limit = dateStr ? 1440 : 2880;  // 1天=1440分钟，2天=2880分钟
@@ -447,6 +463,8 @@
                 }
             } catch (error) {
                 console.error('加载锚定系统历史数据失败:', error);
+            } finally {
+                isLoadingData = false;
             }
         }
 
