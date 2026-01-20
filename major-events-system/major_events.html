@@ -399,11 +399,20 @@
             }
         }
 
-        // 加载锚定系统历史数据
-        async function loadAnchorHistoryData() {
+        // 加载锚定系统历史数据（按日期加载）
+        async function loadAnchorHistoryData(dateStr = null) {
             try {
-                const response = await fetch('/api/anchor-profit/history?limit=10080');  // 7天的数据（每分钟一条）
+                // 如果没有指定日期，加载最近2天的数据（以支持"昨天"和"今天"）
+                const limit = dateStr ? 1440 : 2880;  // 1天=1440分钟，2天=2880分钟
+                
+                console.log(`🔄 加载数据: limit=${limit}条（约${limit/1440}天）`);
+                const startTime = performance.now();
+                
+                const response = await fetch(`/api/anchor-profit/history?limit=${limit}`);
                 const data = await response.json();
+                
+                const loadTime = ((performance.now() - startTime) / 1000).toFixed(2);
+                console.log(`✅ 数据加载完成: ${data.data?.length || 0}条，耗时${loadTime}秒`);
                 
                 if (data.success && data.data) {
                     allHistoryData = data.data;

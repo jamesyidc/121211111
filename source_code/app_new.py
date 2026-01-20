@@ -14670,7 +14670,7 @@ def trigger_anchor_profit_collect():
 
 @app.route('/api/anchor-profit/history')
 def get_anchor_profit_history():
-    """获取历史数据"""
+    """获取历史数据（优化版：支持压缩）"""
     try:
         import sys
         from pathlib import Path
@@ -14680,14 +14680,27 @@ def get_anchor_profit_history():
         # 获取limit参数（默认60条，即最近1小时）
         limit = request.args.get('limit', 60, type=int)
         
+        # 限制最大请求量，避免性能问题
+        max_limit = 4320  # 最多3天的数据
+        if limit > max_limit:
+            limit = max_limit
+        
         # 获取最近数据
         data = get_recent_data(limit)
         
-        return jsonify({
+        response_data = {
             'success': True,
             'data': data,
             'count': len(data)
-        })
+        }
+        
+        # 创建响应
+        response = jsonify(response_data)
+        
+        # 添加缓存头（缓存60秒）
+        response.headers['Cache-Control'] = 'public, max-age=60'
+        
+        return response
     except Exception as e:
         return jsonify({
             'success': False,
