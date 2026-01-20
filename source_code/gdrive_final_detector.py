@@ -288,6 +288,66 @@ def parse_txt_content(content, snapshot_time):
         log(traceback.format_exc())
         return None, None
 
+def check_if_imported_database(snapshot_time):
+    """检查数据是否已导入到数据库"""
+    try:
+        import sqlite3
+        db_path = '/home/user/webapp/databases/crypto_data.db'
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT COUNT(*) FROM crypto_snapshots 
+            WHERE snapshot_time = ?
+        ''', (snapshot_time,))
+        
+        count = cursor.fetchone()[0]
+        conn.close()
+        
+        return count > 0
+        
+    except Exception as e:
+        log(f"❌ 检查数据库失败: {e}")
+        return False
+
+def save_to_database(coin_snapshots, aggregate_data):
+    """保存到数据库"""
+    try:
+        import sqlite3
+        db_path = '/home/user/webapp/databases/crypto_data.db'
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # 保存币种快照到数据库
+        for snapshot in coin_snapshots:
+            cursor.execute('''
+                INSERT INTO crypto_snapshots 
+                (snapshot_date, snapshot_time, inst_id, last_price, change_24h, 
+                 rush_up, rush_down, count, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                snapshot['snapshot_date'],
+                snapshot['snapshot_time'],
+                snapshot['inst_id'],
+                snapshot['last_price'],
+                snapshot['change_24h'],
+                snapshot['rush_up'],
+                snapshot['rush_down'],
+                snapshot['count'],
+                snapshot['created_at']
+            ))
+        
+        conn.commit()
+        conn.close()
+        log(f"✅ 已保存到数据库: {len(coin_snapshots)} 条记录")
+        return True
+        
+    except Exception as e:
+        log(f"❌ 保存到数据库失败: {e}")
+        import traceback
+        log(traceback.format_exc())
+        return False
+
 def save_to_jsonl(coin_snapshots, aggregate_data):
     """保存到JSONL文件"""
     try:
@@ -363,12 +423,18 @@ def main_loop():
                     time_part = match.group(2)
                     snapshot_time = f"{date_part} {time_part[:2]}:{time_part[2:]}:00"
                     
-                    # 检查是否已导入到JSONL
-                    if check_if_imported_jsonl(snapshot_time):
-                        log(f"✅ 文件已导入JSONL: {filename}")
+                    # 检查是否已导入
+                    jsonl_exists = check_if_imported_jsonl(snapshot_time)
+                    db_exists = check_if_imported_database(snapshot_time)
+                    
+                    if jsonl_exists and db_exists:
+                        log(f"✅ 文件已完全导入: {filename}")
                         last_imported_file = filename
                     else:
-                        log(f"📥 开始下载新文件: {filename}")
+                        # 需要下载和导入
+                        need_download = not jsonl_exists
+                        log(f"📥 {'下载新文件' if need_download else '补充导入数据库'}: {filename}")
+                        
                         content = download_file(latest_file['download_url'])
                         
                         if content:
@@ -378,12 +444,21 @@ def main_loop():
                             coin_snapshots, aggregate_data = parse_txt_content(content, snapshot_time)
                             
                             if coin_snapshots and aggregate_data:
-                                # 保存到JSONL
-                                if save_to_jsonl(coin_snapshots, aggregate_data):
+                                # 保存到JSONL（如果还没有）
+                                jsonl_success = True
+                                if not jsonl_exists:
+                                    jsonl_success = save_to_jsonl(coin_snapshots, aggregate_data)
+                                
+                                # 保存到数据库（如果还没有）
+                                db_success = True
+                                if not db_exists:
+                                    db_success = save_to_database(coin_snapshots, aggregate_data)
+                                
+                                if jsonl_success and db_success:
                                     log(f"✅ 导入成功: {filename}")
                                     last_imported_file = filename
                                 else:
-                                    log(f"❌ 导入失败: {filename}")
+                                    log(f"❌ 导入失败: {filename} (JSONL: {jsonl_success}, DB: {db_success})")
                             else:
                                 log(f"❌ 解析失败: {filename}")
             
