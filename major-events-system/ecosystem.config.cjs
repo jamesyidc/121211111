@@ -62,6 +62,46 @@ module.exports = {
       min_uptime: '10s',
       max_restarts: 10,
       restart_delay: 5000
+    },
+    {
+      name: 'sar-slope-collector',
+      script: '/home/user/webapp/source_code/sar_slope_jsonl_collector.py',
+      interpreter: 'python3',
+      cwd: '/home/user/webapp',
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '300M',
+      env: {
+        PYTHONUNBUFFERED: '1'
+      },
+      error_file: '/home/user/webapp/logs/sar_slope_collector_error.log',
+      out_file: '/home/user/webapp/logs/sar_slope_collector_out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      merge_logs: true,
+      min_uptime: '10s',
+      max_restarts: 10,
+      restart_delay: 5000
+    },
+    {
+      name: 'escape-signal-calculator',
+      script: '/home/user/webapp/source_code/escape_signal_calculator.py',
+      interpreter: 'python3',
+      cwd: '/home/user/webapp',
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '300M',
+      env: {
+        PYTHONUNBUFFERED: '1'
+      },
+      error_file: '/home/user/webapp/logs/escape_signal_calculator_error.log',
+      out_file: '/home/user/webapp/logs/escape_signal_calculator_out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      merge_logs: true,
+      min_uptime: '10s',
+      max_restarts: 10,
+      restart_delay: 5000
     }
   ]
 };
