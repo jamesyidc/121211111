@@ -30,6 +30,20 @@
       "short_profit_120": 16,
       "short_loss": 0,
       "time": "2026-01-20T07:27:07.257879"
+    },
+    {
+      "datetime": "2026-01-20 07:31:18",
+      "mark": "red",
+      "short_profit_120": 16,
+      "short_loss": 0,
+      "time": "2026-01-20T07:32:08.258242"
+    },
+    {
+      "datetime": "2026-01-20 07:36:19",
+      "mark": "red",
+      "short_profit_120": 16,
+      "short_loss": 0,
+      "time": "2026-01-20T07:36:19.692907"
     }
   ],
   "event3_triggered_time": null,

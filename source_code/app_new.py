@@ -15140,7 +15140,7 @@ def get_major_events_status():
                 'liquidation_1h': liquidation_amount
             },
             'event_states': monitor.event_states,
-            'recent_events': recent_events[-10:],  # 最近10个事件
+            'recent_events': list(reversed(recent_events[-10:])),  # 最近10个事件，倒序排列（最新的在前）
             'total_events_24h': len(recent_events)
         })
     except Exception as e:
@@ -15169,7 +15169,7 @@ def get_recent_major_events():
         return jsonify({
             'success': True,
             'hours': hours,
-            'events': events,
+            'events': list(reversed(events)),  # 倒序排列，最新的在前
             'total': len(events)
         })
     except Exception as e:

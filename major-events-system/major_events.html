@@ -1132,24 +1132,54 @@
                                        event.confidence === '中' ? 'event-medium' : 'event-low';
                 const actionClass = event.action?.includes('开空') ? 'action-short' : 'action-long';
                 
+                // 处理时间戳：可能是ISO字符串或Unix时间戳（秒）
+                let timeStr = '';
+                try {
+                    if (typeof event.timestamp === 'string') {
+                        // ISO格式字符串
+                        timeStr = new Date(event.timestamp).toLocaleString('zh-CN', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: false
+                        });
+                    } else {
+                        // Unix时间戳（秒）
+                        timeStr = new Date(event.timestamp * 1000).toLocaleString('zh-CN', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: false
+                        });
+                    }
+                } catch (e) {
+                    timeStr = event.timestamp;
+                }
+                
                 return `
                     <div class="event-card bg-white rounded-lg p-6 border-l-4 ${confidenceClass}">
                         <div class="flex justify-between items-start mb-3">
                             <div class="flex-1">
-                                <h3 class="text-lg font-bold mb-2">${event.event_type}</h3>
-                                <p class="text-gray-600 mb-2">${event.description || ''}</p>
+                                <h3 class="text-lg font-bold mb-2">🔴 ${event.event_name || event.event_type}</h3>
+                                <p class="text-gray-600 mb-2">📊 ${event.description || ''}</p>
                             </div>
                             <span class="px-3 py-1 rounded-full text-sm font-medium ${actionClass}">
-                                ${event.action}
+                                ⚡ ${event.action}
                             </span>
                         </div>
                         <div class="flex items-center justify-between text-sm">
                             <span class="text-gray-500">
                                 <i class="fas fa-clock mr-1"></i>
-                                ${new Date(event.timestamp * 1000).toLocaleString()}
+                                ⏰ ${timeStr}
                             </span>
                             <span class="px-2 py-1 rounded bg-gray-100 text-gray-700">
-                                置信度: ${event.confidence}
+                                🎯 置信度: ${event.confidence}
                             </span>
                         </div>
                     </div>
