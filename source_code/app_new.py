@@ -15104,7 +15104,14 @@ def major_events_page():
     try:
         html_file = '/home/user/webapp/major-events-system/major_events.html'
         with open(html_file, 'r', encoding='utf-8') as f:
-            return f.read()
+            html_content = f.read()
+        
+        # 添加no-cache头，防止浏览器缓存
+        response = make_response(html_content)
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '-1'
+        return response
     except FileNotFoundError:
         return "重大事件系统页面未找到", 404
     except Exception as e:
