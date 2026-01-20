@@ -508,45 +508,25 @@
             // 计算空单盈利≥120%和空单亏损的标记点
             const shortProfitMarks = [];
             const shortLossMarks = [];
-            let lastShortProfitSlot = null;  // 改为时间槽标识
-            let lastShortLossSlot = null;
-            
-            // 新增：存储所有标记点（红色和绿色）
-            const allMarks = [];
+            let lastShortProfitHour = null;
+            let lastShortLossHour = null;
             
             dataList.forEach((d, index) => {
                 // 直接从datetime字符串解析（格式：YYYY-MM-DD HH:MM:SS）
                 const datetimeParts = d.datetime.split(' ');
                 if (datetimeParts.length < 2) return;
                 
+                const datePart = datetimeParts[0];  // YYYY-MM-DD
                 const timeParts = datetimeParts[1].split(':');
                 if (timeParts.length < 2) return;
                 
-                const hour = timeParts[0];
-                const minute = timeParts[1];
-                
-                // 找最接近00分或30分的时间点（容差±3分钟）
-                const isNear00 = Math.abs(parseInt(minute) - 0) <= 3;
-                const isNear30 = Math.abs(parseInt(minute) - 30) <= 3;
-                if (!isNear00 && !isNear30) return;
-                
-                // 根据最接近的目标时间生成时间槽标识
-                const targetMinute = isNear00 ? '00' : '30';
-                
-                // 生成时间槽标识（格式：YYYY-MM-DD HH:目标分钟）
-                const timeSlot = `${datetimeParts[0]} ${hour}:${targetMinute}`;
+                const hour = `${datePart} ${timeParts[0]}`;  // YYYY-MM-DD HH
                 
                 const shortProfit120 = d.stats?.short?.gte_120 || 0;
                 const shortLoss = d.stats?.short?.loss || 0;
                 
-                // 记录标记类型（红色或绿色）
-                let markType = null;
-                let markValue = 0;
-                
-                // 空单盈利≥120%数量≥3，每30分钟只标记一次（00分或30分）
-                if (shortProfit120 >= 3 && timeSlot !== lastShortProfitSlot) {
-                    markType = 'red';
-                    markValue = shortProfit120;
+                // 空单盈利≥120%数量≥3，每小时只标记一次
+                if (shortProfit120 >= 3 && hour !== lastShortProfitHour) {
                     shortProfitMarks.push({
                         coord: [index, shortProfit120],
                         value: shortProfit120,
@@ -564,14 +544,12 @@
                             fontWeight: 'bold'
                         }
                     });
-                    lastShortProfitSlot = timeSlot;
+                    lastShortProfitHour = hour;
                     console.log(`🔴 标记空单盈利≥120%: ${d.datetime} - ${shortProfit120}个`);
                 }
                 
-                // 空单亏损数量≥3，每30分钟只标记一次（00分或30分）
-                if (shortLoss >= 3 && timeSlot !== lastShortLossSlot) {
-                    markType = 'green';
-                    markValue = shortLoss;
+                // 空单亏损数量≥3，每小时只标记一次
+                if (shortLoss >= 3 && hour !== lastShortLossHour) {
                     shortLossMarks.push({
                         coord: [index, shortLoss],
                         value: shortLoss,
@@ -589,61 +567,12 @@
                             fontWeight: 'bold'
                         }
                     });
-                    lastShortLossSlot = timeSlot;
+                    lastShortLossHour = hour;
                     console.log(`🟢 标记空单亏损: ${d.datetime} - ${shortLoss}个`);
-                }
-                
-                // 记录所有标记点
-                if (markType) {
-                    allMarks.push({
-                        index: index,
-                        datetime: d.datetime,
-                        type: markType,
-                        value: markValue
-                    });
                 }
             });
             
             console.log(`📍 空单盈利≥120%标记数: ${shortProfitMarks.length}, 空单亏损标记数: ${shortLossMarks.length}`);
-            
-            // 【新功能】强制标记最后两个时间点
-            // 如果有至少2个标记，给最后两个添加特殊标识
-            if (allMarks.length >= 2) {
-                const last2 = allMarks.slice(-2);  // 最后两个
-                console.log(`🎯 最后两个标记点: `, last2);
-                
-                // 检查颜色是否不同
-                if (last2[0].type !== last2[1].type) {
-                    console.warn(`⚠️ 多空转换！最后两个标记颜色不同: ${last2[0].type} → ${last2[1].type}`);
-                    
-                    // 在图表上添加转换提示
-                    // 这里可以在事件列表中显示
-                }
-                
-                // 给最后两个标记添加特殊边框和标签
-                last2.forEach((mark, idx) => {
-                    const isLastOne = (idx === 1);  // 最后一个
-                    const label = isLastOne ? '📍最新' : '📍上次';
-                    
-                    if (mark.type === 'red') {
-                        // 修改红色标记
-                        const existingMark = shortProfitMarks.find(m => m.coord[0] === mark.index);
-                        if (existingMark) {
-                            existingMark.itemStyle.borderColor = '#fbbf24';  // 金色边框
-                            existingMark.itemStyle.borderWidth = 5;
-                            existingMark.label.formatter = `${label}\n🔴 ${mark.value}`;
-                        }
-                    } else {
-                        // 修改绿色标记
-                        const existingMark = shortLossMarks.find(m => m.coord[0] === mark.index);
-                        if (existingMark) {
-                            existingMark.itemStyle.borderColor = '#fbbf24';  // 金色边框
-                            existingMark.itemStyle.borderWidth = 5;
-                            existingMark.label.formatter = `${label}\n🟢 ${mark.value}`;
-                        }
-                    }
-                });
-            }
             
             // 格式化日期显示
             const dateStr = targetDate.toLocaleDateString('zh-CN', {
