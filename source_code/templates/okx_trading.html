@@ -732,7 +732,7 @@
 
         .amount-presets {
             display: grid;
-            grid-template-columns: repeat(6, 1fr);
+            grid-template-columns: repeat(7, 1fr);
             gap: 8px;
         }
 
@@ -1058,6 +1058,7 @@
                     <!-- 快捷金额 -->
                     <div class="form-group">
                         <div class="amount-presets">
+                            <button type="button" class="preset-btn" onclick="setAmount(5)">5%</button>
                             <button type="button" class="preset-btn" onclick="setAmount(10)">10%</button>
                             <button type="button" class="preset-btn" onclick="setAmount(20)">20%</button>
                             <button type="button" class="preset-btn" onclick="setAmount(25)">25%</button>
