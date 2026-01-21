@@ -16893,6 +16893,86 @@ def get_coin_change_baseline():
         })
 
 
+@app.route('/api/coin-change-tracker/reset-baseline', methods=['POST'])
+def reset_coin_change_baseline():
+    """手动重置基准价（使用当前价格）"""
+    try:
+        from datetime import datetime, timezone, timedelta
+        from pathlib import Path
+        import requests
+        
+        # 获取当前时间
+        beijing_time = datetime.now(timezone(timedelta(hours=8)))
+        date_str = beijing_time.strftime('%Y%m%d')
+        
+        # 获取当前币价
+        symbols = [
+            'BTC-USDT-SWAP', 'ETH-USDT-SWAP', 'XRP-USDT-SWAP',
+            'BNB-USDT-SWAP', 'SOL-USDT-SWAP', 'LTC-USDT-SWAP',
+            'DOGE-USDT-SWAP', 'SUI-USDT-SWAP', 'TRX-USDT-SWAP',
+            'TON-USDT-SWAP', 'ETC-USDT-SWAP', 'BCH-USDT-SWAP',
+            'HBAR-USDT-SWAP', 'XLM-USDT-SWAP', 'FIL-USDT-SWAP',
+            'LINK-USDT-SWAP', 'CRO-USDT-SWAP', 'DOT-USDT-SWAP',
+            'AAVE-USDT-SWAP', 'UNI-USDT-SWAP', 'NEAR-USDT-SWAP',
+            'APT-USDT-SWAP', 'CFX-USDT-SWAP', 'CRV-USDT-SWAP',
+            'STX-USDT-SWAP', 'LDO-USDT-SWAP', 'TAO-USDT-SWAP'
+        ]
+        
+        # 从OKX获取当前价格
+        url = 'https://www.okx.com/api/v5/market/tickers?instType=SWAP'
+        response = requests.get(url, timeout=10)
+        data = response.json()
+        
+        if data.get('code') != '0':
+            return jsonify({
+                'success': False,
+                'error': f"获取行情失败: {data.get('msg')}"
+            })
+        
+        prices = {}
+        for ticker in data.get('data', []):
+            inst_id = ticker.get('instId')
+            if inst_id in symbols:
+                prices[inst_id] = float(ticker.get('last', 0))
+        
+        if len(prices) < 27:
+            return jsonify({
+                'success': False,
+                'error': f"获取币价不完整，只获取到{len(prices)}个"
+            })
+        
+        # 保存基准价
+        data_dir = Path('data/coin_change_tracker')
+        data_dir.mkdir(parents=True, exist_ok=True)
+        baseline_file = data_dir / f'baseline_{date_str}.json'
+        
+        baseline_data = {
+            'date': date_str,
+            'timestamp': beijing_time.isoformat(),
+            'prices': prices,
+            'note': '手动重置'
+        }
+        
+        with open(baseline_file, 'w') as f:
+            json.dump(baseline_data, f, indent=2)
+        
+        return jsonify({
+            'success': True,
+            'message': '基准价已重置',
+            'date': date_str,
+            'timestamp': beijing_time.isoformat(),
+            'count': len(prices)
+        })
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+
 # ==================== Flask App 启动入口 ====================
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
