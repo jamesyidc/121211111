@@ -415,10 +415,12 @@
             const profitMarks = data.event_states?.profit_marks_history || [];
             if (profitMarks.length > 0) {
                 const lastMark = profitMarks[profitMarks.length - 1];
-                const markColor = lastMark.color === 'red' ? '🔴 红色标记' : '🟢 绿色标记';
+                const markColor = lastMark.mark === 'red' ? '🔴 红色标记' : '🟢 绿色标记';
                 document.getElementById('profitMarkStatus').textContent = markColor;
+                // 使用datetime字段，格式：2026-01-21 04:02:26
+                const markTime = lastMark.datetime || '未知时间';
                 document.getElementById('profitMarkDetail').textContent = 
-                    `最近标记时间: ${new Date(lastMark.timestamp * 1000).toLocaleString()}`;
+                    `最近标记时间: ${markTime}`;
             } else {
                 document.getElementById('profitMarkStatus').textContent = '暂无标记';
                 document.getElementById('profitMarkDetail').textContent = '等待数据...';
