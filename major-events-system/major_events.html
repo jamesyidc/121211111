@@ -179,6 +179,10 @@
                         <li><strong>触发条件</strong>：2h见顶信号 &gt; 10 时开始检测</li>
                         <li><strong>峰值1</strong>：触发后的最大值记录为峰值1</li>
                         <li><strong>寻找峰值2</strong>：当前值 &lt; 峰值1 × 50% 时，开始寻找峰值2</li>
+                        <li><strong>事件触发</strong>：
+                            <span class="ml-2">峰值1 = 120 → 🔴 触发<strong>事件1</strong>（高强度见顶）</span><br/>
+                            <span class="ml-8">峰值1 &lt; 120 → 🟠 触发<strong>事件2</strong>（一般强度见顶）</span>
+                        </li>
                         <li><strong>峰值2</strong>：在寻找阶段的最大值记录为峰值2</li>
                         <li><strong>结束检测</strong>：当前值 &lt; 峰值2 × 50% 时，检测周期结束</li>
                     </ol>
@@ -392,6 +396,7 @@
             peak1: { value: null, time: null },
             peak2: { value: null, time: null },
             current: { value: null, time: null },
+            triggeredEvent: null,  // event1, event2, null
             history: []  // 历史峰值记录
         };
 
@@ -420,6 +425,15 @@
                         peakDetector.status = 'seeking_peak2';
                         peakDetector.peak2 = { value: currentValue, time: currentTime };
                         console.log(`🔍 开始寻找峰值2，当前值: ${currentValue} (< ${peakDetector.peak1.value * 0.5})`);
+                        
+                        // 根据峰值1的值触发对应事件
+                        if (peakDetector.peak1.value === 120) {
+                            console.log(`🔴 触发事件1：高强度见顶诱多（峰值1 = 120）`);
+                            peakDetector.triggeredEvent = 'event1';
+                        } else if (peakDetector.peak1.value < 120) {
+                            console.log(`🟠 触发事件2：一般强度见顶诱多（峰值1 = ${peakDetector.peak1.value} < 120）`);
+                            peakDetector.triggeredEvent = 'event2';
+                        }
                     }
                     break;
                     
@@ -438,6 +452,7 @@
                         peakDetector.history.unshift({
                             peak1: {...peakDetector.peak1},
                             peak2: {...peakDetector.peak2},
+                            triggeredEvent: peakDetector.triggeredEvent,
                             completedAt: currentTime
                         });
                         
@@ -451,6 +466,7 @@
                             peakDetector.status = 'idle';
                             peakDetector.peak1 = { value: null, time: null };
                             peakDetector.peak2 = { value: null, time: null };
+                            peakDetector.triggeredEvent = null;
                             updatePeakDetectionUI();
                         }, 3000); // 3秒后重置
                     }
@@ -467,13 +483,31 @@
         // 更新峰值检测UI
         function updatePeakDetectionUI() {
             // 状态
-            const statusMap = {
-                'idle': '⚪ 未触发',
-                'triggered': '🟡 已触发，记录峰值1',
-                'seeking_peak2': '🟠 寻找峰值2',
-                'completed': '🟢 检测完成'
-            };
-            document.getElementById('peakDetectionStatus').textContent = statusMap[peakDetector.status] || '未知';
+            let statusText = '';
+            if (peakDetector.status === 'idle') {
+                statusText = '⚪ 未触发';
+            } else if (peakDetector.status === 'triggered') {
+                statusText = '🟡 已触发，记录峰值1';
+            } else if (peakDetector.status === 'seeking_peak2') {
+                if (peakDetector.triggeredEvent === 'event1') {
+                    statusText = '🟠 寻找峰值2 | 🔴 事件1已触发';
+                } else if (peakDetector.triggeredEvent === 'event2') {
+                    statusText = '🟠 寻找峰值2 | 🟠 事件2已触发';
+                } else {
+                    statusText = '🟠 寻找峰值2';
+                }
+            } else if (peakDetector.status === 'completed') {
+                if (peakDetector.triggeredEvent === 'event1') {
+                    statusText = '🟢 检测完成 | 🔴 事件1';
+                } else if (peakDetector.triggeredEvent === 'event2') {
+                    statusText = '🟢 检测完成 | 🟠 事件2';
+                } else {
+                    statusText = '🟢 检测完成';
+                }
+            } else {
+                statusText = '未知';
+            }
+            document.getElementById('peakDetectionStatus').textContent = statusText;
             
             // 峰值1
             if (peakDetector.peak1.value !== null) {
@@ -504,14 +538,23 @@
             
             // 历史记录
             const historyHTML = peakDetector.history.length > 0 
-                ? peakDetector.history.map((record, idx) => `
+                ? peakDetector.history.map((record, idx) => {
+                    let eventBadge = '';
+                    if (record.triggeredEvent === 'event1') {
+                        eventBadge = '<span class="bg-red-500 text-white px-2 py-0.5 rounded text-xs ml-1">事件1</span>';
+                    } else if (record.triggeredEvent === 'event2') {
+                        eventBadge = '<span class="bg-orange-500 text-white px-2 py-0.5 rounded text-xs ml-1">事件2</span>';
+                    }
+                    return `
                     <div class="bg-gray-50 rounded p-2 text-xs">
                         <span class="font-semibold">#${idx + 1}</span> 
                         峰值1: <span class="text-orange-600 font-bold">${record.peak1.value}</span> → 
                         峰值2: <span class="text-blue-600 font-bold">${record.peak2.value}</span>
+                        ${eventBadge}
                         <span class="text-gray-500 ml-2">${formatTime(record.completedAt)}</span>
                     </div>
-                `).join('')
+                    `;
+                }).join('')
                 : '<div class="text-sm text-gray-500 text-center py-2">暂无历史记录</div>';
             
             document.getElementById('peakHistory').innerHTML = historyHTML;
