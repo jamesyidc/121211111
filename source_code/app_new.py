@@ -13403,34 +13403,50 @@ def place_okx_order():
                 'error': '无法获取当前价格，请使用限价单并指定价格'
             })
         
-        # 计算合约张数（币的数量）
-        # 例如：7.57 USDT / 95650 USD/BTC = 0.00007913 BTC
-        contracts = float(size) / current_price
+        # 用户输入的是USDT金额，需要转换为合约张数
+        # 核心逻辑：用户想用X USDT开仓，实际需要多少张合约？
+        # 公式：实际合约价值 = 用户输入的USDT * 杠杆倍数
         
-        # OKX合约对sz有特定要求：
-        # 1. 必须是整数张数（不能有小数）
-        # 2. 不能小于最小下单量（通常为1张）
-        # 3. 不同币种的合约面值不同
+        user_usdt = float(size)  # 用户输入的USDT金额
+        leverage_value = float(leverage)  # 杠杆倍数
         
-        # 根据交易对确定精度和合约面值
+        # 实际合约价值（USDT）= 用户投入的保证金 * 杠杆
+        contract_value_usdt = user_usdt * leverage_value
+        
+        # 根据交易对确定每张合约的面值
         if 'BTC' in inst_id:
-            # BTC-USDT-SWAP: 1张合约=0.01BTC
-            # 示例：7.57 USDT / 95650 = 0.0000791 BTC → 0.0000791/0.01 = 0.00791张 → 向上取整为1张
-            contracts_count = max(1, int(contracts / 0.01 + 0.5))  # 四舍五入
-            contracts_str = str(contracts_count)
+            # BTC-USDT-SWAP: 1张合约 = 0.01 BTC
+            coin_per_contract = 0.01
         elif 'ETH' in inst_id:
-            # ETH-USDT-SWAP: 1张合约=0.1ETH
-            contracts_count = max(1, int(contracts / 0.1 + 0.5))
-            contracts_str = str(contracts_count)
-        elif 'SOL' in inst_id or 'DOGE' in inst_id or 'XRP' in inst_id:
-            # 小面值币种：1张合约=1币（如SOL, DOGE, XRP等）
-            contracts_count = max(1, int(contracts + 0.5))
-            contracts_str = str(contracts_count)
+            # ETH-USDT-SWAP: 1张合约 = 0.1 ETH
+            coin_per_contract = 0.1
+        elif 'SOL' in inst_id or 'DOGE' in inst_id or 'XRP' in inst_id or 'ADA' in inst_id or 'TRX' in inst_id:
+            # 小面值币种：1张合约 = 1 币
+            coin_per_contract = 1.0
         else:
-            # 其他币种：默认1张合约=0.1币（如UNI, LINK等）
-            # 如果金额太小，至少下1张
-            contracts_count = max(1, int(contracts / 0.1 + 0.5))
-            contracts_str = str(contracts_count)
+            # 其他币种：默认 1张合约 = 0.1 币
+            coin_per_contract = 0.1
+        
+        # 每张合约的USDT价值 = 每张合约的币数量 * 当前币价
+        usdt_per_contract = coin_per_contract * current_price
+        
+        # 需要的合约张数 = 总合约价值 / 每张合约价值
+        contracts_count = contract_value_usdt / usdt_per_contract
+        
+        # OKX要求sz必须是整数张数，四舍五入
+        contracts_count = max(1, round(contracts_count))
+        contracts_str = str(int(contracts_count))
+        
+        # 计算实际使用的USDT金额（可能与用户输入略有差异）
+        actual_contract_value = contracts_count * usdt_per_contract
+        actual_margin_used = actual_contract_value / leverage_value
+        
+        print(f"[下单计算] 用户输入: {user_usdt} USDT, 杠杆: {leverage_value}x")
+        print(f"[下单计算] 合约价值: {contract_value_usdt} USDT")
+        print(f"[下单计算] 每张合约: {coin_per_contract} 币 = {usdt_per_contract} USDT")
+        print(f"[下单计算] 所需张数: {contracts_count} 张")
+        print(f"[下单计算] 实际合约价值: {actual_contract_value} USDT")
+        print(f"[下单计算] 实际占用保证金: {actual_margin_used} USDT")
         
         # 构建请求体
         order_params = {
@@ -13490,10 +13506,13 @@ def place_okx_order():
                         'sCode': order.get('sCode', '0'),
                         'sMsg': order.get('sMsg', '订单提交成功'),
                         'contracts': contracts_str,
-                        'usdtAmount': size,
+                        'inputUsdt': user_usdt,  # 用户输入的USDT
+                        'actualUsdt': round(actual_margin_used, 2),  # 实际使用的USDT（保证金）
+                        'contractValue': round(actual_contract_value, 2),  # 合约价值
+                        'leverage': leverage_value,  # 杠杆倍数
                         'price': current_price
                     },
-                    'message': f'订单提交成功！合约张数: {contracts_str} 张'
+                    'message': f'下单成功！使用 {round(actual_margin_used, 2)} USDT 保证金，开仓 {round(actual_contract_value, 2)} USDT 合约（{leverage_value}x杠杆）'
                 })
             else:
                 return jsonify({

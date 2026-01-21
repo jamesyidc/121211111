@@ -1048,10 +1048,13 @@
 
                     <!-- 交易数量 -->
                     <div class="form-group">
-                        <label class="form-label">数量 (USDT)</label>
-                        <input type="number" class="form-control" id="orderAmount" placeholder="输入USDT数量" step="0.01" required>
+                        <label class="form-label">保证金 (USDT)</label>
+                        <input type="number" class="form-control" id="orderAmount" placeholder="输入保证金USDT数量" step="0.01" required>
                         <div style="margin-top: 8px; font-size: 12px; color: #718096;">
                             可用余额: <span id="orderAvailableBalance">224.15 USDT</span>
+                        </div>
+                        <div style="margin-top: 4px; font-size: 11px; color: #a0aec0;">
+                            💡 实际开仓价值 = 保证金 × 杠杆倍数
                         </div>
                     </div>
 
@@ -1654,8 +1657,9 @@
             
             const confirmMsg = `确认${currentDirection === 'long' ? '做多' : '做空'} ${symbolData.name}？
 交易对: ${currentSymbol}
-数量: ${amount} USDT
+保证金: ${amount} USDT
 杠杆: ${currentLeverage}x
+合约价值: ${(parseFloat(amount) * currentLeverage).toFixed(2)} USDT
 ${priceType === 'limit' ? '价格: ' + symbolData.price : '市价单'}
 
 ⚠️ 这将在OKX真实下单，请确认无误！`;
@@ -1681,9 +1685,17 @@ ${priceType === 'limit' ? '价格: ' + symbolData.price : '市价单'}
                 console.log('下单响应:', result);
                 
                 if (result.success) {
+                    const data = result.data;
                     alert(`✅ 订单提交成功！
-订单ID: ${result.data.ordId || ''}
-${result.data.sMsg || result.message || ''}`);
+
+订单ID: ${data.ordId || ''}
+合约张数: ${data.contracts || ''} 张
+使用保证金: ${data.actualUsdt || data.inputUsdt} USDT
+合约价值: ${data.contractValue || ''} USDT
+杠杆倍数: ${data.leverage || currentLeverage}x
+当前价格: ${data.price || ''}
+
+${data.sMsg || result.message || ''}`);
                     
                     // 下单成功后刷新账户信息和持仓
                     await refreshAccountData();
