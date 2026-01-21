@@ -1128,7 +1128,13 @@
 
                 <!-- 持仓列表 -->
                 <div class="info-card">
-                    <h3>📊 持仓 <span id="positionsCount" style="color: #888; font-size: 14px; font-weight: normal;">(0)</span></h3>
+                    <h3>
+                        📊 持仓 
+                        <span id="positionsCount" style="color: #888; font-size: 14px; font-weight: normal;">(0)</span>
+                        <button onclick="loadPositions()" style="float: right; padding: 4px 12px; font-size: 12px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer;" title="刷新持仓">
+                            🔄 刷新
+                        </button>
+                    </h3>
                     <div id="positionsList" class="no-positions">
                         暂无持仓
                     </div>
@@ -1407,6 +1413,11 @@
             renderSymbolsList();
             loadAccountData();
             refreshAccountData();  // 加载账户信息和持仓
+            
+            // 每30秒自动刷新账户信息和持仓
+            setInterval(() => {
+                refreshAccountData();
+            }, 30000);
         }
 
         // 渲染账户标签
