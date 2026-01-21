@@ -19,7 +19,8 @@ from gdrive_jsonl_manager import GDriveJSONLManager
 from query_jsonl_manager import QueryJSONLManager
 
 gdrive_jsonl_manager = GDriveJSONLManager()
-query_jsonl_manager = QueryJSONLManager()
+# 使用GDrive数据目录作为Query数据源（包含最新数据）
+query_jsonl_manager = QueryJSONLManager(data_dir='/home/user/webapp/data/gdrive_jsonl')
 
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
@@ -9718,8 +9719,8 @@ def api_query_latest():
             'success': True,
             'data': {
                 '运算时间': snapshot.get('snapshot_time'),
-                '急涨': snapshot.get('rush_up', 0),
-                '急跌': snapshot.get('rush_down', 0),
+                '急涨': snapshot.get('rush_up_total', 0),  # GDrive使用rush_up_total
+                '急跌': snapshot.get('rush_down_total', 0),  # GDrive使用rush_down_total
                 '差值': snapshot.get('diff', 0),
                 '计次': snapshot.get('count', 0),
                 '比值': snapshot.get('ratio', 0),

@@ -15,8 +15,17 @@ class QueryJSONLManager:
     def __init__(self, data_dir='/home/user/webapp/data/query_jsonl'):
         """初始化管理器"""
         self.data_dir = data_dir
-        self.snapshots_file = os.path.join(data_dir, 'snapshots.jsonl')
-        self.coins_file = os.path.join(data_dir, 'coins.jsonl')
+        
+        # 优先使用GDrive聚合数据文件（包含完整统计信息）
+        crypto_aggregate = os.path.join(data_dir, 'crypto_aggregate.jsonl')
+        if os.path.exists(crypto_aggregate):
+            # 使用聚合数据作为快照数据
+            self.snapshots_file = crypto_aggregate
+            self.coins_file = os.path.join(data_dir, 'crypto_snapshots.jsonl')
+        else:
+            # 回退到旧文件名
+            self.snapshots_file = os.path.join(data_dir, 'snapshots.jsonl')
+            self.coins_file = os.path.join(data_dir, 'coins.jsonl')
         
         # 确保目录存在
         os.makedirs(data_dir, exist_ok=True)
