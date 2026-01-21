@@ -13403,15 +13403,15 @@ def place_okx_order():
                 'error': '无法获取当前价格，请使用限价单并指定价格'
             })
         
-        # 用户输入的是USDT金额，需要转换为合约张数
-        # 核心逻辑：用户想用X USDT开仓，实际需要多少张合约？
-        # 公式：实际合约价值 = 用户输入的USDT * 杠杆倍数
+        # 用户输入的是合约价值（USDT），不是保证金！
+        # 重要：用户输入7.5 USDT，就是想开7.5 USDT的仓位
+        # 保证金 = 合约价值 / 杠杆倍数
         
-        user_usdt = float(size)  # 用户输入的USDT金额
+        user_usdt = float(size)  # 用户输入的USDT金额（合约价值）
         leverage_value = float(leverage)  # 杠杆倍数
         
-        # 实际合约价值（USDT）= 用户投入的保证金 * 杠杆
-        contract_value_usdt = user_usdt * leverage_value
+        # 合约价值就是用户输入的金额
+        contract_value_usdt = user_usdt
         
         # 根据交易对确定每张合约的面值
         if 'BTC' in inst_id:
@@ -13430,23 +13430,23 @@ def place_okx_order():
         # 每张合约的USDT价值 = 每张合约的币数量 * 当前币价
         usdt_per_contract = coin_per_contract * current_price
         
-        # 需要的合约张数 = 总合约价值 / 每张合约价值
+        # 需要的合约张数 = 合约价值 / 每张合约价值
         contracts_count = contract_value_usdt / usdt_per_contract
         
         # OKX要求sz必须是整数张数，四舍五入
         contracts_count = max(1, round(contracts_count))
         contracts_str = str(int(contracts_count))
         
-        # 计算实际使用的USDT金额（可能与用户输入略有差异）
+        # 计算实际使用的USDT金额
         actual_contract_value = contracts_count * usdt_per_contract
         actual_margin_used = actual_contract_value / leverage_value
         
-        print(f"[下单计算] 用户输入: {user_usdt} USDT, 杠杆: {leverage_value}x")
-        print(f"[下单计算] 合约价值: {contract_value_usdt} USDT")
-        print(f"[下单计算] 每张合约: {coin_per_contract} 币 = {usdt_per_contract} USDT")
+        print(f"[下单计算] 用户输入合约价值: {user_usdt} USDT")
+        print(f"[下单计算] 杠杆倍数: {leverage_value}x")
+        print(f"[下单计算] 每张合约: {coin_per_contract} 币 = {usdt_per_contract:.4f} USDT")
         print(f"[下单计算] 所需张数: {contracts_count} 张")
-        print(f"[下单计算] 实际合约价值: {actual_contract_value} USDT")
-        print(f"[下单计算] 实际占用保证金: {actual_margin_used} USDT")
+        print(f"[下单计算] 实际合约价值: {actual_contract_value:.4f} USDT")
+        print(f"[下单计算] 实际占用保证金: {actual_margin_used:.4f} USDT")
         
         # 构建请求体
         order_params = {
@@ -13506,13 +13506,13 @@ def place_okx_order():
                         'sCode': order.get('sCode', '0'),
                         'sMsg': order.get('sMsg', '订单提交成功'),
                         'contracts': contracts_str,
-                        'inputUsdt': user_usdt,  # 用户输入的USDT
-                        'actualUsdt': round(actual_margin_used, 2),  # 实际使用的USDT（保证金）
-                        'contractValue': round(actual_contract_value, 2),  # 合约价值
+                        'inputUsdt': user_usdt,  # 用户输入的开仓金额
+                        'actualUsdt': round(actual_margin_used, 2),  # 实际占用的保证金
+                        'contractValue': round(actual_contract_value, 2),  # 实际合约价值
                         'leverage': leverage_value,  # 杠杆倍数
                         'price': current_price
                     },
-                    'message': f'下单成功！使用 {round(actual_margin_used, 2)} USDT 保证金，开仓 {round(actual_contract_value, 2)} USDT 合约（{leverage_value}x杠杆）'
+                    'message': f'下单成功！开仓 {round(actual_contract_value, 2)} USDT，占用保证金 {round(actual_margin_used, 2)} USDT（{leverage_value}x杠杆）'
                 })
             else:
                 return jsonify({
