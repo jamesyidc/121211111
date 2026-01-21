@@ -4,34 +4,6 @@
   "liquidation_value": 0,
   "profit_marks_history": [
     {
-      "datetime": "2026-01-21 06:57:46",
-      "mark": "red",
-      "short_profit_120": 19,
-      "short_loss": 0,
-      "time": "2026-01-21T14:58:45.194534+08:00"
-    },
-    {
-      "datetime": "2026-01-21 07:02:46",
-      "mark": "red",
-      "short_profit_120": 19,
-      "short_loss": 0,
-      "time": "2026-01-21T15:03:47.284279+08:00"
-    },
-    {
-      "datetime": "2026-01-21 07:07:47",
-      "mark": "red",
-      "short_profit_120": 19,
-      "short_loss": 0,
-      "time": "2026-01-21T15:07:49.001668+08:00"
-    },
-    {
-      "datetime": "2026-01-21 07:12:47",
-      "mark": "red",
-      "short_profit_120": 19,
-      "short_loss": 0,
-      "time": "2026-01-21T15:12:50.981995+08:00"
-    },
-    {
       "datetime": "2026-01-21 07:17:48",
       "mark": "red",
       "short_profit_120": 19,
@@ -72,6 +44,34 @@
       "short_profit_120": 19,
       "short_loss": 0,
       "time": "2026-01-21T15:43:07.689950+08:00"
+    },
+    {
+      "datetime": "2026-01-21 07:47:49",
+      "mark": "red",
+      "short_profit_120": 19,
+      "short_loss": 0,
+      "time": "2026-01-21T15:48:24.957037+08:00"
+    },
+    {
+      "datetime": "2026-01-21 07:52:49",
+      "mark": "red",
+      "short_profit_120": 19,
+      "short_loss": 0,
+      "time": "2026-01-21T15:53:28.202926+08:00"
+    },
+    {
+      "datetime": "2026-01-21 07:57:50",
+      "mark": "red",
+      "short_profit_120": 19,
+      "short_loss": 0,
+      "time": "2026-01-21T15:58:32.343861+08:00"
+    },
+    {
+      "datetime": "2026-01-21 08:02:50",
+      "mark": "red",
+      "short_profit_120": 18,
+      "short_loss": 0,
+      "time": "2026-01-21T16:03:35.541852+08:00"
     }
   ],
   "event3_triggered_time": null,
