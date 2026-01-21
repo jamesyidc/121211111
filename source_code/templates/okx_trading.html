@@ -1193,11 +1193,12 @@
                     <div style="margin-top: 12px; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 6px; color: white; font-size: 12px;">
                         <div style="margin-bottom: 4px;">💡 <strong>策略说明：</strong></div>
                         <div style="padding-left: 20px;">
-                            • 自动选择当日涨幅排名前6的币种<br>
+                            • 从⭐<strong>常用币</strong>中选择涨幅前6<br>
                             • 每个币种平均分配开仓金额<br>
                             • 统一使用10倍杠杆、市价单<br>
                             • 空单策略：做空涨幅高的币种<br>
-                            • 多单策略：做多涨幅高的币种
+                            • 多单策略：做多涨幅高的币种<br>
+                            • <span style="color: #fbbf24;">⚠️ 请先收藏至少6个常用币</span>
                         </div>
                     </div>
                 </div>
@@ -1983,11 +1984,27 @@
                 return;
             }
             
-            // 按涨跌幅排序，获取前6名
-            const sortedSymbols = [...symbols].sort((a, b) => b.change - a.change);
+            // 只从收藏的币种中选择
+            const favoriteSymbolsData = symbols.filter(s => favoriteSymbols.includes(s.symbol));
+            
+            if (favoriteSymbolsData.length === 0) {
+                alert('❌ 请先收藏一些常用币种！\n\n在交易对列表中点击⭐按钮添加收藏。');
+                return;
+            }
+            
+            console.log('[batchOrder] 常用币种数量:', favoriteSymbolsData.length);
+            console.log('[batchOrder] 常用币种:', favoriteSymbolsData.map(s => s.name).join(', '));
+            
+            // 从常用币种中按涨跌幅排序，获取前6名
+            const sortedSymbols = [...favoriteSymbolsData].sort((a, b) => b.change - a.change);
             const top6Symbols = sortedSymbols.slice(0, 6);
             
-            console.log('[batchOrder] 涨幅前6的币种:', top6Symbols.map(s => `${s.name} (${s.change}%)`));
+            if (top6Symbols.length < 6) {
+                alert(`❌ 常用币种不足6个！\n\n当前常用币种：${favoriteSymbolsData.length}个\n请至少收藏6个币种才能使用批量开仓。`);
+                return;
+            }
+            
+            console.log('[batchOrder] 常用币种涨幅前6:', top6Symbols.map(s => `${s.name} (${s.change}%)`));
             
             // 计算每个币的开仓金额
             const amountPerCoin = (balance * percentPerCoin / 100).toFixed(2);
@@ -2003,7 +2020,7 @@
             ).join('\n');
             
             const confirmMsg = `${emoji} 批量${strategyName}策略\n\n` +
-                `【涨幅前6币种】\n${symbolsList}\n\n` +
+                `【常用币涨幅前6】\n${symbolsList}\n\n` +
                 `【开仓参数】\n` +
                 `  • 方向: ${directionText}\n` +
                 `  • 杠杆: 10x\n` +
