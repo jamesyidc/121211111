@@ -1619,6 +1619,11 @@
             <button class="btn-add-account" onclick="showAddAccountForm()">
                 ➕ 添加新账户
             </button>
+            
+            <!-- 快速配置POIT账户按钮 -->
+            <button class="btn-add-account" onclick="quickAddPoitAccount()" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); margin-top: 10px;">
+                ⚡ 快速配置POIT子账户
+            </button>
 
             <!-- 添加/编辑账户表单 -->
             <div class="account-form" id="accountForm" style="display: none;">
@@ -1888,6 +1893,69 @@
             alert(`账户保存成功！${balance > 0 ? `当前余额: ${balance.toFixed(2)} USDT` : '未获取到余额'}`);
         }
 
+        // 快速配置POIT子账户
+        async function quickAddPoitAccount() {
+            const confirmed = confirm('确认要快速配置POIT子账户吗？\n\n账户信息：\n- 账户名称: POIT (子账户)\n- API Key: 8650e46c-***\n- 系统将自动从OKX获取账户余额');
+            
+            if (!confirmed) return;
+            
+            // POIT账户配置
+            const poitAccount = {
+                id: 'account_poit_' + Date.now(),
+                name: 'POIT (子账户)',
+                apiKey: '8650e46c-059b-431d-93cf-55f8c79babdb',
+                apiSecret: '4C2BD2AC6A08615EA7F36A6251857FCE',
+                passphrase: 'Wu666666.',
+                balance: 0
+            };
+            
+            // 检查是否已存在
+            const existingIndex = accounts.findIndex(acc => 
+                acc.apiKey === poitAccount.apiKey || acc.name === poitAccount.name
+            );
+            
+            if (existingIndex > -1) {
+                const update = confirm('检测到同名或相同API Key的账户，是否更新？');
+                if (!update) return;
+                
+                accounts[existingIndex] = poitAccount;
+                console.log('✅ POIT账户已更新');
+            } else {
+                accounts.push(poitAccount);
+                console.log('✅ POIT账户已添加');
+            }
+            
+            // 获取账户余额
+            alert('正在从OKX获取账户余额，请稍候...');
+            const balance = await fetchAccountBalance(
+                poitAccount.apiKey,
+                poitAccount.apiSecret,
+                poitAccount.passphrase
+            );
+            
+            if (balance > 0) {
+                poitAccount.balance = balance;
+                alert(`✅ POIT子账户配置成功！\n\n账户余额: ${balance.toFixed(2)} USDT`);
+            } else {
+                alert('⚠️ POIT子账户已添加，但无法获取余额。\n请检查API权限设置。\n\n账户已保存，您可以稍后手动刷新余额。');
+            }
+            
+            // 保存并刷新
+            localStorage.setItem('okx_accounts', JSON.stringify(accounts));
+            renderAccountList();
+            renderAccountTabs();
+            
+            // 切换到POIT账户
+            if (existingIndex > -1) {
+                selectAccount(accounts[existingIndex].id);
+            } else {
+                selectAccount(accounts[accounts.length - 1].id);
+            }
+            
+            // 关闭对话框
+            closeAccountModal();
+        }
+        
         // 点击对话框外部关闭
         document.getElementById('accountModal').addEventListener('click', function(e) {
             if (e.target === this) {
