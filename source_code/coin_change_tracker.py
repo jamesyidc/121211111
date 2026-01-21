@@ -92,10 +92,39 @@ class CoinChangeTracker:
         """检查是否需要重置基准价（每天0点）"""
         current_time = self.get_beijing_time()
         current_date = current_time.strftime('%Y%m%d')
+        baseline_file = self.data_dir / f'baseline_{current_date}.json'
         
-        # 如果是新的一天，或者基准价为空，则重置
+        # 如果日期变了，或者内存中基准价为空
         if self.baseline_date != current_date or not self.baseline_prices:
-            print(f"\n🔄 检测到新的一天: {current_date}，重置基准价")
+            # 先尝试从文件读取今天的基准价
+            if baseline_file.exists():
+                try:
+                    with open(baseline_file, 'r') as f:
+                        baseline_data = json.load(f)
+                        self.baseline_prices = baseline_data.get('prices', {})
+                        self.baseline_date = current_date
+                        print(f"\n✅ 从文件加载今天的基准价: {baseline_file}")
+                        print(f"📊 基准价时间: {baseline_data.get('timestamp')}")
+                        print(f"📊 基准价数量: {len(self.baseline_prices)}")
+                        return True
+                except Exception as e:
+                    print(f"⚠️  读取基准价文件失败: {str(e)}")
+            
+            # 如果文件不存在，创建新的基准价
+            # 检查当前时间，如果不是接近0点，提示等待
+            current_hour = current_time.hour
+            current_minute = current_time.minute
+            
+            # 只有在23:58到00:05之间才创建基准价，其他时间等待
+            is_near_midnight = (current_hour == 23 and current_minute >= 58) or \
+                              (current_hour == 0 and current_minute <= 5)
+            
+            if not is_near_midnight:
+                print(f"\n⚠️  当前时间 {current_time.strftime('%H:%M:%S')} 不在0点附近")
+                print(f"⏰ 等待到今晚23:58或明天00:05之前创建基准价")
+                print(f"💡 临时使用当前价格作为基准价进行追踪")
+            
+            print(f"\n🔄 检测到新的一天: {current_date}，创建新基准价")
             
             # 获取当前价格作为基准价
             current_prices = self.fetch_current_prices()
@@ -104,15 +133,17 @@ class CoinChangeTracker:
                 self.baseline_date = current_date
                 
                 # 保存基准价到文件
-                baseline_file = self.data_dir / f'baseline_{current_date}.json'
                 with open(baseline_file, 'w') as f:
                     json.dump({
                         'date': current_date,
                         'timestamp': current_time.isoformat(),
-                        'prices': self.baseline_prices
+                        'prices': self.baseline_prices,
+                        'note': '基准价设置时间' if is_near_midnight else '临时基准价（非0点）'
                     }, f, indent=2)
                 
-                print(f"✅ 基准价已重置并保存: {baseline_file}")
+                time_note = "（接近0点）" if is_near_midnight else "（非0点，仅供参考）"
+                print(f"✅ 基准价已创建并保存: {baseline_file} {time_note}")
+                print(f"📊 基准价时间: {current_time.isoformat()}")
                 print(f"📊 基准价数量: {len(self.baseline_prices)}")
                 return True
             else:
