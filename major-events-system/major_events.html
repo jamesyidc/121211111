@@ -1783,6 +1783,44 @@
                     timeStr = event.timestamp;
                 }
                 
+                // 确定操作按钮链接
+                let actionButton = '';
+                const tradingUrl = 'https://5000-i4rq388xy9v1hw2uaz7ln-b9b802c4.sandbox.novita.ai/okx-trading';
+                
+                if (event.action && event.action.includes('开空单')) {
+                    actionButton = `
+                        <a href="${tradingUrl}" target="_blank" 
+                           class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg font-medium hover:from-red-600 hover:to-red-700 transition-all transform hover:scale-105 shadow-lg">
+                            <i class="fas fa-arrow-down mr-2"></i>
+                            批量开空单
+                        </a>
+                    `;
+                } else if (event.action && event.action.includes('开多单')) {
+                    actionButton = `
+                        <a href="${tradingUrl}" target="_blank" 
+                           class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg font-medium hover:from-green-600 hover:to-green-700 transition-all transform hover:scale-105 shadow-lg">
+                            <i class="fas fa-arrow-up mr-2"></i>
+                            批量开多单
+                        </a>
+                    `;
+                } else if (event.action && event.action.includes('空单配多单')) {
+                    actionButton = `
+                        <a href="${tradingUrl}" target="_blank" 
+                           class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg font-medium hover:from-green-600 hover:to-green-700 transition-all transform hover:scale-105 shadow-lg">
+                            <i class="fas fa-arrow-up mr-2"></i>
+                            批量开多单（对冲）
+                        </a>
+                    `;
+                } else if (event.action && event.action.includes('多单配空单')) {
+                    actionButton = `
+                        <a href="${tradingUrl}" target="_blank" 
+                           class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg font-medium hover:from-red-600 hover:to-red-700 transition-all transform hover:scale-105 shadow-lg">
+                            <i class="fas fa-arrow-down mr-2"></i>
+                            批量开空单（对冲）
+                        </a>
+                    `;
+                }
+                
                 return `
                     <div class="event-card bg-white rounded-lg p-6 border-l-4 ${confidenceClass}">
                         <div class="flex justify-between items-start mb-3">
@@ -1794,7 +1832,7 @@
                                 ⚡ ${event.action}
                             </span>
                         </div>
-                        <div class="flex items-center justify-between text-sm">
+                        <div class="flex items-center justify-between text-sm mb-3">
                             <span class="text-gray-500">
                                 <i class="fas fa-clock mr-1"></i>
                                 ⏰ ${timeStr}
@@ -1803,6 +1841,11 @@
                                 🎯 置信度: ${event.confidence}
                             </span>
                         </div>
+                        ${actionButton ? `
+                        <div class="flex justify-end mt-4 pt-4 border-t border-gray-200">
+                            ${actionButton}
+                        </div>
+                        ` : ''}
                     </div>
                 `;
             }).join('');
