@@ -13413,19 +13413,33 @@ def place_okx_order():
         # 合约价值就是用户输入的金额
         contract_value_usdt = user_usdt
         
-        # 根据交易对确定每张合约的面值
-        if 'BTC' in inst_id:
-            # BTC-USDT-SWAP: 1张合约 = 0.01 BTC
-            coin_per_contract = 0.01
-        elif 'ETH' in inst_id:
-            # ETH-USDT-SWAP: 1张合约 = 0.1 ETH
-            coin_per_contract = 0.1
-        elif 'SOL' in inst_id or 'DOGE' in inst_id or 'XRP' in inst_id or 'ADA' in inst_id or 'TRX' in inst_id:
-            # 小面值币种：1张合约 = 1 币
-            coin_per_contract = 1.0
-        else:
-            # 其他币种：默认 1张合约 = 0.1 币
-            coin_per_contract = 0.1
+        # 🔥 动态获取合约面值（ctVal）- 每张合约代表多少币
+        # 不同币种的合约面值不同，必须从 API 获取，不能硬编码！
+        coin_per_contract = None
+        try:
+            instruments_path = f'/api/v5/public/instruments?instType=SWAP&instId={inst_id}'
+            instruments_response = requests.get(base_url + instruments_path, timeout=5)
+            instruments_data = instruments_response.json()
+            
+            if instruments_data.get('code') == '0' and instruments_data.get('data'):
+                ct_val = instruments_data['data'][0].get('ctVal', '')
+                if ct_val:
+                    coin_per_contract = float(ct_val)
+                    print(f"[合约规格] {inst_id} 每张合约面值: {coin_per_contract} 币")
+        except Exception as e:
+            print(f"[合约规格] 获取失败，使用回退逻辑: {str(e)}")
+        
+        # 如果 API 获取失败，使用回退逻辑（保留原有逻辑作为备份）
+        if coin_per_contract is None:
+            if 'BTC' in inst_id:
+                coin_per_contract = 0.01
+            elif 'ETH' in inst_id:
+                coin_per_contract = 0.1
+            elif 'SOL' in inst_id or 'DOGE' in inst_id or 'XRP' in inst_id or 'ADA' in inst_id or 'TRX' in inst_id:
+                coin_per_contract = 1.0
+            else:
+                coin_per_contract = 0.1
+            print(f"[合约规格] 使用回退值: {coin_per_contract} 币")
         
         # 每张合约的USDT价值 = 每张合约的币数量 * 当前币价
         usdt_per_contract = coin_per_contract * current_price
