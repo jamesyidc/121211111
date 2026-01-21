@@ -188,7 +188,8 @@ class MajorEventsMonitor:
         返回: float, 涨跌幅总和（百分比）
         """
         try:
-            jsonl_file = self.data_dir / 'coin_prices.jsonl'
+            # 修正：使用正确的币价数据文件路径
+            jsonl_file = Path('/home/user/webapp/data/coin_price_tracker/coin_prices_30min.jsonl')
             if not jsonl_file.exists():
                 logger.warning(f"币种价格数据文件不存在: {jsonl_file}")
                 return 0
