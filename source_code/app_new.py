@@ -13322,9 +13322,9 @@ def place_okx_order():
         side = data.get('side', '')  # buy/sell
         pos_side = data.get('posSide', '')  # long/short
         order_type = data.get('ordType', 'market')  # market/limit
-        size = data.get('sz', '')  # 数量
-        price = data.get('px', '')  # 限价单价格（市价单不需要）
-        leverage = data.get('lever', '')  # 杠杆倍数
+        size = data.get('sz', '')  # USDT金额
+        price = data.get('px', '')  # 限价单价格
+        leverage = data.get('lever', '10')  # 杠杆倍数，默认10
         
         if not api_key or not secret_key or not passphrase:
             return jsonify({
@@ -13340,16 +13340,83 @@ def place_okx_order():
         
         # OKX API配置
         base_url = 'https://www.okx.com'
+        
+        # 步骤1: 设置杠杆倍数（重要！）
+        try:
+            set_leverage_path = '/api/v5/account/set-leverage'
+            leverage_body = json.dumps({
+                'instId': inst_id,
+                'lever': str(leverage),
+                'mgnMode': 'cross',
+                'posSide': pos_side if pos_side else 'long'
+            })
+            
+            leverage_timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+            leverage_message = leverage_timestamp + 'POST' + set_leverage_path + leverage_body
+            leverage_mac = hmac.new(
+                bytes(secret_key, encoding='utf8'),
+                bytes(leverage_message, encoding='utf-8'),
+                digestmod='sha256'
+            )
+            leverage_signature = base64.b64encode(leverage_mac.digest()).decode()
+            
+            leverage_headers = {
+                'OK-ACCESS-KEY': api_key,
+                'OK-ACCESS-SIGN': leverage_signature,
+                'OK-ACCESS-TIMESTAMP': leverage_timestamp,
+                'OK-ACCESS-PASSPHRASE': passphrase,
+                'Content-Type': 'application/json'
+            }
+            
+            leverage_response = requests.post(base_url + set_leverage_path, headers=leverage_headers, data=leverage_body, timeout=10)
+            leverage_result = leverage_response.json()
+            
+            # 杠杆设置失败不一定是致命错误（可能已经设置过）
+            if leverage_result.get('code') != '0':
+                print(f"设置杠杆失败（可能已设置）: {leverage_result.get('msg')}")
+        except Exception as e:
+            print(f"设置杠杆异常（继续下单）: {str(e)}")
+        
+        # 步骤2: 下单
         request_path = '/api/v5/trade/order'
         method = 'POST'
+        
+        # 将USDT金额转换为合约张数（永续合约，面值为1USD）
+        # sz单位：合约永续是币的数量（如BTC数量）
+        # 对于USDT计价合约，sz = USDT金额 / 当前价格
+        current_price = float(price) if price else None
+        
+        # 如果没有价格，需要先获取当前市价
+        if not current_price:
+            try:
+                ticker_path = f'/api/v5/market/ticker?instId={inst_id}'
+                ticker_response = requests.get(base_url + ticker_path, timeout=5)
+                ticker_data = ticker_response.json()
+                if ticker_data.get('code') == '0' and ticker_data.get('data'):
+                    current_price = float(ticker_data['data'][0].get('last', 0))
+            except:
+                pass
+        
+        if not current_price or current_price == 0:
+            return jsonify({
+                'success': False,
+                'error': '无法获取当前价格，请使用限价单并指定价格'
+            })
+        
+        # 计算合约张数（币的数量）
+        # 例如：7.57 USDT / 95650 USD/BTC = 0.00007913 BTC
+        contracts = float(size) / current_price
+        
+        # 保留合理精度（不同币种精度不同，这里用8位小数）
+        contracts_str = f"{contracts:.8f}".rstrip('0').rstrip('.')
         
         # 构建请求体
         order_params = {
             'instId': inst_id,
-            'tdMode': 'cross',  # 交易模式：cross全仓，isolated逐仓
+            'tdMode': 'cross',  # 全仓模式
             'side': side,
             'ordType': order_type,
-            'sz': str(size)
+            'sz': contracts_str  # 合约张数（币的数量）
         }
         
         # 合约需要指定持仓方向
@@ -13359,10 +13426,6 @@ def place_okx_order():
         # 限价单需要价格
         if order_type == 'limit' and price:
             order_params['px'] = str(price)
-        
-        # 如果指定了杠杆倍数
-        if leverage:
-            order_params['lever'] = str(leverage)
         
         body = json.dumps(order_params)
         
@@ -13389,6 +13452,10 @@ def place_okx_order():
         response = requests.post(base_url + request_path, headers=headers, data=body, timeout=10)
         result = response.json()
         
+        # 记录详细日志
+        print(f"[OKX下单] 请求参数: {order_params}")
+        print(f"[OKX下单] 响应结果: {result}")
+        
         if result.get('code') == '0':
             order_data = result.get('data', [])
             if order_data:
@@ -13399,9 +13466,12 @@ def place_okx_order():
                         'ordId': order.get('ordId', ''),
                         'clOrdId': order.get('clOrdId', ''),
                         'sCode': order.get('sCode', '0'),
-                        'sMsg': order.get('sMsg', '订单提交成功')
+                        'sMsg': order.get('sMsg', '订单提交成功'),
+                        'contracts': contracts_str,
+                        'usdtAmount': size,
+                        'price': current_price
                     },
-                    'message': '订单提交成功'
+                    'message': f'订单提交成功！合约数量: {contracts_str}'
                 })
             else:
                 return jsonify({
@@ -13409,10 +13479,41 @@ def place_okx_order():
                     'error': '订单响应数据为空'
                 })
         else:
+            # 返回更详细的错误信息
+            error_msg = result.get('msg', '下单失败')
+            error_code = result.get('code', 'unknown')
+            
+            # 常见错误代码解释
+            error_hints = {
+                '1': '操作失败，请检查API权限、账户状态和订单参数',
+                '50004': 'API Key无效',
+                '50005': 'API签名错误',
+                '50006': 'API Passphrase错误',
+                '50007': 'API权限不足',
+                '50011': '余额不足',
+                '51000': '参数错误',
+                '51001': '交易对不存在或已下架',
+                '51008': '订单数量太小',
+                '51009': '订单数量太大',
+                '51010': '订单金额太小',
+                '51020': '账户状态异常',
+            }
+            
+            hint = error_hints.get(error_code, '')
+            full_error = f"{error_msg} (代码:{error_code})"
+            if hint:
+                full_error += f"\n提示: {hint}"
+            
             return jsonify({
                 'success': False,
-                'error': result.get('msg', '下单失败'),
-                'code': result.get('code', 'unknown')
+                'error': full_error,
+                'code': error_code,
+                'details': {
+                    'instId': inst_id,
+                    'contracts': contracts_str,
+                    'usdtAmount': size,
+                    'price': current_price
+                }
             })
             
     except requests.exceptions.Timeout:
