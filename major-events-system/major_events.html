@@ -139,6 +139,61 @@
             </div>
         </div>
 
+        <!-- 峰值检测器 -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-xl font-bold mb-4 flex items-center">
+                <i class="fas fa-chart-line mr-2 text-purple-600"></i>
+                2h见顶信号峰值检测器
+            </h2>
+            <div class="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg p-6">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                    <!-- 检测状态 -->
+                    <div class="text-center">
+                        <div class="text-sm text-gray-600 mb-1">检测状态</div>
+                        <div class="text-2xl font-bold" id="peakDetectionStatus">未触发</div>
+                    </div>
+                    <!-- 峰值1 -->
+                    <div class="text-center">
+                        <div class="text-sm text-gray-600 mb-1">峰值1</div>
+                        <div class="text-2xl font-bold text-orange-600" id="peak1Value">--</div>
+                        <div class="text-xs text-gray-500" id="peak1Time">--</div>
+                    </div>
+                    <!-- 峰值2 -->
+                    <div class="text-center">
+                        <div class="text-sm text-gray-600 mb-1">峰值2</div>
+                        <div class="text-2xl font-bold text-blue-600" id="peak2Value">--</div>
+                        <div class="text-xs text-gray-500" id="peak2Time">--</div>
+                    </div>
+                    <!-- 当前值 -->
+                    <div class="text-center">
+                        <div class="text-sm text-gray-600 mb-1">当前值</div>
+                        <div class="text-2xl font-bold text-green-600" id="currentPeakValue">--</div>
+                        <div class="text-xs text-gray-500" id="currentPeakTime">--</div>
+                    </div>
+                </div>
+                
+                <!-- 检测规则说明 -->
+                <div class="bg-white rounded-lg p-4 text-sm">
+                    <div class="font-semibold mb-2 text-purple-700">📊 检测规则：</div>
+                    <ol class="list-decimal list-inside space-y-1 text-gray-700">
+                        <li><strong>触发条件</strong>：2h见顶信号 &gt; 10 时开始检测</li>
+                        <li><strong>峰值1</strong>：触发后的最大值记录为峰值1</li>
+                        <li><strong>寻找峰值2</strong>：当前值 &lt; 峰值1 × 50% 时，开始寻找峰值2</li>
+                        <li><strong>峰值2</strong>：在寻找阶段的最大值记录为峰值2</li>
+                        <li><strong>结束检测</strong>：当前值 &lt; 峰值2 × 50% 时，检测周期结束</li>
+                    </ol>
+                </div>
+                
+                <!-- 历史峰值记录 -->
+                <div class="mt-4">
+                    <div class="font-semibold mb-2 text-purple-700">📈 最近峰值记录：</div>
+                    <div id="peakHistory" class="space-y-2 max-h-40 overflow-y-auto">
+                        <div class="text-sm text-gray-500 text-center py-2">暂无历史记录</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- 5个重大事件规则 -->
         <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
             <h2 class="text-xl font-bold mb-6 flex items-center">
@@ -331,6 +386,146 @@
         const LIQ_RECORDS_PER_HOUR = 60;  // 每小时60条记录（1分钟一次）
         const LIQ_RECORDS_PER_PAGE = LIQ_HOURS_PER_PAGE * LIQ_RECORDS_PER_HOUR;  // 每页720条记录
 
+        // 峰值检测器状态
+        let peakDetector = {
+            status: 'idle',  // idle, triggered, seeking_peak2, completed
+            peak1: { value: null, time: null },
+            peak2: { value: null, time: null },
+            current: { value: null, time: null },
+            history: []  // 历史峰值记录
+        };
+
+        // 峰值检测逻辑
+        function updatePeakDetection(currentValue, currentTime) {
+            peakDetector.current = { value: currentValue, time: currentTime };
+            
+            switch (peakDetector.status) {
+                case 'idle':
+                    // 触发条件：> 10
+                    if (currentValue > 10) {
+                        peakDetector.status = 'triggered';
+                        peakDetector.peak1 = { value: currentValue, time: currentTime };
+                        console.log(`🔔 峰值检测触发！峰值1: ${currentValue}`);
+                    }
+                    break;
+                    
+                case 'triggered':
+                    // 更新峰值1为最大值
+                    if (currentValue > peakDetector.peak1.value) {
+                        peakDetector.peak1 = { value: currentValue, time: currentTime };
+                        console.log(`📈 更新峰值1: ${currentValue}`);
+                    }
+                    // 检查是否跌破峰值1的50%
+                    if (currentValue < peakDetector.peak1.value * 0.5) {
+                        peakDetector.status = 'seeking_peak2';
+                        peakDetector.peak2 = { value: currentValue, time: currentTime };
+                        console.log(`🔍 开始寻找峰值2，当前值: ${currentValue} (< ${peakDetector.peak1.value * 0.5})`);
+                    }
+                    break;
+                    
+                case 'seeking_peak2':
+                    // 更新峰值2为最大值
+                    if (currentValue > peakDetector.peak2.value) {
+                        peakDetector.peak2 = { value: currentValue, time: currentTime };
+                        console.log(`📈 更新峰值2: ${currentValue}`);
+                    }
+                    // 检查是否跌破峰值2的50%
+                    if (currentValue < peakDetector.peak2.value * 0.5) {
+                        peakDetector.status = 'completed';
+                        console.log(`✅ 峰值检测完成！峰值1: ${peakDetector.peak1.value}, 峰值2: ${peakDetector.peak2.value}`);
+                        
+                        // 保存到历史记录
+                        peakDetector.history.unshift({
+                            peak1: {...peakDetector.peak1},
+                            peak2: {...peakDetector.peak2},
+                            completedAt: currentTime
+                        });
+                        
+                        // 只保留最近10条记录
+                        if (peakDetector.history.length > 10) {
+                            peakDetector.history = peakDetector.history.slice(0, 10);
+                        }
+                        
+                        // 重置状态，准备下一次检测
+                        setTimeout(() => {
+                            peakDetector.status = 'idle';
+                            peakDetector.peak1 = { value: null, time: null };
+                            peakDetector.peak2 = { value: null, time: null };
+                            updatePeakDetectionUI();
+                        }, 3000); // 3秒后重置
+                    }
+                    break;
+                    
+                case 'completed':
+                    // 等待重置
+                    break;
+            }
+            
+            updatePeakDetectionUI();
+        }
+
+        // 更新峰值检测UI
+        function updatePeakDetectionUI() {
+            // 状态
+            const statusMap = {
+                'idle': '⚪ 未触发',
+                'triggered': '🟡 已触发，记录峰值1',
+                'seeking_peak2': '🟠 寻找峰值2',
+                'completed': '🟢 检测完成'
+            };
+            document.getElementById('peakDetectionStatus').textContent = statusMap[peakDetector.status] || '未知';
+            
+            // 峰值1
+            if (peakDetector.peak1.value !== null) {
+                document.getElementById('peak1Value').textContent = peakDetector.peak1.value;
+                document.getElementById('peak1Time').textContent = formatTime(peakDetector.peak1.time);
+            } else {
+                document.getElementById('peak1Value').textContent = '--';
+                document.getElementById('peak1Time').textContent = '--';
+            }
+            
+            // 峰值2
+            if (peakDetector.peak2.value !== null) {
+                document.getElementById('peak2Value').textContent = peakDetector.peak2.value;
+                document.getElementById('peak2Time').textContent = formatTime(peakDetector.peak2.time);
+            } else {
+                document.getElementById('peak2Value').textContent = '--';
+                document.getElementById('peak2Time').textContent = '--';
+            }
+            
+            // 当前值
+            if (peakDetector.current.value !== null) {
+                document.getElementById('currentPeakValue').textContent = peakDetector.current.value;
+                document.getElementById('currentPeakTime').textContent = formatTime(peakDetector.current.time);
+            } else {
+                document.getElementById('currentPeakValue').textContent = '--';
+                document.getElementById('currentPeakTime').textContent = '--';
+            }
+            
+            // 历史记录
+            const historyHTML = peakDetector.history.length > 0 
+                ? peakDetector.history.map((record, idx) => `
+                    <div class="bg-gray-50 rounded p-2 text-xs">
+                        <span class="font-semibold">#${idx + 1}</span> 
+                        峰值1: <span class="text-orange-600 font-bold">${record.peak1.value}</span> → 
+                        峰值2: <span class="text-blue-600 font-bold">${record.peak2.value}</span>
+                        <span class="text-gray-500 ml-2">${formatTime(record.completedAt)}</span>
+                    </div>
+                `).join('')
+                : '<div class="text-sm text-gray-500 text-center py-2">暂无历史记录</div>';
+            
+            document.getElementById('peakHistory').innerHTML = historyHTML;
+        }
+
+        // 时间格式化辅助函数
+        function formatTime(timeStr) {
+            if (!timeStr) return '--';
+            if (timeStr.length > 16) {
+                return timeStr.substring(5, 16);  // 从 "YYYY-MM-DD HH:MM:SS" 提取 "MM-DD HH:MM"
+            }
+            return timeStr;
+        }
+
         // 初始化图表
         function initCharts() {
             console.log('🔧 开始初始化图表...');
@@ -456,6 +651,18 @@
                 document.getElementById('profitMarkCurrentStatus').textContent = '暂无标记';
                 document.getElementById('profitMarkCurrentDetail').textContent = '等待数据...';
             }
+            
+            // 峰值检测
+            const currentTime = new Date().toLocaleString('zh-CN', { 
+                year: 'numeric', 
+                month: '2-digit', 
+                day: '2-digit', 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit',
+                hour12: false 
+            }).replace(/\//g, '-');
+            updatePeakDetection(topSignal, currentTime);
         }
 
         // 加载锚定系统历史数据（按日期加载）
