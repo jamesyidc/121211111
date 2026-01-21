@@ -784,6 +784,47 @@
             box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4);
         }
 
+        /* 批量开仓按钮 */
+        .batch-btn {
+            padding: 12px 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: left;
+            background: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .batch-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .batch-btn-title {
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .batch-btn-desc {
+            font-size: 11px;
+            color: #64748b;
+        }
+
+        .batch-btn.long .batch-btn-title {
+            color: #10b981;
+        }
+
+        .batch-btn.short .batch-btn-title {
+            color: #ef4444;
+        }
+
+        .batch-btn:active {
+            transform: scale(0.98);
+        }
+
+
         /* 右侧账户信息 */
         .account-panel {
             display: flex;
@@ -1117,6 +1158,49 @@
                         ⬆ 做多
                     </button>
                 </form>
+
+                <!-- 批量开仓功能区 -->
+                <div class="batch-trading-section" style="margin-top: 24px; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);">
+                    <h3 style="color: white; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 20px;">⚡</span>
+                        批量开仓策略
+                    </h3>
+                    
+                    <div class="batch-strategies" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <!-- 空单策略 -->
+                        <button type="button" class="batch-btn short" onclick="batchOrder('short', 5)">
+                            <div class="batch-btn-title">📉 空单策略 A</div>
+                            <div class="batch-btn-desc">涨幅前6 · 5%余额 · 10x</div>
+                        </button>
+                        
+                        <button type="button" class="batch-btn short" onclick="batchOrder('short', 8)">
+                            <div class="batch-btn-title">📉 空单策略 B</div>
+                            <div class="batch-btn-desc">涨幅前6 · 8%余额 · 10x</div>
+                        </button>
+                        
+                        <!-- 多单策略 -->
+                        <button type="button" class="batch-btn long" onclick="batchOrder('long', 3)">
+                            <div class="batch-btn-title">📈 多单策略 A</div>
+                            <div class="batch-btn-desc">涨幅前6 · 3%余额 · 10x</div>
+                        </button>
+                        
+                        <button type="button" class="batch-btn long" onclick="batchOrder('long', 5)">
+                            <div class="batch-btn-title">📈 多单策略 B</div>
+                            <div class="batch-btn-desc">涨幅前6 · 5%余额 · 10x</div>
+                        </button>
+                    </div>
+                    
+                    <div style="margin-top: 12px; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 6px; color: white; font-size: 12px;">
+                        <div style="margin-bottom: 4px;">💡 <strong>策略说明：</strong></div>
+                        <div style="padding-left: 20px;">
+                            • 自动选择当日涨幅排名前6的币种<br>
+                            • 每个币种平均分配开仓金额<br>
+                            • 统一使用10倍杠杆、市价单<br>
+                            • 空单策略：做空涨幅高的币种<br>
+                            • 多单策略：做多涨幅高的币种
+                        </div>
+                    </div>
+                </div>
 
                 <!-- 风险提示 -->
                 <div class="risk-warning">
@@ -1879,6 +1963,128 @@
                 orderAmountInput.value = amount;
                 console.log(`设置${percent}%仓位: 可用余额=${balance} USDT, 仓位金额=${amount} USDT`);
             }
+        }
+
+        // 批量开仓函数
+        async function batchOrder(direction, percentPerCoin) {
+            console.log(`[batchOrder] 开始批量开仓: direction=${direction}, percentPerCoin=${percentPerCoin}%`);
+            
+            const account = accounts.find(acc => acc.id === currentAccount);
+            
+            if (!account || !account.apiKey || !account.apiSecret || !account.passphrase) {
+                alert('❌ 请先配置账户API凭证！');
+                return;
+            }
+            
+            // 获取可用余额
+            const balance = account.balance || 0;
+            if (balance <= 0) {
+                alert('❌ 账户余额不足！');
+                return;
+            }
+            
+            // 按涨跌幅排序，获取前6名
+            const sortedSymbols = [...symbols].sort((a, b) => b.change - a.change);
+            const top6Symbols = sortedSymbols.slice(0, 6);
+            
+            console.log('[batchOrder] 涨幅前6的币种:', top6Symbols.map(s => `${s.name} (${s.change}%)`));
+            
+            // 计算每个币的开仓金额
+            const amountPerCoin = (balance * percentPerCoin / 100).toFixed(2);
+            const totalAmount = (amountPerCoin * 6).toFixed(2);
+            
+            // 确认对话框
+            const directionText = direction === 'long' ? '做多' : '做空';
+            const emoji = direction === 'long' ? '📈' : '📉';
+            const strategyName = direction === 'long' ? '多单' : '空单';
+            
+            const symbolsList = top6Symbols.map(s => 
+                `  • ${s.name}: $${s.price.toFixed(2)} (${s.change >= 0 ? '+' : ''}${s.change}%)`
+            ).join('\n');
+            
+            const confirmMsg = `${emoji} 批量${strategyName}策略\n\n` +
+                `【涨幅前6币种】\n${symbolsList}\n\n` +
+                `【开仓参数】\n` +
+                `  • 方向: ${directionText}\n` +
+                `  • 杠杆: 10x\n` +
+                `  • 订单类型: 市价单\n\n` +
+                `【资金分配】\n` +
+                `  • 每个币: ${amountPerCoin} USDT (${percentPerCoin}%)\n` +
+                `  • 总共: ${totalAmount} USDT\n` +
+                `  • 可用余额: ${balance.toFixed(2)} USDT\n\n` +
+                `确认批量开仓？`;
+            
+            if (!confirm(confirmMsg)) {
+                console.log('[batchOrder] 用户取消批量开仓');
+                return;
+            }
+            
+            // 开始批量下单
+            console.log('[batchOrder] 开始批量下单...');
+            let successCount = 0;
+            let failCount = 0;
+            const results = [];
+            
+            for (const symbolData of top6Symbols) {
+                try {
+                    console.log(`[batchOrder] 正在下单: ${symbolData.name}...`);
+                    
+                    // 构建订单数据
+                    const orderData = {
+                        instId: symbolData.symbol,
+                        side: direction === 'long' ? 'buy' : 'sell',
+                        posSide: direction,
+                        ordType: 'market',
+                        sz: amountPerCoin,
+                        lever: '10'
+                    };
+                    
+                    // 发送订单请求
+                    const response = await fetch('/api/okx-trading/place-order', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            apiKey: account.apiKey,
+                            apiSecret: account.apiSecret,
+                            passphrase: account.passphrase,
+                            ...orderData
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        successCount++;
+                        results.push(`✅ ${symbolData.name}: 成功`);
+                        console.log(`[batchOrder] ${symbolData.name} 下单成功`);
+                    } else {
+                        failCount++;
+                        results.push(`❌ ${symbolData.name}: ${result.error || '失败'}`);
+                        console.error(`[batchOrder] ${symbolData.name} 下单失败:`, result.error);
+                    }
+                    
+                    // 延迟100ms，避免请求过快
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
+                } catch (error) {
+                    failCount++;
+                    results.push(`❌ ${symbolData.name}: ${error.message || '异常'}`);
+                    console.error(`[batchOrder] ${symbolData.name} 下单异常:`, error);
+                }
+            }
+            
+            // 显示结果
+            const resultMsg = `${emoji} 批量开仓完成\n\n` +
+                `【结果统计】\n` +
+                `  • 成功: ${successCount} 个\n` +
+                `  • 失败: ${failCount} 个\n\n` +
+                `【详细结果】\n${results.join('\n')}`;
+            
+            alert(resultMsg);
+            
+            // 刷新账户信息和持仓
+            await refreshAccountData();
+            await loadPendingOrders();
         }
 
         // 提交订单
