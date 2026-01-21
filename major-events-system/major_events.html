@@ -1750,7 +1750,7 @@
                 return;
             }
             
-            container.innerHTML = events.map(event => {
+            const html = events.map(event => {
                 const confidenceClass = event.confidence === '高' ? 'event-high' : 
                                        event.confidence === '中' ? 'event-medium' : 'event-low';
                 const actionClass = event.action?.includes('开空') ? 'action-short' : 'action-long';
@@ -1885,15 +1885,17 @@
                                         批量开仓策略
                                     </span>
                                 </div>
-                                <div class="flex flex-wrap gap-2">
+                                <div class="flex flex-wrap gap-3">
                                     ${buttons.join('')}
                                 </div>
                             </div>
                         `;
+                        console.log(`📋 actionButtons长度: ${actionButtons.length}字符`);
                     }
                 }
+                console.log(`📤 返回的actionButtons: ${actionButtons.substring(0, 100)}...`);
                 
-                return `
+                const cardHTML = `
                     <div class="event-card bg-white rounded-lg p-6 border-l-4 ${confidenceClass}">
                         <div class="flex justify-between items-start mb-3">
                             <div class="flex-1">
@@ -1916,7 +1918,40 @@
                         ${actionButtons}
                     </div>
                 `;
+                console.log(`🎨 最终cardHTML包含actionButtons: ${cardHTML.includes('批量开仓策略')}`);
+                return cardHTML;
             }).join('');
+            
+            console.log(`📝 HTML总长度: ${html.length}字符`);
+            console.log(`📝 HTML包含"批量开仓策略": ${html.includes('批量开仓策略')}`);
+            console.log(`📝 HTML包含"空单策略 A": ${html.includes('空单策略 A')}`);
+            console.log(`📝 HTML包含"inline-flex": ${html.includes('inline-flex')}`);
+            console.log(`📝 HTML包含第一个<a>标签: ${html.includes('<a href')}`);
+            
+            // 查找按钮区域的HTML
+            const buttonSectionIndex = html.indexOf('批量开仓策略');
+            if (buttonSectionIndex !== -1) {
+                console.log(`📍 找到"批量开仓策略"在位置: ${buttonSectionIndex}`);
+                console.log(`📋 按钮区域HTML片段: ${html.substring(buttonSectionIndex, buttonSectionIndex + 600)}`);
+            }
+            
+            container.innerHTML = html;
+            console.log(`✅ DOM已更新完成`);
+            
+            // 验证DOM插入后的内容
+            setTimeout(() => {
+                const buttons = container.querySelectorAll('a[href*="okx-trading"]');
+                console.log(`🔍 在DOM中找到 ${buttons.length} 个交易按钮`);
+                if (buttons.length > 0) {
+                    console.log(`✅ 第一个按钮文本: "${buttons[0].textContent.trim()}"`);
+                    console.log(`✅ 第一个按钮classList: ${buttons[0].classList}`);
+                    console.log(`✅ 第一个按钮display: ${window.getComputedStyle(buttons[0]).display}`);
+                    console.log(`✅ 第一个按钮visibility: ${window.getComputedStyle(buttons[0]).visibility}`);
+                } else {
+                    console.log(`❌ 未在DOM中找到交易按钮！`);
+                    console.log(`❌ eventsList内容: ${container.innerHTML.substring(0, 500)}`);
+                }
+            }, 100);
         }
 
         // 切换多空单盈利统计图表页面

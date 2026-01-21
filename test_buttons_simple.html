@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>按钮测试</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto bg-white rounded-lg p-6 shadow-lg">
+        <h2 class="text-2xl font-bold mb-4">按钮测试</h2>
+        
+        <div class="mt-4 pt-4 border-t border-gray-200">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-sm font-semibold text-gray-700">
+                    <i class="fas fa-bolt mr-1 text-yellow-500"></i>
+                    批量开仓策略
+                </span>
+            </div>
+            <div class="flex flex-wrap gap-3">
+                <a href="#" target="_blank" 
+                   class="inline-flex items-center px-5 py-3 bg-gradient-to-r from-red-400 to-red-500 text-white rounded-xl text-base font-bold hover:from-red-500 hover:to-red-600 transition-all transform hover:scale-105 shadow-lg">
+                    <i class="fas fa-arrow-down mr-2 text-lg"></i>
+                    空单策略 A
+                    <span class="ml-3 text-sm opacity-90">5%余额·10x</span>
+                </a>
+                
+                <a href="#" target="_blank" 
+                   class="inline-flex items-center px-5 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl text-base font-bold hover:from-red-600 hover:to-red-700 transition-all transform hover:scale-105 shadow-lg">
+                    <i class="fas fa-arrow-down mr-2 text-lg"></i>
+                    空单策略 B
+                    <span class="ml-3 text-sm opacity-90">8%余额·10x</span>
+                </a>
+                
+                <a href="#" target="_blank" 
+                   class="inline-flex items-center px-5 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl text-base font-bold hover:from-orange-600 hover:to-orange-700 transition-all transform hover:scale-105 shadow-lg">
+                    <i class="fas fa-balance-scale mr-2 text-lg"></i>
+                    多单配空单
+                    <span class="ml-3 text-sm opacity-90">1:1对冲</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
