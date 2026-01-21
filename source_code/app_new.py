@@ -13347,7 +13347,7 @@ def place_okx_order():
             leverage_body = json.dumps({
                 'instId': inst_id,
                 'lever': str(leverage),
-                'mgnMode': 'cross',
+                'mgnMode': 'isolated',  # 逐仓模式
                 'posSide': pos_side if pos_side else 'long'
             })
             
@@ -13451,7 +13451,7 @@ def place_okx_order():
         # 构建请求体
         order_params = {
             'instId': inst_id,
-            'tdMode': 'cross',  # 全仓模式
+            'tdMode': 'isolated',  # 逐仓模式（只使用指定的保证金，不会占用全部余额）
             'side': side,
             'ordType': order_type,
             'sz': contracts_str  # 合约张数（币的数量）
