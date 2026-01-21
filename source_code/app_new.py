@@ -14004,7 +14004,7 @@ def get_okx_order_detail():
 
 @app.route('/api/okx-trading/close-position', methods=['POST'])
 def close_okx_position():
-    """平仓接口"""
+    """平仓接口 - 支持全部平仓或部分平仓"""
     try:
         import hmac
         import base64
@@ -14017,6 +14017,7 @@ def close_okx_position():
         passphrase = data.get('passphrase', '')
         inst_id = data.get('instId', '')
         pos_side = data.get('posSide', '')  # long/short
+        close_size = data.get('closeSize', None)  # 平仓数量（张数），None=全部平仓
         
         if not api_key or not secret_key or not passphrase:
             return jsonify({
@@ -14032,15 +14033,35 @@ def close_okx_position():
         
         # OKX API配置
         base_url = 'https://www.okx.com'
-        request_path = '/api/v5/trade/close-position'
         method = 'POST'
         
-        # 构建请求体
-        order_params = {
-            'instId': inst_id,
-            'posSide': pos_side,
-            'mgnMode': 'isolated'  # 逐仓模式
-        }
+        # 判断是全部平仓还是部分平仓
+        if close_size is None or close_size == 0:
+            # 全部平仓：使用 close-position 接口
+            request_path = '/api/v5/trade/close-position'
+            order_params = {
+                'instId': inst_id,
+                'posSide': pos_side,
+                'mgnMode': 'isolated'  # 逐仓模式
+            }
+            print(f"[OKX平仓] 全部平仓: {inst_id} {pos_side}")
+        else:
+            # 部分平仓：使用下单接口，通过反向开仓来平仓
+            request_path = '/api/v5/trade/order'
+            
+            # 平多单 -> sell，平空单 -> buy
+            side = 'sell' if pos_side == 'long' else 'buy'
+            
+            order_params = {
+                'instId': inst_id,
+                'tdMode': 'isolated',
+                'side': side,
+                'posSide': pos_side,
+                'ordType': 'market',  # 市价单
+                'sz': str(int(close_size)),  # 平仓数量（张数）
+                'reduceOnly': 'true'  # 只减仓，不开新仓
+            }
+            print(f"[OKX平仓] 部分平仓: {inst_id} {pos_side} {close_size}张")
         
         body = json.dumps(order_params)
         
