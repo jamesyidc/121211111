@@ -13598,11 +13598,21 @@ def get_okx_market_tickers():
                     # 提取币种名称
                     symbol = inst_id.replace('-USDT-SWAP', '')
                     
+                    # 计算UTC+8 0点开始的涨跌幅
+                    current_price = float(ticker.get('last', 0))
+                    open_price_utc8 = float(ticker.get('sodUtc8', 0))  # UTC+8 0点（北京时间0点）的开盘价
+                    
+                    # 计算涨跌幅百分比
+                    if open_price_utc8 > 0:
+                        change_percent = ((current_price - open_price_utc8) / open_price_utc8) * 100
+                    else:
+                        change_percent = 0
+                    
                     usdt_tickers.append({
                         'symbol': inst_id,
                         'name': symbol,
-                        'price': float(ticker.get('last', 0)),
-                        'change24h': float(ticker.get('sodUtc8', 0)),  # 24h涨跌幅（UTC+8 0点）
+                        'price': current_price,
+                        'change24h': round(change_percent, 2),  # 24h涨跌幅（UTC+8 0点开始）
                         'high24h': float(ticker.get('high24h', 0)),
                         'low24h': float(ticker.get('low24h', 0)),
                         'vol24h': float(ticker.get('vol24h', 0)),
