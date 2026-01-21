@@ -1143,16 +1143,21 @@
         let currentSymbol = 'BTC-USDT-SWAP';
 
         // 当前账户
-        let currentAccount = 'account1';
+        let currentAccount = 'account_poit_main';
         
         // 收藏的交易对（从localStorage读取）
         let favoriteSymbols = JSON.parse(localStorage.getItem('favoriteSymbols') || '[]');
         
         // 从localStorage加载账户列表，如果没有则使用默认账户
         let accounts = JSON.parse(localStorage.getItem('okx_accounts') || JSON.stringify([
-            { id: 'account1', name: '账户1 (主账户)', balance: 224.15 },
-            { id: 'account2', name: '账户2 (子账户)', balance: 150.50 },
-            { id: 'account3', name: '账户3 (备用)', balance: 500.00 }
+            { 
+                id: 'account_poit_main', 
+                name: 'POIT (子账户)', 
+                apiKey: '8650e46c-059b-431d-93cf-55f8c79babdb',
+                apiSecret: '4C2BD2AC6A08615EA7F36A6251857FCE',
+                passphrase: 'Wu666666.',
+                balance: 0 
+            }
         ]));
 
         // 完整的27个交易对数据
