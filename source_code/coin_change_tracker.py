@@ -32,7 +32,7 @@ class CoinChangeTracker:
             'BTC-USDT-SWAP', 'ETH-USDT-SWAP', 'SOL-USDT-SWAP',
             'BNB-USDT-SWAP', 'XRP-USDT-SWAP', 'DOGE-USDT-SWAP',
             'ADA-USDT-SWAP', 'AVAX-USDT-SWAP', 'DOT-USDT-SWAP',
-            'MATIC-USDT-SWAP', 'LINK-USDT-SWAP', 'UNI-USDT-SWAP',
+            'POL-USDT-SWAP', 'LINK-USDT-SWAP', 'UNI-USDT-SWAP',  # POL (原MATIC)
             'LTC-USDT-SWAP', 'ATOM-USDT-SWAP', 'ETC-USDT-SWAP',
             'FIL-USDT-SWAP', 'APT-USDT-SWAP', 'ARB-USDT-SWAP',
             'OP-USDT-SWAP', 'TRX-USDT-SWAP', 'NEAR-USDT-SWAP',
