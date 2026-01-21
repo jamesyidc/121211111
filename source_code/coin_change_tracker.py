@@ -29,15 +29,15 @@ class CoinChangeTracker:
         
         # 27个主流币种（永续合约）
         self.symbols = [
-            'BTC-USDT-SWAP', 'ETH-USDT-SWAP', 'SOL-USDT-SWAP',
-            'BNB-USDT-SWAP', 'XRP-USDT-SWAP', 'DOGE-USDT-SWAP',
-            'ADA-USDT-SWAP', 'AVAX-USDT-SWAP', 'DOT-USDT-SWAP',
-            'POL-USDT-SWAP', 'LINK-USDT-SWAP', 'UNI-USDT-SWAP',  # POL (原MATIC)
-            'LTC-USDT-SWAP', 'ATOM-USDT-SWAP', 'ETC-USDT-SWAP',
-            'FIL-USDT-SWAP', 'APT-USDT-SWAP', 'ARB-USDT-SWAP',
-            'OP-USDT-SWAP', 'TRX-USDT-SWAP', 'NEAR-USDT-SWAP',
-            'ICP-USDT-SWAP', 'STX-USDT-SWAP', 'INJ-USDT-SWAP',
-            'SUI-USDT-SWAP', 'PEPE-USDT-SWAP', 'SHIB-USDT-SWAP'
+            'BTC-USDT-SWAP', 'ETH-USDT-SWAP', 'XRP-USDT-SWAP',
+            'BNB-USDT-SWAP', 'SOL-USDT-SWAP', 'LTC-USDT-SWAP',
+            'DOGE-USDT-SWAP', 'SUI-USDT-SWAP', 'TRX-USDT-SWAP',
+            'TON-USDT-SWAP', 'ETC-USDT-SWAP', 'BCH-USDT-SWAP',
+            'HBAR-USDT-SWAP', 'XLM-USDT-SWAP', 'FIL-USDT-SWAP',
+            'LINK-USDT-SWAP', 'CRO-USDT-SWAP', 'DOT-USDT-SWAP',
+            'AAVE-USDT-SWAP', 'UNI-USDT-SWAP', 'NEAR-USDT-SWAP',
+            'APT-USDT-SWAP', 'CFX-USDT-SWAP', 'CRV-USDT-SWAP',
+            'STX-USDT-SWAP', 'LDO-USDT-SWAP', 'TAO-USDT-SWAP'
         ]
         
         # 基准价格（每天0点重置）
