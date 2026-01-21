@@ -16742,7 +16742,7 @@ def get_coin_change_latest():
     """获取最新的27币涨跌幅数据"""
     try:
         from datetime import datetime, timezone, timedelta
-        import glob
+        from pathlib import Path
         
         data_dir = Path('data/coin_change_tracker')
         if not data_dir.exists():
@@ -16793,6 +16793,7 @@ def get_coin_change_history():
     """获取27币涨跌幅历史数据"""
     try:
         from datetime import datetime, timezone, timedelta
+        from pathlib import Path
         
         # 获取参数
         date_str = request.args.get('date')  # YYYYMMDD
@@ -16849,6 +16850,7 @@ def get_coin_change_baseline():
     """获取当天的基准价"""
     try:
         from datetime import datetime, timezone, timedelta
+        from pathlib import Path
         
         # 获取参数
         date_str = request.args.get('date')
