@@ -113,15 +113,27 @@
                     </div>
                 </div>
 
-                <!-- 多空盈利标记 -->
+                <!-- 多空盈利标记 - 前一次 -->
+                <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-gray-600 font-medium">前一次标记</span>
+                        <i class="fas fa-history text-blue-600 text-xl"></i>
+                    </div>
+                    <div class="text-xl font-bold" id="profitMarkPrevStatus">--</div>
+                    <div class="text-sm text-gray-500 mt-2">
+                        <span id="profitMarkPrevDetail">等待数据...</span>
+                    </div>
+                </div>
+
+                <!-- 多空盈利标记 - 当前 -->
                 <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-6">
                     <div class="flex items-center justify-between mb-2">
-                        <span class="text-gray-600 font-medium">多空标记</span>
+                        <span class="text-gray-600 font-medium">当前标记</span>
                         <i class="fas fa-exchange-alt text-green-600 text-xl"></i>
                     </div>
-                    <div class="text-xl font-bold" id="profitMarkStatus">--</div>
+                    <div class="text-xl font-bold" id="profitMarkCurrentStatus">--</div>
                     <div class="text-sm text-gray-500 mt-2">
-                        <span id="profitMarkDetail">等待数据...</span>
+                        <span id="profitMarkCurrentDetail">等待数据...</span>
                     </div>
                 </div>
             </div>
@@ -411,19 +423,38 @@
             document.getElementById('liquidationAmount').textContent = 
                 (current.liquidation_1h || 0).toFixed(2);
             
-            // 多空盈利标记
+            // 多空盈利标记 - 显示最近两次
             const profitMarks = data.event_states?.profit_marks_history || [];
-            if (profitMarks.length > 0) {
-                const lastMark = profitMarks[profitMarks.length - 1];
-                const markColor = lastMark.mark === 'red' ? '🔴 红色标记' : '🟢 绿色标记';
-                document.getElementById('profitMarkStatus').textContent = markColor;
-                // 使用datetime字段，格式：2026-01-21 04:02:26
-                const markTime = lastMark.datetime || '未知时间';
-                document.getElementById('profitMarkDetail').textContent = 
-                    `最近标记时间: ${markTime}`;
+            if (profitMarks.length >= 2) {
+                // 前一次标记（倒数第二个）
+                const prevMark = profitMarks[profitMarks.length - 2];
+                const prevColor = prevMark.mark === 'red' ? '🔴 红色标记' : '🟢 绿色标记';
+                document.getElementById('profitMarkPrevStatus').textContent = prevColor;
+                document.getElementById('profitMarkPrevDetail').textContent = 
+                    `时间: ${prevMark.datetime || '未知'}`;
+                
+                // 当前标记（最后一个）
+                const currentMark = profitMarks[profitMarks.length - 1];
+                const currentColor = currentMark.mark === 'red' ? '🔴 红色标记' : '🟢 绿色标记';
+                document.getElementById('profitMarkCurrentStatus').textContent = currentColor;
+                document.getElementById('profitMarkCurrentDetail').textContent = 
+                    `时间: ${currentMark.datetime || '未知'}`;
+            } else if (profitMarks.length === 1) {
+                // 只有一个标记
+                document.getElementById('profitMarkPrevStatus').textContent = '暂无';
+                document.getElementById('profitMarkPrevDetail').textContent = '等待数据...';
+                
+                const currentMark = profitMarks[0];
+                const currentColor = currentMark.mark === 'red' ? '🔴 红色标记' : '🟢 绿色标记';
+                document.getElementById('profitMarkCurrentStatus').textContent = currentColor;
+                document.getElementById('profitMarkCurrentDetail').textContent = 
+                    `时间: ${currentMark.datetime || '未知'}`;
             } else {
-                document.getElementById('profitMarkStatus').textContent = '暂无标记';
-                document.getElementById('profitMarkDetail').textContent = '等待数据...';
+                // 没有标记
+                document.getElementById('profitMarkPrevStatus').textContent = '暂无标记';
+                document.getElementById('profitMarkPrevDetail').textContent = '等待数据...';
+                document.getElementById('profitMarkCurrentStatus').textContent = '暂无标记';
+                document.getElementById('profitMarkCurrentDetail').textContent = '等待数据...';
             }
         }
 

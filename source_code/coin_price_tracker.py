@@ -497,19 +497,30 @@ def main():
     logger.info("🚀 开始首次采集...")
     tracker.collect_once()
     
-    # 定时采集（30分钟）
-    interval = 30 * 60  # 30分钟
+    # 定时采集（只在0分和30分）
+    logger.info("⏰ 采集策略: 只在每小时的0分和30分采集数据")
     
     while True:
         try:
-            # 计算下次采集时间
             now = datetime.now(TZ)
-            next_run = now + timedelta(seconds=interval)
+            current_minute = now.minute
             
-            logger.info(f"\n⏰ 下次采集时间: {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
-            logger.info(f"💤 等待 {interval} 秒...\n")
+            # 计算下次采集时间（只在0分和30分）
+            if current_minute < 30:
+                # 等到30分
+                next_minute = 30
+            else:
+                # 等到下一个小时的0分
+                next_minute = 0
+                now = now + timedelta(hours=1)
             
-            time.sleep(interval)
+            next_run = now.replace(minute=next_minute, second=0, microsecond=0)
+            wait_seconds = (next_run - datetime.now(TZ)).total_seconds()
+            
+            logger.info(f"\n⏰ 下次采集时间: {next_run.strftime('%Y-%m-%d %H:%M:%S')} (0分或30分)")
+            logger.info(f"💤 等待 {int(wait_seconds)} 秒...\n")
+            
+            time.sleep(wait_seconds)
             
             # 执行采集
             logger.info(f"\n{'='*70}")
