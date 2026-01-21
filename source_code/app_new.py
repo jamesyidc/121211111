@@ -13407,8 +13407,26 @@ def place_okx_order():
         # 例如：7.57 USDT / 95650 USD/BTC = 0.00007913 BTC
         contracts = float(size) / current_price
         
-        # 保留合理精度（不同币种精度不同，这里用8位小数）
-        contracts_str = f"{contracts:.8f}".rstrip('0').rstrip('.')
+        # OKX合约对sz有特定要求：
+        # 1. 必须是正数
+        # 2. 精度不能超过币种要求（一般BTC 1位，ETH 0位，小币种不同）
+        # 3. 不能小于最小下单量
+        
+        # 根据交易对确定精度
+        if 'BTC' in inst_id:
+            # BTC-USDT-SWAP: 1张合约=0.01BTC，sz精度为整数张数
+            # 转换：contracts数量 -> 张数（1张=0.01BTC）
+            contracts_count = int(contracts / 0.01) if contracts >= 0.01 else 1
+            contracts_str = str(contracts_count)
+        elif 'ETH' in inst_id:
+            # ETH-USDT-SWAP: 1张合约=0.1ETH
+            contracts_count = int(contracts / 0.1) if contracts >= 0.1 else 1
+            contracts_str = str(contracts_count)
+        else:
+            # 其他币种：1张合约面值不同，这里采用保守策略
+            # 保留最多1位小数，最小为1张
+            contracts_count = max(1, int(contracts * 10) / 10)
+            contracts_str = str(int(contracts_count)) if contracts_count >= 1 else '1'
         
         # 构建请求体
         order_params = {
@@ -13471,7 +13489,7 @@ def place_okx_order():
                         'usdtAmount': size,
                         'price': current_price
                     },
-                    'message': f'订单提交成功！合约数量: {contracts_str}'
+                    'message': f'订单提交成功！合约张数: {contracts_str} 张'
                 })
             else:
                 return jsonify({
@@ -13531,6 +13549,69 @@ def place_okx_order():
             'success': False,
             'error': str(e),
             'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/okx-trading/market-tickers', methods=['GET'])
+def get_okx_market_tickers():
+    """获取OKX市场行情数据"""
+    try:
+        import requests
+        
+        # 获取所有SWAP合约的行情
+        base_url = 'https://www.okx.com'
+        ticker_path = '/api/v5/market/tickers?instType=SWAP'
+        
+        response = requests.get(base_url + ticker_path, timeout=10)
+        result = response.json()
+        
+        if result.get('code') == '0':
+            tickers_data = result.get('data', [])
+            
+            # 只返回USDT-SWAP交易对
+            usdt_tickers = []
+            for ticker in tickers_data:
+                inst_id = ticker.get('instId', '')
+                if 'USDT-SWAP' in inst_id:
+                    # 提取币种名称
+                    symbol = inst_id.replace('-USDT-SWAP', '')
+                    
+                    usdt_tickers.append({
+                        'symbol': inst_id,
+                        'name': symbol,
+                        'price': float(ticker.get('last', 0)),
+                        'change24h': float(ticker.get('sodUtc8', 0)),  # 24h涨跌幅（UTC+8 0点）
+                        'high24h': float(ticker.get('high24h', 0)),
+                        'low24h': float(ticker.get('low24h', 0)),
+                        'vol24h': float(ticker.get('vol24h', 0)),
+                        'volCcy24h': float(ticker.get('volCcy24h', 0)),
+                        'timestamp': ticker.get('ts', '')
+                    })
+            
+            return jsonify({
+                'success': True,
+                'data': usdt_tickers,
+                'count': len(usdt_tickers)
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('msg', '获取行情失败')
+            })
+            
+    except requests.exceptions.Timeout:
+        return jsonify({
+            'success': False,
+            'error': 'API请求超时'
+        })
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            'success': False,
+            'error': f'网络请求失败: {str(e)}'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
         })
 
 @app.route('/api/anchor-system/auto-maintenance-config')

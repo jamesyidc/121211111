@@ -1167,36 +1167,46 @@
             }
         ]));
 
-        // 完整的27个交易对数据
-        const symbols = [
-            { symbol: 'BTC-USDT-SWAP', name: 'BTC', price: 95650.00, change: -0.96 },
-            { symbol: 'ETH-USDT-SWAP', name: 'ETH', price: 3280.50, change: 1.24 },
-            { symbol: 'XRP-USDT-SWAP', name: 'XRP', price: 2.058, change: -1.99 },
-            { symbol: 'BNB-USDT-SWAP', name: 'BNB', price: 688.90, change: -0.45 },
-            { symbol: 'SOL-USDT-SWAP', name: 'SOL', price: 145.20, change: -2.15 },
-            { symbol: 'DOGE-USDT-SWAP', name: 'DOGE', price: 0.1385, change: -3.96 },
-            { symbol: 'SUI-USDT-SWAP', name: 'SUI', price: 4.125, change: 5.67 },
-            { symbol: 'TRX-USDT-SWAP', name: 'TRX', price: 0.3096, change: 36.29 },
-            { symbol: 'LINK-USDT-SWAP', name: 'LINK', price: 13.76, change: 4.19 },
-            { symbol: 'DOT-USDT-SWAP', name: 'DOT', price: 2.139, change: 20.47 },
-            { symbol: 'UNI-USDT-SWAP', name: 'UNI', price: 5.31, change: 1.23 },
-            { symbol: 'LTC-USDT-SWAP', name: 'LTC', price: 98.75, change: -0.32 },
-            { symbol: 'BCH-USDT-SWAP', name: 'BCH', price: 598.70, change: 4.53 },
-            { symbol: 'NEAR-USDT-SWAP', name: 'NEAR', price: 1.74, change: 4.02 },
-            { symbol: 'AAVE-USDT-SWAP', name: 'AAVE', price: 172.58, change: 18.58 },
-            { symbol: 'APT-USDT-SWAP', name: 'APT', price: 1.801, change: 3.14 },
-            { symbol: 'FIL-USDT-SWAP', name: 'FIL', price: 1.515, change: 19.58 },
-            { symbol: 'TON-USDT-SWAP', name: 'TON', price: 1.72, change: 2.09 },
-            { symbol: 'XLM-USDT-SWAP', name: 'XLM', price: 0.22794, change: 14.55 },
-            { symbol: 'HBAR-USDT-SWAP', name: 'HBAR', price: 0.11753, change: 2.36 },
-            { symbol: 'STX-USDT-SWAP', name: 'STX', price: 0.3674, change: 53.14 },
-            { symbol: 'LDO-USDT-SWAP', name: 'LDO', price: 0.6146, change: 8.00 },
-            { symbol: 'CRV-USDT-SWAP', name: 'CRV', price: 0.4245, change: 1.12 },
-            { symbol: 'CRO-USDT-SWAP', name: 'CRO', price: 0.10098, change: 13.87 },
-            { symbol: 'CFX-USDT-SWAP', name: 'CFX', price: 0.07662, change: 10.72 },
-            { symbol: 'TAO-USDT-SWAP', name: 'TAO', price: 277.1, change: 6.69 },
-            { symbol: 'AVAX-USDT-SWAP', name: 'AVAX', price: 32.45, change: 1.87 }
-        ];
+        // 交易对数据（初始化为空，从API加载）
+        let symbols = [];
+
+        // 加载实时行情数据
+        async function loadMarketTickers() {
+            try {
+                console.log('[loadMarketTickers] 开始加载行情数据...');
+                const response = await fetch('/api/okx-trading/market-tickers');
+                const result = await response.json();
+                
+                if (result.success && result.data) {
+                    symbols = result.data.map(ticker => ({
+                        symbol: ticker.symbol,
+                        name: ticker.name,
+                        price: ticker.price,
+                        change: ticker.change24h  // 24h涨跌幅
+                    }));
+                    console.log(`[loadMarketTickers] 加载成功，共${symbols.length}个交易对`);
+                    
+                    // 重新渲染交易对列表
+                    renderSymbolsList();
+                } else {
+                    console.error('[loadMarketTickers] 加载失败:', result.error);
+                    // 使用默认数据
+                    symbols = [
+                        { symbol: 'BTC-USDT-SWAP', name: 'BTC', price: 0, change: 0 },
+                        { symbol: 'ETH-USDT-SWAP', name: 'ETH', price: 0, change: 0 }
+                    ];
+                    renderSymbolsList();
+                }
+            } catch (error) {
+                console.error('[loadMarketTickers] 加载异常:', error);
+                // 使用默认数据
+                symbols = [
+                    { symbol: 'BTC-USDT-SWAP', name: 'BTC', price: 0, change: 0 },
+                    { symbol: 'ETH-USDT-SWAP', name: 'ETH', price: 0, change: 0 }
+                ];
+                renderSymbolsList();
+            }
+        }
 
         // 加载账户信息
         async function loadAccountInfo() {
@@ -1410,7 +1420,7 @@
         // 初始化页面
         function init() {
             renderAccountTabs();
-            renderSymbolsList();
+            loadMarketTickers();  // 加载实时行情数据
             loadAccountData();
             refreshAccountData();  // 加载账户信息和持仓
             
@@ -1418,6 +1428,11 @@
             setInterval(() => {
                 refreshAccountData();
             }, 30000);
+            
+            // 每10秒自动刷新行情数据
+            setInterval(() => {
+                loadMarketTickers();
+            }, 10000);
         }
 
         // 渲染账户标签
