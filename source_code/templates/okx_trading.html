@@ -2010,6 +2010,47 @@
             const amountPerCoin = (balance * percentPerCoin / 100).toFixed(2);
             const totalAmount = (amountPerCoin * 6).toFixed(2);
             
+            // ⚠️ 重要：逐仓模式下，每个币种需要独立保证金
+            // 由于 10x 杠杆，实际保证金占用约为 开仓金额 / 10
+            // 但要保守估计，我们按照开仓金额的 15% 来计算（考虑手续费和滑点）
+            const estimatedMarginPerCoin = parseFloat(amountPerCoin) * 0.15;
+            const estimatedTotalMargin = (estimatedMarginPerCoin * 6).toFixed(2);
+            
+            console.log(`[batchOrder] 余额检查: 可用=${balance.toFixed(2)}, 每币=${amountPerCoin}, 总计=${totalAmount}, 预计保证金=${estimatedTotalMargin}`);
+            
+            // 检查余额是否足够（保守检查：需要总保证金的 1.2 倍作为缓冲）
+            const requiredBalance = parseFloat(estimatedTotalMargin) * 1.2;
+            if (balance < requiredBalance) {
+                alert(`❌ 余额不足！\n\n` +
+                    `【资金需求】\n` +
+                    `  • 每个币开仓: ${amountPerCoin} USDT\n` +
+                    `  • 6个币总计: ${totalAmount} USDT\n` +
+                    `  • 预计保证金: ${estimatedTotalMargin} USDT (10x杠杆)\n` +
+                    `  • 建议余额: ${requiredBalance.toFixed(2)} USDT\n\n` +
+                    `【当前状态】\n` +
+                    `  • 可用余额: ${balance.toFixed(2)} USDT\n` +
+                    `  • 缺少: ${(requiredBalance - balance).toFixed(2)} USDT\n\n` +
+                    `💡 建议：\n` +
+                    `  1. 降低开仓比例 (当前每币${percentPerCoin}%)\n` +
+                    `  2. 增加账户余额\n` +
+                    `  3. 减少开仓币种数量`);
+                return;
+            }
+            
+            // 额外提示：如果余额刚好够，给个警告
+            if (balance < requiredBalance * 1.5) {
+                const warningMsg = `⚠️ 余额偏紧\n\n` +
+                    `可用余额: ${balance.toFixed(2)} USDT\n` +
+                    `预计占用: ${estimatedTotalMargin} USDT\n` +
+                    `剩余: ${(balance - parseFloat(estimatedTotalMargin)).toFixed(2)} USDT\n\n` +
+                    `建议增加余额或降低开仓比例，避免因余额不足导致部分订单失败。\n\n` +
+                    `是否继续？`;
+                if (!confirm(warningMsg)) {
+                    console.log('[batchOrder] 用户因余额不足取消');
+                    return;
+                }
+            }
+            
             // 确认对话框
             const directionText = direction === 'long' ? '做多' : '做空';
             const emoji = direction === 'long' ? '📈' : '📉';
