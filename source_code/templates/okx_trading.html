@@ -904,6 +904,26 @@
             color: #991b1b;
         }
 
+        .close-position-btn {
+            padding: 4px 12px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .close-position-btn:hover {
+            background: #dc2626;
+        }
+
+        .close-position-btn:active {
+            background: #b91c1c;
+        }
+
         .position-details {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -1353,6 +1373,9 @@
                                     <div class="position-header">
                                         <span class="position-symbol">${pos.instId}</span>
                                         <span class="position-side ${sideClass}">${sideName}</span>
+                                        <button class="close-position-btn" onclick="closePosition('${pos.instId}', '${pos.posSide}')">
+                                            平仓
+                                        </button>
                                     </div>
                                     <div class="position-details">
                                         <div class="position-detail-item">
@@ -1370,6 +1393,10 @@
                                         <div class="position-detail-item">
                                             <span class="position-detail-label">标记价:</span>
                                             <span class="position-detail-value">$${pos.markPrice.toFixed(2)}</span>
+                                        </div>
+                                        <div class="position-detail-item">
+                                            <span class="position-detail-label">保证金:</span>
+                                            <span class="position-detail-value">${pos.margin.toFixed(2)} USDT</span>
                                         </div>
                                     </div>
                                     <div class="position-pnl">
@@ -1402,6 +1429,51 @@
                 loadAccountInfo(),
                 loadPositions()
             ]);
+        }
+
+        // 平仓函数
+        async function closePosition(instId, posSide) {
+            const account = accounts.find(acc => acc.id === currentAccount);
+            
+            if (!account || !account.apiKey || !account.apiSecret || !account.passphrase) {
+                alert('请先配置账户API凭证！');
+                return;
+            }
+            
+            const sideName = posSide === 'long' ? '做多' : '做空';
+            const confirmMsg = `确认平仓 ${instId} ${sideName} 持仓？`;
+            
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/okx-trading/close-position', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        apiKey: account.apiKey,
+                        apiSecret: account.apiSecret,
+                        passphrase: account.passphrase,
+                        instId: instId,
+                        posSide: posSide
+                    })
+                });
+                
+                const result = await response.json();
+                console.log('平仓响应:', result);
+                
+                if (result.success) {
+                    alert('✅ 平仓成功！');
+                    // 平仓成功后刷新账户信息和持仓
+                    await refreshAccountData();
+                } else {
+                    alert(`❌ 平仓失败: ${result.error || '未知错误'}`);
+                }
+            } catch (error) {
+                console.error('平仓异常:', error);
+                alert(`❌ 平仓异常: ${error.message || error}`);
+            }
         }
 
         // 显示API配置提示

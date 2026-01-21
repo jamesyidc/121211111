@@ -13766,6 +13766,103 @@ def get_okx_order_detail():
             'traceback': traceback.format_exc()
         })
 
+@app.route('/api/okx-trading/close-position', methods=['POST'])
+def close_okx_position():
+    """平仓接口"""
+    try:
+        import hmac
+        import base64
+        from datetime import datetime, timezone
+        import requests
+        
+        data = request.get_json()
+        api_key = data.get('apiKey', '')
+        secret_key = data.get('apiSecret', '')
+        passphrase = data.get('passphrase', '')
+        inst_id = data.get('instId', '')
+        pos_side = data.get('posSide', '')  # long/short
+        
+        if not api_key or not secret_key or not passphrase:
+            return jsonify({
+                'success': False,
+                'error': 'API凭证不完整'
+            })
+        
+        if not inst_id or not pos_side:
+            return jsonify({
+                'success': False,
+                'error': '交易对和持仓方向不能为空'
+            })
+        
+        # OKX API配置
+        base_url = 'https://www.okx.com'
+        request_path = '/api/v5/trade/close-position'
+        method = 'POST'
+        
+        # 构建请求体
+        order_params = {
+            'instId': inst_id,
+            'posSide': pos_side,
+            'mgnMode': 'isolated'  # 逐仓模式
+        }
+        
+        body = json.dumps(order_params)
+        
+        # 生成签名
+        timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        message = timestamp + method + request_path + body
+        mac = hmac.new(
+            bytes(secret_key, encoding='utf8'),
+            bytes(message, encoding='utf-8'),
+            digestmod='sha256'
+        )
+        signature = base64.b64encode(mac.digest()).decode()
+        
+        # 请求头
+        headers = {
+            'OK-ACCESS-KEY': api_key,
+            'OK-ACCESS-SIGN': signature,
+            'OK-ACCESS-TIMESTAMP': timestamp,
+            'OK-ACCESS-PASSPHRASE': passphrase,
+            'Content-Type': 'application/json'
+        }
+        
+        # 发送请求
+        response = requests.post(base_url + request_path, headers=headers, data=body, timeout=10)
+        result = response.json()
+        
+        print(f"[OKX平仓] 请求参数: {order_params}")
+        print(f"[OKX平仓] 响应结果: {result}")
+        
+        if result.get('code') == '0':
+            return jsonify({
+                'success': True,
+                'message': '平仓成功'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('msg', '平仓失败'),
+                'code': result.get('code', '')
+            })
+            
+    except requests.exceptions.Timeout:
+        return jsonify({
+            'success': False,
+            'error': 'API请求超时'
+        })
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            'success': False,
+            'error': f'网络请求失败: {str(e)}'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
 @app.route('/api/anchor-system/auto-maintenance-config')
 def get_auto_maintenance_config():
     """获取自动维护配置"""
