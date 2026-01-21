@@ -924,6 +924,27 @@
             background: #b91c1c;
         }
 
+        .cancel-order-btn {
+            padding: 4px 12px;
+            background: #f59e0b;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .cancel-order-btn:hover {
+            background: #d97706;
+        }
+
+        .cancel-order-btn:active {
+            background: #b45309;
+        }
+
+
         .position-details {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -1160,6 +1181,20 @@
                     </h3>
                     <div id="positionsList" class="no-positions">
                         暂无持仓
+                    </div>
+                </div>
+
+                <!-- 当前委托列表 -->
+                <div class="info-card" style="margin-top: 24px;">
+                    <h3>
+                        📋 当前委托 
+                        <span id="pendingOrdersCount" style="color: #888; font-size: 14px; font-weight: normal;">(0)</span>
+                        <button onclick="loadPendingOrders()" style="float: right; padding: 4px 12px; font-size: 12px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer;" title="刷新委托">
+                            🔄 刷新
+                        </button>
+                    </h3>
+                    <div id="pendingOrdersList" class="no-positions">
+                        暂无委托
                     </div>
                 </div>
             </div>
@@ -1476,6 +1511,161 @@
             }
         }
 
+        // 加载当前委托（未成交订单）
+        async function loadPendingOrders() {
+            console.log('[loadPendingOrders] 开始加载委托订单...');
+            
+            const account = accounts.find(acc => acc.id === currentAccount);
+            
+            if (!account) {
+                console.error('[loadPendingOrders] 账户不存在');
+                document.getElementById('pendingOrdersList').innerHTML = '<div class="no-positions">账户不存在</div>';
+                document.getElementById('pendingOrdersCount').textContent = '(0)';
+                return;
+            }
+            
+            if (!account.apiKey || !account.apiSecret || !account.passphrase) {
+                console.log('[loadPendingOrders] 未配置API凭证');
+                document.getElementById('pendingOrdersList').innerHTML = '<div class="no-positions">请先配置账户API凭证</div>';
+                document.getElementById('pendingOrdersCount').textContent = '(0)';
+                return;
+            }
+
+            try {
+                console.log('[loadPendingOrders] 调用API...');
+                const response = await fetch('/api/okx-trading/pending-orders', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        apiKey: account.apiKey,
+                        apiSecret: account.apiSecret,
+                        passphrase: account.passphrase
+                    })
+                });
+
+                const result = await response.json();
+                console.log('[loadPendingOrders] API响应:', result);
+
+                if (result.success && result.data) {
+                    const orders = result.data;
+                    const ordersCount = orders.length;
+                    
+                    console.log('[loadPendingOrders] 委托数量:', ordersCount);
+                    
+                    document.getElementById('pendingOrdersCount').textContent = `(${ordersCount})`;
+                    
+                    if (ordersCount === 0) {
+                        document.getElementById('pendingOrdersList').innerHTML = '<div class="no-positions">暂无委托</div>';
+                    } else {
+                        // 渲染委托订单列表
+                        const html = orders.map(order => {
+                            const sideClass = order.posSide === 'long' ? 'long' : 'short';
+                            const sideName = order.posSide === 'long' ? '做多' : '做空';
+                            const sideAction = order.side === 'buy' ? '买入' : '卖出';
+                            
+                            // 格式化创建时间
+                            const createTime = new Date(parseInt(order.createTime)).toLocaleString('zh-CN');
+                            
+                            return `
+                                <div class="position-item" style="border-left: 3px solid #f59e0b;">
+                                    <div class="position-header">
+                                        <span class="position-symbol">${order.instId}</span>
+                                        <span class="position-side ${sideClass}">${sideName}</span>
+                                        <button class="cancel-order-btn" onclick="cancelOrder('${order.ordId}', '${order.instId}')">
+                                            撤销
+                                        </button>
+                                    </div>
+                                    <div class="position-details">
+                                        <div class="position-detail-item">
+                                            <span class="position-detail-label">状态:</span>
+                                            <span class="position-detail-value" style="color: #f59e0b;">${order.stateText}</span>
+                                        </div>
+                                        <div class="position-detail-item">
+                                            <span class="position-detail-label">类型:</span>
+                                            <span class="position-detail-value">${order.ordTypeText}</span>
+                                        </div>
+                                        <div class="position-detail-item">
+                                            <span class="position-detail-label">数量:</span>
+                                            <span class="position-detail-value">${order.size}</span>
+                                        </div>
+                                        <div class="position-detail-item">
+                                            <span class="position-detail-label">价格:</span>
+                                            <span class="position-detail-value">$${parseFloat(order.price).toFixed(4)}</span>
+                                        </div>
+                                        <div class="position-detail-item">
+                                            <span class="position-detail-label">已成交:</span>
+                                            <span class="position-detail-value">${order.filledSize}</span>
+                                        </div>
+                                        <div class="position-detail-item">
+                                            <span class="position-detail-label">创建时间:</span>
+                                            <span class="position-detail-value" style="font-size: 11px;">${createTime}</span>
+                                        </div>
+                                    </div>
+                                    <div style="margin-top: 8px; font-size: 11px; color: #888;">
+                                        订单ID: ${order.ordId}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+                        
+                        document.getElementById('pendingOrdersList').innerHTML = html;
+                    }
+                } else {
+                    console.error('[loadPendingOrders] 获取委托列表失败:', result.error);
+                    document.getElementById('pendingOrdersList').innerHTML = '<div class="no-positions">加载失败: ' + (result.error || '未知错误') + '</div>';
+                }
+            } catch (error) {
+                console.error('[loadPendingOrders] 加载委托异常:', error);
+                document.getElementById('pendingOrdersList').innerHTML = '<div class="no-positions">加载异常</div>';
+            }
+        }
+
+        // 撤销订单函数
+        async function cancelOrder(ordId, instId) {
+            const account = accounts.find(acc => acc.id === currentAccount);
+            
+            if (!account || !account.apiKey || !account.apiSecret || !account.passphrase) {
+                alert('请先配置账户API凭证！');
+                return;
+            }
+            
+            const confirmMsg = `确认撤销订单？\n\n交易对: ${instId}\n订单ID: ${ordId}`;
+            
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/okx-trading/cancel-order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        apiKey: account.apiKey,
+                        apiSecret: account.apiSecret,
+                        passphrase: account.passphrase,
+                        ordId: ordId,
+                        instId: instId
+                    })
+                });
+                
+                const result = await response.json();
+                console.log('撤销响应:', result);
+                
+                if (result.success) {
+                    alert('✅ 订单已撤销！');
+                    // 撤销成功后刷新账户信息、持仓和委托列表
+                    await refreshAccountData();
+                    await loadPendingOrders();
+                } else {
+                    alert(`❌ 撤销失败: ${result.error || '未知错误'}`);
+                }
+            } catch (error) {
+                console.error('撤销异常:', error);
+                alert(`❌ 撤销异常: ${error.message || error}`);
+            }
+        }
+
+
         // 显示API配置提示
         function showApiConfigNotice() {
             const notice = document.getElementById('apiConfigNotice');
@@ -1498,10 +1688,12 @@
             loadMarketTickers();  // 加载实时行情数据
             loadAccountData();
             refreshAccountData();  // 加载账户信息和持仓
+            loadPendingOrders();   // 加载委托订单
             
-            // 每30秒自动刷新账户信息和持仓
+            // 每30秒自动刷新账户信息、持仓和委托
             setInterval(() => {
                 refreshAccountData();
+                loadPendingOrders();
             }, 30000);
             
             // 每10秒自动刷新行情数据

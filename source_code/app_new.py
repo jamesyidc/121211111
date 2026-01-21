@@ -13637,6 +13637,388 @@ def get_okx_market_tickers():
             'error': str(e)
         })
 
+@app.route('/api/okx-trading/pending-orders', methods=['POST'])
+def get_okx_pending_orders():
+    """获取当前委托（未成交订单）"""
+    try:
+        import hmac
+        import base64
+        from datetime import datetime, timezone
+        import requests
+        
+        data = request.get_json()
+        api_key = data.get('apiKey', '')
+        secret_key = data.get('apiSecret', '')
+        passphrase = data.get('passphrase', '')
+        
+        if not api_key or not secret_key or not passphrase:
+            return jsonify({
+                'success': False,
+                'error': 'API凭证不完整'
+            })
+        
+        # OKX API配置
+        base_url = 'https://www.okx.com'
+        request_path = '/api/v5/trade/orders-pending?instType=SWAP'
+        method = 'GET'
+        
+        # 生成签名
+        timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        message = timestamp + method + request_path
+        mac = hmac.new(
+            bytes(secret_key, encoding='utf8'),
+            bytes(message, encoding='utf-8'),
+            digestmod='sha256'
+        )
+        signature = base64.b64encode(mac.digest()).decode()
+        
+        # 请求头
+        headers = {
+            'OK-ACCESS-KEY': api_key,
+            'OK-ACCESS-SIGN': signature,
+            'OK-ACCESS-TIMESTAMP': timestamp,
+            'OK-ACCESS-PASSPHRASE': passphrase,
+            'Content-Type': 'application/json'
+        }
+        
+        # 发送请求
+        response = requests.get(base_url + request_path, headers=headers, timeout=10)
+        result = response.json()
+        
+        if result.get('code') == '0':
+            orders_data = result.get('data', [])
+            
+            # 格式化订单数据
+            orders = []
+            for order in orders_data:
+                orders.append({
+                    'ordId': order.get('ordId'),
+                    'instId': order.get('instId'),
+                    'side': order.get('side'),  # buy/sell
+                    'posSide': order.get('posSide'),  # long/short
+                    'ordType': order.get('ordType'),  # market/limit
+                    'px': order.get('px', ''),  # 委托价格
+                    'sz': order.get('sz'),  # 委托数量
+                    'fillSz': order.get('fillSz', '0'),  # 已成交数量
+                    'avgPx': order.get('avgPx', '0'),  # 成交均价
+                    'state': order.get('state'),  # live/partially_filled
+                    'cTime': order.get('cTime'),  # 创建时间
+                    'uTime': order.get('uTime')  # 更新时间
+                })
+            
+            return jsonify({
+                'success': True,
+                'data': orders,
+                'count': len(orders)
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('msg', '获取委托失败'),
+                'code': result.get('code', '')
+            })
+            
+    except requests.exceptions.Timeout:
+        return jsonify({
+            'success': False,
+            'error': 'API请求超时'
+        })
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            'success': False,
+            'error': f'网络请求失败: {str(e)}'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/okx-trading/cancel-order', methods=['POST'])
+def cancel_okx_order():
+    """撤销订单"""
+    try:
+        import hmac
+        import base64
+        from datetime import datetime, timezone
+        import requests
+        
+        data = request.get_json()
+        api_key = data.get('apiKey', '')
+        secret_key = data.get('apiSecret', '')
+        passphrase = data.get('passphrase', '')
+        order_id = data.get('ordId', '')
+        inst_id = data.get('instId', '')
+        
+        if not api_key or not secret_key or not passphrase:
+            return jsonify({
+                'success': False,
+                'error': 'API凭证不完整'
+            })
+        
+        if not order_id or not inst_id:
+            return jsonify({
+                'success': False,
+                'error': '订单ID或交易对不能为空'
+            })
+        
+        # OKX API配置
+        base_url = 'https://www.okx.com'
+        request_path = '/api/v5/trade/cancel-order'
+        method = 'POST'
+        
+        # 构建请求体
+        order_params = {
+            'instId': inst_id,
+            'ordId': order_id
+        }
+        
+        body = json.dumps(order_params)
+        
+        # 生成签名
+        timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        message = timestamp + method + request_path + body
+        mac = hmac.new(
+            bytes(secret_key, encoding='utf8'),
+            bytes(message, encoding='utf-8'),
+            digestmod='sha256'
+        )
+        signature = base64.b64encode(mac.digest()).decode()
+        
+        # 请求头
+        headers = {
+            'OK-ACCESS-KEY': api_key,
+            'OK-ACCESS-SIGN': signature,
+            'OK-ACCESS-TIMESTAMP': timestamp,
+            'OK-ACCESS-PASSPHRASE': passphrase,
+            'Content-Type': 'application/json'
+        }
+        
+        # 发送请求
+        response = requests.post(base_url + request_path, headers=headers, data=body, timeout=10)
+        result = response.json()
+        
+        print(f"[OKX撤单] 请求参数: {order_params}")
+        print(f"[OKX撤单] 响应结果: {result}")
+        
+        if result.get('code') == '0':
+            return jsonify({
+                'success': True,
+                'message': '撤单成功'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('msg', '撤单失败'),
+                'code': result.get('code', '')
+            })
+            
+    except requests.exceptions.Timeout:
+        return jsonify({
+            'success': False,
+            'error': 'API请求超时'
+        })
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            'success': False,
+            'error': f'网络请求失败: {str(e)}'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/okx-trading/pending-orders', methods=['POST'])
+def get_okx_pending_orders():
+    """获取当前委托（未成交订单）列表"""
+    try:
+        data = request.get_json()
+        api_key = data.get('apiKey')
+        api_secret = data.get('apiSecret')
+        passphrase = data.get('passphrase')
+        
+        if not all([api_key, api_secret, passphrase]):
+            return jsonify({'success': False, 'error': 'API凭证不完整'})
+        
+        base_url = 'https://www.okx.com'
+        request_path = '/api/v5/trade/orders-pending'
+        
+        # 只查询合约交易的委托单
+        params = '?instType=SWAP'
+        
+        # 创建签名
+        timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        message = timestamp + 'GET' + request_path + params
+        secret_key = api_secret.encode('utf-8')
+        signature = hmac.new(secret_key, message.encode('utf-8'), hashlib.sha256).digest()
+        encoded_signature = base64.b64encode(signature).decode('utf-8')
+        
+        headers = {
+            'OK-ACCESS-KEY': api_key,
+            'OK-ACCESS-SIGN': encoded_signature,
+            'OK-ACCESS-TIMESTAMP': timestamp,
+            'OK-ACCESS-PASSPHRASE': passphrase,
+            'Content-Type': 'application/json'
+        }
+        
+        response = requests.get(base_url + request_path + params, headers=headers, timeout=10)
+        result = response.json()
+        
+        if result.get('code') == '0':
+            orders_data = result.get('data', [])
+            
+            # 格式化订单数据
+            orders = []
+            for order in orders_data:
+                order_id = order.get('ordId', '')
+                inst_id = order.get('instId', '')
+                side = order.get('side', '')
+                pos_side = order.get('posSide', '')
+                ord_type = order.get('ordType', '')
+                price = order.get('px', '0')
+                size = order.get('sz', '0')
+                filled_size = order.get('accFillSz', '0')
+                state = order.get('state', '')
+                create_time = order.get('cTime', '')
+                
+                # 状态翻译
+                state_map = {
+                    'live': '等待成交',
+                    'partially_filled': '部分成交'
+                }
+                state_text = state_map.get(state, state)
+                
+                # 订单类型翻译
+                ord_type_map = {
+                    'market': '市价',
+                    'limit': '限价'
+                }
+                ord_type_text = ord_type_map.get(ord_type, ord_type)
+                
+                orders.append({
+                    'ordId': order_id,
+                    'instId': inst_id,
+                    'side': side,
+                    'posSide': pos_side,
+                    'ordType': ord_type,
+                    'ordTypeText': ord_type_text,
+                    'price': price,
+                    'size': size,
+                    'filledSize': filled_size,
+                    'state': state,
+                    'stateText': state_text,
+                    'createTime': create_time
+                })
+            
+            return jsonify({
+                'success': True,
+                'data': orders,
+                'count': len(orders)
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('msg', '获取委托列表失败'),
+                'code': result.get('code', 'unknown')
+            })
+            
+    except requests.exceptions.Timeout:
+        return jsonify({'success': False, 'error': 'API请求超时，请稍后重试'})
+    except requests.exceptions.RequestException as e:
+        return jsonify({'success': False, 'error': f'网络请求失败: {str(e)}'})
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/okx-trading/cancel-order', methods=['POST'])
+def cancel_okx_order():
+    """撤销订单"""
+    try:
+        data = request.get_json()
+        api_key = data.get('apiKey')
+        api_secret = data.get('apiSecret')
+        passphrase = data.get('passphrase')
+        ord_id = data.get('ordId')
+        inst_id = data.get('instId')
+        
+        if not all([api_key, api_secret, passphrase]):
+            return jsonify({'success': False, 'error': 'API凭证不完整'})
+            
+        if not ord_id or not inst_id:
+            return jsonify({'success': False, 'error': '订单ID或交易对不能为空'})
+        
+        base_url = 'https://www.okx.com'
+        request_path = '/api/v5/trade/cancel-order'
+        
+        # 构建请求体
+        cancel_data = {
+            'instId': inst_id,
+            'ordId': ord_id
+        }
+        body = json.dumps(cancel_data)
+        
+        # 创建签名
+        timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        message = timestamp + 'POST' + request_path + body
+        secret_key = api_secret.encode('utf-8')
+        signature = hmac.new(secret_key, message.encode('utf-8'), hashlib.sha256).digest()
+        encoded_signature = base64.b64encode(signature).decode('utf-8')
+        
+        headers = {
+            'OK-ACCESS-KEY': api_key,
+            'OK-ACCESS-SIGN': encoded_signature,
+            'OK-ACCESS-TIMESTAMP': timestamp,
+            'OK-ACCESS-PASSPHRASE': passphrase,
+            'Content-Type': 'application/json'
+        }
+        
+        response = requests.post(base_url + request_path, headers=headers, json=cancel_data, timeout=10)
+        result = response.json()
+        
+        if result.get('code') == '0':
+            cancel_result = result.get('data', [{}])[0]
+            return jsonify({
+                'success': True,
+                'message': '订单已撤销',
+                'data': cancel_result
+            })
+        else:
+            error_msg = result.get('msg', '撤销失败')
+            error_code = result.get('code', '')
+            
+            # 常见错误提示
+            error_hints = {
+                '51400': '订单不存在',
+                '51401': '订单已经撤销或完全成交',
+                '51402': '订单撤销中',
+            }
+            
+            if error_code in error_hints:
+                error_msg = f"{error_msg} - {error_hints[error_code]}"
+            
+            return jsonify({
+                'success': False,
+                'error': error_msg,
+                'code': error_code
+            })
+            
+    except requests.exceptions.Timeout:
+        return jsonify({'success': False, 'error': 'API请求超时，请稍后重试'})
+    except requests.exceptions.RequestException as e:
+        return jsonify({'success': False, 'error': f'网络请求失败: {str(e)}'})
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
 @app.route('/api/okx-trading/order-detail', methods=['POST'])
 def get_okx_order_detail():
     """查询OKX订单详情"""
