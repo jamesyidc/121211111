@@ -1617,6 +1617,11 @@ def index():
     """首页 - 功能导航"""
     return render_template('index.html')
 
+@app.route('/coin-change-tracker')
+def coin_change_tracker_page():
+    """27币涨跌幅追踪系统页面"""
+    return render_template('coin_change_tracker.html')
+
 @app.route('/query')
 def query_page():
     """历史数据查询页面"""
