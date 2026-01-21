@@ -16729,6 +16729,163 @@ def hedge_order_from_event():
             'traceback': traceback.format_exc()
         })
 
+
+# ==================== 27币涨跌幅追踪系统 API ====================
+
+@app.route('/api/coin-change-tracker/latest', methods=['GET'])
+def get_coin_change_latest():
+    """获取最新的27币涨跌幅数据"""
+    try:
+        from datetime import datetime, timezone, timedelta
+        import glob
+        
+        data_dir = Path('data/coin_change_tracker')
+        if not data_dir.exists():
+            return jsonify({
+                'success': False,
+                'error': '数据目录不存在'
+            })
+        
+        # 获取当前日期
+        beijing_time = datetime.now(timezone(timedelta(hours=8)))
+        date_str = beijing_time.strftime('%Y%m%d')
+        
+        # 读取今天的数据文件
+        data_file = data_dir / f'coin_change_{date_str}.jsonl'
+        
+        if not data_file.exists():
+            return jsonify({
+                'success': False,
+                'error': f'今天的数据文件不存在: {date_str}'
+            })
+        
+        # 读取最后一条记录
+        with open(data_file, 'r') as f:
+            lines = f.readlines()
+            if lines:
+                latest = json.loads(lines[-1].strip())
+                return jsonify({
+                    'success': True,
+                    'data': latest
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': '数据文件为空'
+                })
+                
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+
+@app.route('/api/coin-change-tracker/history', methods=['GET'])
+def get_coin_change_history():
+    """获取27币涨跌幅历史数据"""
+    try:
+        from datetime import datetime, timezone, timedelta
+        
+        # 获取参数
+        date_str = request.args.get('date')  # YYYYMMDD
+        limit = int(request.args.get('limit', 1440))  # 默认1天的数据（1440分钟）
+        
+        data_dir = Path('data/coin_change_tracker')
+        if not data_dir.exists():
+            return jsonify({
+                'success': False,
+                'error': '数据目录不存在'
+            })
+        
+        # 如果没有指定日期，使用今天
+        if not date_str:
+            beijing_time = datetime.now(timezone(timedelta(hours=8)))
+            date_str = beijing_time.strftime('%Y%m%d')
+        
+        # 读取数据文件
+        data_file = data_dir / f'coin_change_{date_str}.jsonl'
+        
+        if not data_file.exists():
+            return jsonify({
+                'success': False,
+                'error': f'数据文件不存在: {date_str}'
+            })
+        
+        # 读取数据
+        records = []
+        with open(data_file, 'r') as f:
+            lines = f.readlines()
+            # 取最后limit条
+            for line in lines[-limit:]:
+                if line.strip():
+                    records.append(json.loads(line.strip()))
+        
+        return jsonify({
+            'success': True,
+            'date': date_str,
+            'count': len(records),
+            'data': records
+        })
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+
+@app.route('/api/coin-change-tracker/baseline', methods=['GET'])
+def get_coin_change_baseline():
+    """获取当天的基准价"""
+    try:
+        from datetime import datetime, timezone, timedelta
+        
+        # 获取参数
+        date_str = request.args.get('date')
+        
+        data_dir = Path('data/coin_change_tracker')
+        if not data_dir.exists():
+            return jsonify({
+                'success': False,
+                'error': '数据目录不存在'
+            })
+        
+        # 如果没有指定日期，使用今天
+        if not date_str:
+            beijing_time = datetime.now(timezone(timedelta(hours=8)))
+            date_str = beijing_time.strftime('%Y%m%d')
+        
+        # 读取基准价文件
+        baseline_file = data_dir / f'baseline_{date_str}.json'
+        
+        if not baseline_file.exists():
+            return jsonify({
+                'success': False,
+                'error': f'基准价文件不存在: {date_str}'
+            })
+        
+        with open(baseline_file, 'r') as f:
+            baseline_data = json.load(f)
+        
+        return jsonify({
+            'success': True,
+            'data': baseline_data
+        })
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+
 # ==================== Flask App 启动入口 ====================
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
