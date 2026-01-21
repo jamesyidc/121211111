@@ -1232,23 +1232,23 @@
                         <!-- 空单策略 -->
                         <button type="button" class="batch-btn short" onclick="batchOrder('short', 5)">
                             <div class="batch-btn-title">📉 空单策略 A</div>
-                            <div class="batch-btn-desc">涨幅前6 · 5%余额 · 10x</div>
+                            <div class="batch-btn-desc">涨幅前6 · 5%保证金 · 10x</div>
                         </button>
                         
                         <button type="button" class="batch-btn short" onclick="batchOrder('short', 8)">
                             <div class="batch-btn-title">📉 空单策略 B</div>
-                            <div class="batch-btn-desc">涨幅前6 · 8%余额 · 10x</div>
+                            <div class="batch-btn-desc">涨幅前6 · 8%保证金 · 10x</div>
                         </button>
                         
                         <!-- 多单策略 -->
                         <button type="button" class="batch-btn long" onclick="batchOrder('long', 3)">
                             <div class="batch-btn-title">📈 多单策略 A</div>
-                            <div class="batch-btn-desc">涨幅前6 · 3%余额 · 10x</div>
+                            <div class="batch-btn-desc">涨幅前6 · 3%保证金 · 10x</div>
                         </button>
                         
                         <button type="button" class="batch-btn long" onclick="batchOrder('long', 5)">
                             <div class="batch-btn-title">📈 多单策略 B</div>
-                            <div class="batch-btn-desc">涨幅前6 · 5%余额 · 10x</div>
+                            <div class="batch-btn-desc">涨幅前6 · 5%保证金 · 10x</div>
                         </button>
                     </div>
                     
@@ -2246,26 +2246,24 @@
             
             console.log('[batchOrder] 常用币种涨幅前6:', top6Symbols.map(s => `${s.name} (${s.change}%)`));
             
-            // 计算每个币的开仓金额
-            const amountPerCoin = (balance * percentPerCoin / 100).toFixed(2);
-            const totalAmount = (amountPerCoin * 6).toFixed(2);
+            // 计算每个币的保证金占用（用户输入的百分比是指保证金占比）
+            const marginPerCoin = (balance * percentPerCoin / 100).toFixed(2);
+            const totalMargin = (marginPerCoin * 6).toFixed(2);
             
-            // ⚠️ 重要：逐仓模式下，每个币种需要独立保证金
-            // 由于 10x 杠杆，实际保证金占用约为 开仓金额 / 10
-            // 但要保守估计，我们按照开仓金额的 15% 来计算（考虑手续费和滑点）
-            const estimatedMarginPerCoin = parseFloat(amountPerCoin) * 0.15;
-            const estimatedTotalMargin = (estimatedMarginPerCoin * 6).toFixed(2);
+            // ⚠️ 重要：10x杠杆下，合约价值 = 保证金 × 10
+            const contractValuePerCoin = (parseFloat(marginPerCoin) * 10).toFixed(2);
+            const totalContractValue = (parseFloat(contractValuePerCoin) * 6).toFixed(2);
             
-            console.log(`[batchOrder] 余额检查: 可用=${balance.toFixed(2)}, 每币=${amountPerCoin}, 总计=${totalAmount}, 预计保证金=${estimatedTotalMargin}`);
+            console.log(`[batchOrder] 余额检查: 可用=${balance.toFixed(2)}, 每币保证金=${marginPerCoin}, 每币合约价值=${contractValuePerCoin}, 总保证金=${totalMargin}, 总合约价值=${totalContractValue}`);
             
             // 检查余额是否足够（保守检查：需要总保证金的 1.2 倍作为缓冲）
-            const requiredBalance = parseFloat(estimatedTotalMargin) * 1.2;
+            const requiredBalance = parseFloat(totalMargin) * 1.2;
             if (balance < requiredBalance) {
                 alert(`❌ 余额不足！\n\n` +
                     `【资金需求】\n` +
-                    `  • 每个币开仓: ${amountPerCoin} USDT\n` +
-                    `  • 6个币总计: ${totalAmount} USDT\n` +
-                    `  • 预计保证金: ${estimatedTotalMargin} USDT (10x杠杆)\n` +
+                    `  • 每个币保证金: ${marginPerCoin} USDT (${percentPerCoin}%)\n` +
+                    `  • 每个币合约价值: ${contractValuePerCoin} USDT (10x杠杆)\n` +
+                    `  • 6个币总保证金: ${totalMargin} USDT\n` +
                     `  • 建议余额: ${requiredBalance.toFixed(2)} USDT\n\n` +
                     `【当前状态】\n` +
                     `  • 可用余额: ${balance.toFixed(2)} USDT\n` +
@@ -2281,8 +2279,8 @@
             if (balance < requiredBalance * 1.5) {
                 const warningMsg = `⚠️ 余额偏紧\n\n` +
                     `可用余额: ${balance.toFixed(2)} USDT\n` +
-                    `预计占用: ${estimatedTotalMargin} USDT\n` +
-                    `剩余: ${(balance - parseFloat(estimatedTotalMargin)).toFixed(2)} USDT\n\n` +
+                    `预计占用保证金: ${totalMargin} USDT\n` +
+                    `剩余: ${(balance - parseFloat(totalMargin)).toFixed(2)} USDT\n\n` +
                     `建议增加余额或降低开仓比例，避免因余额不足导致部分订单失败。\n\n` +
                     `是否继续？`;
                 if (!confirm(warningMsg)) {
@@ -2307,8 +2305,10 @@
                 `  • 杠杆: 10x\n` +
                 `  • 订单类型: 市价单\n\n` +
                 `【资金分配】\n` +
-                `  • 每个币: ${amountPerCoin} USDT (${percentPerCoin}%)\n` +
-                `  • 总共: ${totalAmount} USDT\n` +
+                `  • 每个币保证金: ${marginPerCoin} USDT (${percentPerCoin}%)\n` +
+                `  • 每个币合约价值: ${contractValuePerCoin} USDT\n` +
+                `  • 总保证金: ${totalMargin} USDT\n` +
+                `  • 总合约价值: ${totalContractValue} USDT\n` +
                 `  • 可用余额: ${balance.toFixed(2)} USDT\n\n` +
                 `确认批量开仓？`;
             
@@ -2328,12 +2328,13 @@
                     console.log(`[batchOrder] 正在下单: ${symbolData.name}...`);
                     
                     // 构建订单数据
+                    // sz传递合约价值，后端会根据当前价格计算合约张数
                     const orderData = {
                         instId: symbolData.symbol,
                         side: direction === 'long' ? 'buy' : 'sell',
                         posSide: direction,
                         ordType: 'market',
-                        sz: amountPerCoin,
+                        sz: contractValuePerCoin,  // 传递合约价值（保证金 × 10）
                         lever: '10'
                     };
                     
