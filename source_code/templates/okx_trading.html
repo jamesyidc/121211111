@@ -1361,6 +1361,25 @@
                         暂无委托
                     </div>
                 </div>
+                
+                <!-- 交易日志 -->
+                <div class="info-card" style="margin-top: 24px;">
+                    <h3>
+                        📜 交易日志 
+                        <span id="logsCount" style="color: #888; font-size: 14px; font-weight: normal;">(0)</span>
+                        <button onclick="loadTradingLogs()" style="float: right; padding: 4px 12px; font-size: 12px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer;" title="刷新日志">
+                            🔄 刷新
+                        </button>
+                    </h3>
+                    <div style="margin-bottom: 12px; font-size: 12px; color: #64748b;">
+                        📝 所有操作均自动记录，不可修改 | 数据保存格式: JSONL
+                    </div>
+                    <div id="tradingLogsList" style="max-height: 400px; overflow-y: auto;">
+                        <div style="text-align: center; padding: 20px; color: #94a3b8;">
+                            暂无日志
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1846,6 +1865,112 @@
             }
         }
 
+        // 加载交易日志
+        async function loadTradingLogs() {
+            console.log('[loadTradingLogs] 开始加载交易日志');
+            
+            try {
+                const response = await fetch('/api/okx-trading/logs?limit=50');
+                const result = await response.json();
+                
+                if (result.success && result.logs) {
+                    const logs = result.logs;
+                    const logsCount = document.getElementById('logsCount');
+                    const logsContainer = document.getElementById('tradingLogsList');
+                    
+                    logsCount.textContent = `(${logs.length})`;
+                    
+                    if (logs.length === 0) {
+                        logsContainer.innerHTML = `
+                            <div style="text-align: center; padding: 20px; color: #94a3b8;">
+                                暂无日志
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    // 反转顺序，最新的在上面
+                    const reversedLogs = [...logs].reverse();
+                    
+                    logsContainer.innerHTML = reversedLogs.map(log => {
+                        const time = new Date(log.timestamp).toLocaleString('zh-CN');
+                        const actionEmoji = {
+                            'open_position': '📈',
+                            'close_position': '📉',
+                            'cancel_order': '🚫',
+                            'batch_open': '🎯',
+                            'batch_close': '⚡'
+                        }[log.action] || '📝';
+                        
+                        const actionText = {
+                            'open_position': '开仓',
+                            'close_position': '平仓',
+                            'cancel_order': '撤单',
+                            'batch_open': '批量开仓',
+                            'batch_close': '批量平仓'
+                        }[log.action] || log.action;
+                        
+                        const status = log.result.status;
+                        const statusColor = status === 'success' ? '#10b981' : '#ef4444';
+                        const statusText = status === 'success' ? '成功' : '失败';
+                        const statusEmoji = status === 'success' ? '✅' : '❌';
+                        
+                        // 构建详情文本
+                        let detailsText = '';
+                        if (log.details.instId) {
+                            const coinName = log.details.instId.replace('-USDT-SWAP', '');
+                            detailsText += `${coinName} `;
+                        }
+                        if (log.details.posSide) {
+                            detailsText += log.details.posSide === 'long' ? '做多' : '做空';
+                            detailsText += ' ';
+                        }
+                        if (log.details.inputUsdt) {
+                            detailsText += `${log.details.inputUsdt} USDT`;
+                        }
+                        if (log.details.contracts) {
+                            detailsText += ` (${log.details.contracts}张)`;
+                        }
+                        if (log.details.leverage) {
+                            detailsText += ` ${log.details.leverage}x`;
+                        }
+                        
+                        // 错误信息
+                        let errorText = '';
+                        if (status === 'failed' && log.result.error) {
+                            errorText = `<div style="margin-top: 4px; font-size: 11px; color: #ef4444;">错误: ${log.result.error}</div>`;
+                        }
+                        
+                        return `
+                            <div style="padding: 12px; border-bottom: 1px solid #e5e7eb; transition: background 0.2s;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='transparent'">
+                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 4px;">
+                                    <div>
+                                        <span style="font-size: 16px;">${actionEmoji}</span>
+                                        <strong style="margin-left: 6px; color: #1e293b;">${actionText}</strong>
+                                        <span style="margin-left: 8px; color: #64748b; font-size: 13px;">${detailsText}</span>
+                                    </div>
+                                    <div style="display: flex; align-items: center;">
+                                        <span style="font-size: 14px;">${statusEmoji}</span>
+                                        <span style="margin-left: 4px; color: ${statusColor}; font-weight: 600; font-size: 13px;">${statusText}</span>
+                                    </div>
+                                </div>
+                                <div style="font-size: 11px; color: #94a3b8;">
+                                    ${time}
+                                </div>
+                                ${errorText}
+                            </div>
+                        `;
+                    }).join('');
+                    
+                    console.log(`[loadTradingLogs] 加载了 ${logs.length} 条日志`);
+                } else {
+                    console.error('[loadTradingLogs] 加载失败:', result.error);
+                }
+            } catch (error) {
+                console.error('[loadTradingLogs] 加载异常:', error);
+            }
+        }
+
         // 初始化页面
         function init() {
             renderAccountTabs();
@@ -1853,11 +1978,13 @@
             loadAccountData();
             refreshAccountData();  // 加载账户信息和持仓
             loadPendingOrders();   // 加载委托订单
+            loadTradingLogs();     // 加载交易日志
             
-            // 每30秒自动刷新账户信息、持仓和委托
+            // 每30秒自动刷新账户信息、持仓、委托和日志
             setInterval(() => {
                 refreshAccountData();
                 loadPendingOrders();
+                loadTradingLogs();
             }, 30000);
             
             // 每10秒自动刷新行情数据

@@ -22,6 +22,77 @@ gdrive_jsonl_manager = GDriveJSONLManager()
 # 使用GDrive数据目录作为Query数据源（包含最新数据）
 query_jsonl_manager = QueryJSONLManager(data_dir='/home/user/webapp/data/gdrive_jsonl')
 
+# OKX交易日志管理器
+class OKXTradingLogger:
+    """OKX交易日志记录器 - 所有操作记录到JSONL文件（只写不改）"""
+    def __init__(self, log_dir='/home/user/webapp/data/okx_trading_logs'):
+        self.log_dir = log_dir
+        os.makedirs(log_dir, exist_ok=True)
+        
+    def _get_log_file(self, date_str=None):
+        """获取当天的日志文件路径"""
+        if date_str is None:
+            date_str = datetime.now(BEIJING_TZ).strftime('%Y%m%d')
+        return os.path.join(self.log_dir, f'trading_log_{date_str}.jsonl')
+    
+    def log(self, action, account_id, details=None, result=None):
+        """
+        记录交易操作日志
+        
+        参数：
+        - action: 操作类型（open_position, close_position, cancel_order, batch_open, batch_close等）
+        - account_id: 账户ID
+        - details: 操作详情（交易对、方向、数量等）
+        - result: 操作结果（成功/失败、错误信息等）
+        """
+        try:
+            log_entry = {
+                'timestamp': datetime.now(BEIJING_TZ).isoformat(),
+                'timestamp_unix': int(time.time()),
+                'action': action,
+                'account_id': account_id,
+                'details': details or {},
+                'result': result or {}
+            }
+            
+            log_file = self._get_log_file()
+            with open(log_file, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
+            
+            print(f"[OKX日志] {action} - {account_id} - {result.get('status', 'unknown')}")
+            
+        except Exception as e:
+            print(f"[OKX日志] 记录失败: {str(e)}")
+    
+    def get_logs(self, date_str=None, limit=100):
+        """
+        读取日志（不修改）
+        
+        参数：
+        - date_str: 日期字符串（YYYYMMDD），None=今天
+        - limit: 返回最近N条
+        """
+        try:
+            log_file = self._get_log_file(date_str)
+            if not os.path.exists(log_file):
+                return []
+            
+            logs = []
+            with open(log_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if line.strip():
+                        logs.append(json.loads(line))
+            
+            # 返回最近的N条
+            return logs[-limit:] if limit else logs
+            
+        except Exception as e:
+            print(f"[OKX日志] 读取失败: {str(e)}")
+            return []
+
+# 初始化交易日志记录器
+okx_trading_logger = OKXTradingLogger()
+
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 BEIJING_TZ = pytz.timezone('Asia/Shanghai')
@@ -13303,6 +13374,26 @@ def get_okx_positions():
             'traceback': traceback.format_exc()
         })
 
+@app.route('/api/okx-trading/logs', methods=['GET'])
+def get_okx_trading_logs():
+    """获取OKX交易日志"""
+    try:
+        date_str = request.args.get('date', None)  # YYYYMMDD格式
+        limit = int(request.args.get('limit', 100))
+        
+        logs = okx_trading_logger.get_logs(date_str=date_str, limit=limit)
+        
+        return jsonify({
+            'success': True,
+            'count': len(logs),
+            'logs': logs
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
 @app.route('/api/okx-trading/place-order', methods=['POST'])
 def place_okx_order():
     """OKX下单接口"""
@@ -13512,6 +13603,29 @@ def place_okx_order():
             order_data = result.get('data', [])
             if order_data:
                 order = order_data[0]
+                
+                # 记录成功日志
+                okx_trading_logger.log(
+                    action='open_position',
+                    account_id='user_account',  # 可以从前端传入
+                    details={
+                        'instId': inst_id,
+                        'side': side,
+                        'posSide': pos_side,
+                        'ordType': order_type,
+                        'contracts': contracts_str,
+                        'inputUsdt': user_usdt,
+                        'leverage': leverage_value,
+                        'price': current_price
+                    },
+                    result={
+                        'status': 'success',
+                        'ordId': order.get('ordId', ''),
+                        'actualUsdt': round(actual_margin_used, 2),
+                        'contractValue': round(actual_contract_value, 2)
+                    }
+                )
+                
                 return jsonify({
                     'success': True,
                     'data': {
@@ -13534,6 +13648,29 @@ def place_okx_order():
                     'error': '订单响应数据为空'
                 })
         else:
+            # 记录失败日志
+            error_msg = result.get('msg', '下单失败')
+            error_code = result.get('code', 'unknown')
+            
+            okx_trading_logger.log(
+                action='open_position',
+                account_id='user_account',
+                details={
+                    'instId': inst_id,
+                    'side': side,
+                    'posSide': pos_side,
+                    'ordType': order_type,
+                    'contracts': contracts_str,
+                    'inputUsdt': user_usdt,
+                    'leverage': leverage_value
+                },
+                result={
+                    'status': 'failed',
+                    'error': error_msg,
+                    'code': error_code
+                }
+            )
+            
             # 返回更详细的错误信息
             error_msg = result.get('msg', '下单失败')
             error_code = result.get('code', 'unknown')
@@ -13845,11 +13982,39 @@ def cancel_okx_order():
         print(f"[OKX撤单] 响应结果: {result}")
         
         if result.get('code') == '0':
+            # 记录撤单成功日志
+            okx_trading_logger.log(
+                action='cancel_order',
+                account_id='user_account',
+                details={
+                    'instId': inst_id,
+                    'ordId': ord_id
+                },
+                result={
+                    'status': 'success'
+                }
+            )
+            
             return jsonify({
                 'success': True,
                 'message': '撤单成功'
             })
         else:
+            # 记录撤单失败日志
+            okx_trading_logger.log(
+                action='cancel_order',
+                account_id='user_account',
+                details={
+                    'instId': inst_id,
+                    'ordId': ord_id
+                },
+                result={
+                    'status': 'failed',
+                    'error': result.get('msg', '撤单失败'),
+                    'code': result.get('code', '')
+                }
+            )
+            
             return jsonify({
                 'success': False,
                 'error': result.get('msg', '撤单失败'),
@@ -14092,11 +14257,42 @@ def close_okx_position():
         print(f"[OKX平仓] 响应结果: {result}")
         
         if result.get('code') == '0':
+            # 记录平仓成功日志
+            okx_trading_logger.log(
+                action='close_position',
+                account_id='user_account',
+                details={
+                    'instId': inst_id,
+                    'posSide': pos_side,
+                    'closeSize': close_size,
+                    'closeType': 'full' if close_size is None else 'partial'
+                },
+                result={
+                    'status': 'success'
+                }
+            )
+            
             return jsonify({
                 'success': True,
                 'message': '平仓成功'
             })
         else:
+            # 记录平仓失败日志
+            okx_trading_logger.log(
+                action='close_position',
+                account_id='user_account',
+                details={
+                    'instId': inst_id,
+                    'posSide': pos_side,
+                    'closeSize': close_size
+                },
+                result={
+                    'status': 'failed',
+                    'error': result.get('msg', '平仓失败'),
+                    'code': result.get('code', '')
+                }
+            )
+            
             return jsonify({
                 'success': False,
                 'error': result.get('msg', '平仓失败'),
