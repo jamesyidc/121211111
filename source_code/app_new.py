@@ -16672,16 +16672,22 @@ def batch_order_from_event():
                 response = requests.post(base_url + request_path, headers=headers, data=body, timeout=10)
                 result = response.json()
                 
+                print(f"[批量开仓] {inst_id} 下单响应: {result}")
+                
                 if result.get('code') == '0':
                     success_count += 1
                     results.append(f"✅ {inst_id}: 成功 ({contracts_count}张)")
                 else:
                     fail_count += 1
-                    results.append(f"❌ {inst_id}: {result.get('msg')}")
+                    error_msg = result.get('msg', '未知错误')
+                    error_code = result.get('code', '未知代码')
+                    results.append(f"❌ {inst_id}: [{error_code}] {error_msg}")
+                    print(f"[批量开仓] {inst_id} 失败: code={error_code}, msg={error_msg}")
                     
             except Exception as e:
                 fail_count += 1
                 results.append(f"❌ {inst_id}: {str(e)}")
+                print(f"[批量开仓] {inst_id} 异常: {str(e)}")
         
         return jsonify({
             'success': success_count > 0,
