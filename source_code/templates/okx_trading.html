@@ -1427,8 +1427,52 @@
         // 当前账户
         let currentAccount = 'account_poit_main';
         
-        // 收藏的交易对（从localStorage读取）
-        let favoriteSymbols = JSON.parse(localStorage.getItem('favoriteSymbols') || '[]');
+        // 收藏的交易对（从服务器API读取，全局共享）
+        let favoriteSymbols = [];
+        
+        // 从服务器加载常用币列表
+        async function loadFavoriteSymbols() {
+            try {
+                const response = await fetch('/api/okx-trading/favorite-symbols');
+                const data = await response.json();
+                
+                if (data.success) {
+                    favoriteSymbols = data.symbols || [];
+                    console.log('✅ 已加载常用币列表:', favoriteSymbols);
+                } else {
+                    console.error('❌ 加载常用币失败:', data.error);
+                    // 使用默认列表
+                    favoriteSymbols = ["BTC-USDT-SWAP", "ETH-USDT-SWAP", "SOL-USDT-SWAP", 
+                                      "BNB-USDT-SWAP", "XRP-USDT-SWAP", "DOGE-USDT-SWAP"];
+                }
+            } catch (error) {
+                console.error('❌ 加载常用币异常:', error);
+                // 使用默认列表
+                favoriteSymbols = ["BTC-USDT-SWAP", "ETH-USDT-SWAP", "SOL-USDT-SWAP", 
+                                  "BNB-USDT-SWAP", "XRP-USDT-SWAP", "DOGE-USDT-SWAP"];
+            }
+        }
+        
+        // 保存常用币列表到服务器
+        async function saveFavoriteSymbols() {
+            try {
+                const response = await fetch('/api/okx-trading/favorite-symbols', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbols: favoriteSymbols })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    console.log('✅ 常用币列表已保存到服务器');
+                } else {
+                    console.error('❌ 保存常用币失败:', data.error);
+                }
+            } catch (error) {
+                console.error('❌ 保存常用币异常:', error);
+            }
+        }
         
         // 从localStorage加载账户列表，如果没有则使用默认账户
         let accounts = JSON.parse(localStorage.getItem('okx_accounts') || JSON.stringify([
@@ -2006,8 +2050,9 @@
         }
 
         // 初始化页面
-        function init() {
+        async function init() {
             renderAccountTabs();
+            await loadFavoriteSymbols();  // 先加载常用币列表（从服务器）
             loadMarketTickers();  // 加载实时行情数据
             loadAccountData();
             refreshAccountData();  // 加载账户信息和持仓
@@ -2117,7 +2162,7 @@
         }
         
         // 切换收藏状态
-        function toggleFavorite(symbol) {
+        async function toggleFavorite(symbol) {
             const index = favoriteSymbols.indexOf(symbol);
             
             if (index > -1) {
@@ -2128,8 +2173,8 @@
                 favoriteSymbols.push(symbol);
             }
             
-            // 保存到localStorage
-            localStorage.setItem('favoriteSymbols', JSON.stringify(favoriteSymbols));
+            // 保存到服务器（全局共享）
+            await saveFavoriteSymbols();
             
             // 重新渲染列表
             renderSymbolsList();

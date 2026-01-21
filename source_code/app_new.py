@@ -13394,6 +13394,79 @@ def get_okx_trading_logs():
             'error': str(e)
         })
 
+@app.route('/api/okx-trading/favorite-symbols', methods=['GET'])
+def get_favorite_symbols():
+    """获取常用币列表（全局共享）"""
+    try:
+        import json
+        import os
+        
+        file_path = 'data/favorite_symbols.jsonl'
+        
+        # 如果文件不存在，创建默认配置
+        if not os.path.exists(file_path):
+            default_symbols = ["BTC-USDT-SWAP", "ETH-USDT-SWAP", "SOL-USDT-SWAP", 
+                             "BNB-USDT-SWAP", "XRP-USDT-SWAP", "DOGE-USDT-SWAP"]
+            with open(file_path, 'w') as f:
+                from datetime import datetime
+                json.dump({
+                    'symbols': default_symbols,
+                    'updated_at': datetime.utcnow().isoformat() + 'Z'
+                }, f)
+        
+        # 读取最后一行
+        with open(file_path, 'r') as f:
+            lines = f.readlines()
+            if lines:
+                data = json.loads(lines[-1].strip())
+                return jsonify({
+                    'success': True,
+                    'symbols': data.get('symbols', []),
+                    'updated_at': data.get('updated_at', '')
+                })
+        
+        return jsonify({
+            'success': True,
+            'symbols': [],
+            'updated_at': ''
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@app.route('/api/okx-trading/favorite-symbols', methods=['POST'])
+def update_favorite_symbols():
+    """更新常用币列表（全局共享）"""
+    try:
+        import json
+        from datetime import datetime
+        
+        data = request.get_json()
+        symbols = data.get('symbols', [])
+        
+        file_path = 'data/favorite_symbols.jsonl'
+        
+        # 追加新的配置到文件
+        with open(file_path, 'a') as f:
+            json.dump({
+                'symbols': symbols,
+                'updated_at': datetime.utcnow().isoformat() + 'Z'
+            }, f)
+            f.write('\n')
+        
+        return jsonify({
+            'success': True,
+            'symbols': symbols
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+
 @app.route('/api/okx-trading/place-order', methods=['POST'])
 def place_okx_order():
     """OKX下单接口"""
