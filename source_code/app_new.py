@@ -13590,13 +13590,24 @@ def get_okx_market_tickers():
         if result.get('code') == '0':
             tickers_data = result.get('data', [])
             
-            # 只返回USDT-SWAP交易对
+            # 指定要显示的27个币种
+            allowed_symbols = [
+                'BTC', 'ETH', 'XRP', 'BNB', 'SOL', 'LTC', 'DOGE', 'SUI', 'TRX',
+                'TON', 'ETC', 'BCH', 'HBAR', 'XLM', 'FIL', 'LINK', 'CRO', 'DOT',
+                'AAVE', 'UNI', 'NEAR', 'APT', 'CFX', 'CRV', 'STX', 'LDO', 'TAO'
+            ]
+            
+            # 只返回指定的USDT-SWAP交易对
             usdt_tickers = []
             for ticker in tickers_data:
                 inst_id = ticker.get('instId', '')
                 if 'USDT-SWAP' in inst_id:
                     # 提取币种名称
                     symbol = inst_id.replace('-USDT-SWAP', '')
+                    
+                    # 只处理允许的币种
+                    if symbol not in allowed_symbols:
+                        continue
                     
                     # 计算UTC+8 0点开始的涨跌幅
                     current_price = float(ticker.get('last', 0))
@@ -13620,10 +13631,17 @@ def get_okx_market_tickers():
                         'timestamp': ticker.get('ts', '')
                     })
             
+            # 按照指定顺序排序
+            sorted_tickers = []
+            for symbol in allowed_symbols:
+                ticker = next((t for t in usdt_tickers if t['name'] == symbol), None)
+                if ticker:
+                    sorted_tickers.append(ticker)
+            
             return jsonify({
                 'success': True,
-                'data': usdt_tickers,
-                'count': len(usdt_tickers)
+                'data': sorted_tickers,
+                'count': len(sorted_tickers)
             })
         else:
             return jsonify({
