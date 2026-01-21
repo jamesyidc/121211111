@@ -1600,7 +1600,8 @@
         }
 
         // 提交订单
-        function submitOrder(event) {
+        // 提交订单
+        async function submitOrder(event) {
             event.preventDefault();
             
             const amount = document.getElementById('orderAmount').value;
@@ -1612,19 +1613,75 @@
             }
             
             const symbolData = symbols.find(s => s.symbol === currentSymbol);
+            const account = accounts.find(acc => acc.id === currentAccount);
+            
+            if (!account || !account.apiKey || !account.apiSecret || !account.passphrase) {
+                alert('请先配置账户API凭证！');
+                return;
+            }
+            
+            // 构建订单数据
             const orderData = {
-                symbol: currentSymbol,
-                direction: currentDirection,
-                leverage: currentLeverage,
-                amount: parseFloat(amount),
-                priceType: priceType,
-                price: symbolData.price
+                instId: currentSymbol,  // 交易对
+                side: currentDirection === 'long' ? 'buy' : 'sell',  // buy/sell
+                posSide: currentDirection,  // long/short
+                ordType: priceType,  // market/limit
+                sz: parseFloat(amount),  // 数量（USDT）
+                lever: currentLeverage  // 杠杆倍数
             };
             
-            console.log('提交订单:', orderData);
+            // 限价单需要价格
+            if (priceType === 'limit') {
+                orderData.px = symbolData.price;
+            }
             
-            if (confirm(`确认${currentDirection === 'long' ? '做多' : '做空'} ${symbolData.name}？\n数量: ${amount} USDT\n杠杆: ${currentLeverage}x`)) {
-                alert('订单提交成功！\n\n这是演示版本，实际交易功能需要连接OKX API。');
+            console.log('准备提交订单:', orderData);
+            
+            const confirmMsg = `确认${currentDirection === 'long' ? '做多' : '做空'} ${symbolData.name}？
+交易对: ${currentSymbol}
+数量: ${amount} USDT
+杠杆: ${currentLeverage}x
+${priceType === 'limit' ? '价格: ' + symbolData.price : '市价单'}
+
+⚠️ 这将在OKX真实下单，请确认无误！`;
+            
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+            
+            try {
+                // 调用真实下单API
+                const response = await fetch('/api/okx-trading/place-order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        apiKey: account.apiKey,
+                        apiSecret: account.apiSecret,
+                        passphrase: account.passphrase,
+                        ...orderData
+                    })
+                });
+                
+                const result = await response.json();
+                console.log('下单响应:', result);
+                
+                if (result.success) {
+                    alert(`✅ 订单提交成功！
+订单ID: ${result.data.ordId || ''}
+${result.data.sMsg || result.message || ''}`);
+                    
+                    // 下单成功后刷新账户信息和持仓
+                    await refreshAccountData();
+                    
+                    // 清空输入框
+                    document.getElementById('orderAmount').value = '';
+                } else {
+                    alert(`❌ 下单失败: ${result.error || '未知错误'}
+错误代码: ${result.code || ''}`);
+                }
+            } catch (error) {
+                console.error('下单异常:', error);
+                alert(`❌ 下单异常: ${error.message || error}`);
             }
         }
 

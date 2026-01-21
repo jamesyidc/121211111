@@ -13303,6 +13303,135 @@ def get_okx_positions():
             'traceback': traceback.format_exc()
         })
 
+@app.route('/api/okx-trading/place-order', methods=['POST'])
+def place_okx_order():
+    """OKX下单接口"""
+    try:
+        import hmac
+        import base64
+        from datetime import datetime, timezone
+        import requests
+        
+        data = request.get_json()
+        api_key = data.get('apiKey', '')
+        secret_key = data.get('apiSecret', '')
+        passphrase = data.get('passphrase', '')
+        
+        # 订单参数
+        inst_id = data.get('instId', '')  # 交易对，如 BTC-USDT-SWAP
+        side = data.get('side', '')  # buy/sell
+        pos_side = data.get('posSide', '')  # long/short
+        order_type = data.get('ordType', 'market')  # market/limit
+        size = data.get('sz', '')  # 数量
+        price = data.get('px', '')  # 限价单价格（市价单不需要）
+        leverage = data.get('lever', '')  # 杠杆倍数
+        
+        if not api_key or not secret_key or not passphrase:
+            return jsonify({
+                'success': False,
+                'error': 'API凭证不完整'
+            })
+        
+        if not inst_id or not side or not size:
+            return jsonify({
+                'success': False,
+                'error': '订单参数不完整'
+            })
+        
+        # OKX API配置
+        base_url = 'https://www.okx.com'
+        request_path = '/api/v5/trade/order'
+        method = 'POST'
+        
+        # 构建请求体
+        order_params = {
+            'instId': inst_id,
+            'tdMode': 'cross',  # 交易模式：cross全仓，isolated逐仓
+            'side': side,
+            'ordType': order_type,
+            'sz': str(size)
+        }
+        
+        # 合约需要指定持仓方向
+        if pos_side:
+            order_params['posSide'] = pos_side
+        
+        # 限价单需要价格
+        if order_type == 'limit' and price:
+            order_params['px'] = str(price)
+        
+        # 如果指定了杠杆倍数
+        if leverage:
+            order_params['lever'] = str(leverage)
+        
+        body = json.dumps(order_params)
+        
+        # 生成签名
+        timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        message = timestamp + method + request_path + body
+        mac = hmac.new(
+            bytes(secret_key, encoding='utf8'),
+            bytes(message, encoding='utf-8'),
+            digestmod='sha256'
+        )
+        signature = base64.b64encode(mac.digest()).decode()
+        
+        # 请求头
+        headers = {
+            'OK-ACCESS-KEY': api_key,
+            'OK-ACCESS-SIGN': signature,
+            'OK-ACCESS-TIMESTAMP': timestamp,
+            'OK-ACCESS-PASSPHRASE': passphrase,
+            'Content-Type': 'application/json'
+        }
+        
+        # 发送请求
+        response = requests.post(base_url + request_path, headers=headers, data=body, timeout=10)
+        result = response.json()
+        
+        if result.get('code') == '0':
+            order_data = result.get('data', [])
+            if order_data:
+                order = order_data[0]
+                return jsonify({
+                    'success': True,
+                    'data': {
+                        'ordId': order.get('ordId', ''),
+                        'clOrdId': order.get('clOrdId', ''),
+                        'sCode': order.get('sCode', '0'),
+                        'sMsg': order.get('sMsg', '订单提交成功')
+                    },
+                    'message': '订单提交成功'
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': '订单响应数据为空'
+                })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('msg', '下单失败'),
+                'code': result.get('code', 'unknown')
+            })
+            
+    except requests.exceptions.Timeout:
+        return jsonify({
+            'success': False,
+            'error': 'API请求超时'
+        })
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            'success': False,
+            'error': f'网络请求失败: {str(e)}'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
 @app.route('/api/anchor-system/auto-maintenance-config')
 def get_auto_maintenance_config():
     """获取自动维护配置"""
