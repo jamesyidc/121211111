@@ -16475,6 +16475,55 @@ def get_liquidation_data():
             'traceback': traceback.format_exc()
         })
 
+@app.route('/api/okx-trading/batch-order', methods=['POST'])
+def batch_order_from_event():
+    """从重大事件页面触发的批量开仓"""
+    try:
+        data = request.get_json()
+        direction = data.get('direction', 'short')  # long/short
+        percent_per_coin = float(data.get('percentPerCoin', 5))
+        
+        # TODO: 这里需要获取账户配置
+        # 临时方案：返回提示信息，要求用户在交易页面配置账户后再使用
+        
+        return jsonify({
+            'success': False,
+            'error': '此功能需要先在交易页面配置API密钥。\n\n请前往"OKX交易系统"页面配置账户后使用。',
+            'redirect': '/okx-trading'
+        })
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/okx-trading/hedge-order', methods=['POST'])
+def hedge_order_from_event():
+    """从重大事件页面触发的对冲开仓"""
+    try:
+        data = request.get_json()
+        hedge_direction = data.get('hedgeDirection', 'short')  # short=空单配多单, long=多单配空单
+        
+        # TODO: 这里需要获取账户配置和持仓信息
+        # 临时方案：返回提示信息，要求用户在交易页面配置账户后再使用
+        
+        return jsonify({
+            'success': False,
+            'error': '此功能需要先在交易页面配置API密钥。\n\n请前往"OKX交易系统"页面配置账户后使用。',
+            'redirect': '/okx-trading'
+        })
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
 # ==================== Flask App 启动入口 ====================
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
