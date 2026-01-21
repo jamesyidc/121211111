@@ -183,8 +183,9 @@
                             <span class="ml-2">峰值1 = 120 → 🔴 触发<strong>事件1</strong>（高强度见顶）</span><br/>
                             <span class="ml-8">峰值1 &lt; 120 → 🟠 触发<strong>事件2</strong>（一般强度见顶）</span>
                         </li>
+                        <li><strong>时间限制</strong>：⏰ 峰值1确定后，必须在<strong>10小时内</strong>找到峰值2，否则检测失败</li>
                         <li><strong>峰值2</strong>：在寻找阶段的最大值记录为峰值2</li>
-                        <li><strong>结束检测</strong>：当前值 &lt; 峰值2 × 50% 时，检测周期结束</li>
+                        <li><strong>结束检测</strong>：当前值 &lt; 峰值2 × 50% 时，检测周期成功结束</li>
                     </ol>
                 </div>
                 
@@ -392,13 +393,21 @@
 
         // 峰值检测器状态
         let peakDetector = {
-            status: 'idle',  // idle, triggered, seeking_peak2, completed
+            status: 'idle',  // idle, triggered, seeking_peak2, completed, timeout
             peak1: { value: null, time: null },
+            peak1ConfirmedTime: null,  // 峰值1确定的时间（开始寻找峰值2的时间）
             peak2: { value: null, time: null },
             current: { value: null, time: null },
             triggeredEvent: null,  // event1, event2, null
             history: []  // 历史峰值记录
         };
+
+        // 计算时间差（小时）
+        function getHoursDiff(time1, time2) {
+            const t1 = new Date(time1);
+            const t2 = new Date(time2);
+            return Math.abs(t2 - t1) / (1000 * 60 * 60);
+        }
 
         // 峰值检测逻辑
         function updatePeakDetection(currentValue, currentTime) {
@@ -423,8 +432,10 @@
                     // 检查是否跌破峰值1的50%
                     if (currentValue < peakDetector.peak1.value * 0.5) {
                         peakDetector.status = 'seeking_peak2';
+                        peakDetector.peak1ConfirmedTime = currentTime;  // 记录峰值1确定的时间
                         peakDetector.peak2 = { value: currentValue, time: currentTime };
                         console.log(`🔍 开始寻找峰值2，当前值: ${currentValue} (< ${peakDetector.peak1.value * 0.5})`);
+                        console.log(`⏰ 峰值1确定时间: ${currentTime}，10小时内必须找到峰值2`);
                         
                         // 根据峰值1的值触发对应事件
                         if (peakDetector.peak1.value === 120) {
@@ -438,6 +449,40 @@
                     break;
                     
                 case 'seeking_peak2':
+                    // 检查是否超过10小时
+                    const hoursPassed = getHoursDiff(peakDetector.peak1ConfirmedTime, currentTime);
+                    if (hoursPassed > 10) {
+                        peakDetector.status = 'timeout';
+                        console.log(`⏰ 超时！峰值1确定后已过${hoursPassed.toFixed(1)}小时，超过10小时限制`);
+                        
+                        // 保存到历史记录（标记为超时）
+                        peakDetector.history.unshift({
+                            peak1: {...peakDetector.peak1},
+                            peak2: {...peakDetector.peak2},
+                            triggeredEvent: peakDetector.triggeredEvent,
+                            status: 'timeout',
+                            completedAt: currentTime
+                        });
+                        
+                        // 只保留最近10条记录
+                        if (peakDetector.history.length > 10) {
+                            peakDetector.history = peakDetector.history.slice(0, 10);
+                        }
+                        
+                        // 3秒后重置
+                        setTimeout(() => {
+                            peakDetector.status = 'idle';
+                            peakDetector.peak1 = { value: null, time: null };
+                            peakDetector.peak1ConfirmedTime = null;
+                            peakDetector.peak2 = { value: null, time: null };
+                            peakDetector.triggeredEvent = null;
+                            updatePeakDetectionUI();
+                        }, 3000);
+                        
+                        updatePeakDetectionUI();
+                        return;  // 停止继续处理
+                    }
+                    
                     // 更新峰值2为最大值
                     if (currentValue > peakDetector.peak2.value) {
                         peakDetector.peak2 = { value: currentValue, time: currentTime };
@@ -446,13 +491,16 @@
                     // 检查是否跌破峰值2的50%
                     if (currentValue < peakDetector.peak2.value * 0.5) {
                         peakDetector.status = 'completed';
-                        console.log(`✅ 峰值检测完成！峰值1: ${peakDetector.peak1.value}, 峰值2: ${peakDetector.peak2.value}`);
+                        const hoursPassed = getHoursDiff(peakDetector.peak1ConfirmedTime, currentTime);
+                        console.log(`✅ 峰值检测完成！峰值1: ${peakDetector.peak1.value}, 峰值2: ${peakDetector.peak2.value}, 用时: ${hoursPassed.toFixed(1)}小时`);
                         
                         // 保存到历史记录
                         peakDetector.history.unshift({
                             peak1: {...peakDetector.peak1},
                             peak2: {...peakDetector.peak2},
                             triggeredEvent: peakDetector.triggeredEvent,
+                            status: 'completed',
+                            duration: hoursPassed,
                             completedAt: currentTime
                         });
                         
@@ -465,6 +513,7 @@
                         setTimeout(() => {
                             peakDetector.status = 'idle';
                             peakDetector.peak1 = { value: null, time: null };
+                            peakDetector.peak1ConfirmedTime = null;
                             peakDetector.peak2 = { value: null, time: null };
                             peakDetector.triggeredEvent = null;
                             updatePeakDetectionUI();
@@ -473,6 +522,7 @@
                     break;
                     
                 case 'completed':
+                case 'timeout':
                     // 等待重置
                     break;
             }
@@ -489,12 +539,20 @@
             } else if (peakDetector.status === 'triggered') {
                 statusText = '🟡 已触发，记录峰值1';
             } else if (peakDetector.status === 'seeking_peak2') {
+                // 计算已过时间
+                let timeInfo = '';
+                if (peakDetector.peak1ConfirmedTime) {
+                    const hoursPassed = getHoursDiff(peakDetector.peak1ConfirmedTime, peakDetector.current.time);
+                    const hoursLeft = 10 - hoursPassed;
+                    timeInfo = ` (${hoursPassed.toFixed(1)}h/${hoursLeft.toFixed(1)}h剩余)`;
+                }
+                
                 if (peakDetector.triggeredEvent === 'event1') {
-                    statusText = '🟠 寻找峰值2 | 🔴 事件1已触发';
+                    statusText = `🟠 寻找峰值2 | 🔴 事件1已触发${timeInfo}`;
                 } else if (peakDetector.triggeredEvent === 'event2') {
-                    statusText = '🟠 寻找峰值2 | 🟠 事件2已触发';
+                    statusText = `🟠 寻找峰值2 | 🟠 事件2已触发${timeInfo}`;
                 } else {
-                    statusText = '🟠 寻找峰值2';
+                    statusText = `🟠 寻找峰值2${timeInfo}`;
                 }
             } else if (peakDetector.status === 'completed') {
                 if (peakDetector.triggeredEvent === 'event1') {
@@ -503,6 +561,14 @@
                     statusText = '🟢 检测完成 | 🟠 事件2';
                 } else {
                     statusText = '🟢 检测完成';
+                }
+            } else if (peakDetector.status === 'timeout') {
+                if (peakDetector.triggeredEvent === 'event1') {
+                    statusText = '⏰ 超时失败 | 🔴 事件1';
+                } else if (peakDetector.triggeredEvent === 'event2') {
+                    statusText = '⏰ 超时失败 | 🟠 事件2';
+                } else {
+                    statusText = '⏰ 超时失败';
                 }
             } else {
                 statusText = '未知';
@@ -545,12 +611,21 @@
                     } else if (record.triggeredEvent === 'event2') {
                         eventBadge = '<span class="bg-orange-500 text-white px-2 py-0.5 rounded text-xs ml-1">事件2</span>';
                     }
+                    
+                    let statusBadge = '';
+                    if (record.status === 'timeout') {
+                        statusBadge = '<span class="bg-gray-500 text-white px-2 py-0.5 rounded text-xs ml-1">⏰超时</span>';
+                    } else if (record.status === 'completed' && record.duration) {
+                        statusBadge = `<span class="bg-green-500 text-white px-2 py-0.5 rounded text-xs ml-1">✓${record.duration.toFixed(1)}h</span>`;
+                    }
+                    
                     return `
                     <div class="bg-gray-50 rounded p-2 text-xs">
                         <span class="font-semibold">#${idx + 1}</span> 
                         峰值1: <span class="text-orange-600 font-bold">${record.peak1.value}</span> → 
                         峰值2: <span class="text-blue-600 font-bold">${record.peak2.value}</span>
                         ${eventBadge}
+                        ${statusBadge}
                         <span class="text-gray-500 ml-2">${formatTime(record.completedAt)}</span>
                     </div>
                     `;
