@@ -13408,25 +13408,29 @@ def place_okx_order():
         contracts = float(size) / current_price
         
         # OKX合约对sz有特定要求：
-        # 1. 必须是正数
-        # 2. 精度不能超过币种要求（一般BTC 1位，ETH 0位，小币种不同）
-        # 3. 不能小于最小下单量
+        # 1. 必须是整数张数（不能有小数）
+        # 2. 不能小于最小下单量（通常为1张）
+        # 3. 不同币种的合约面值不同
         
-        # 根据交易对确定精度
+        # 根据交易对确定精度和合约面值
         if 'BTC' in inst_id:
-            # BTC-USDT-SWAP: 1张合约=0.01BTC，sz精度为整数张数
-            # 转换：contracts数量 -> 张数（1张=0.01BTC）
-            contracts_count = int(contracts / 0.01) if contracts >= 0.01 else 1
+            # BTC-USDT-SWAP: 1张合约=0.01BTC
+            # 示例：7.57 USDT / 95650 = 0.0000791 BTC → 0.0000791/0.01 = 0.00791张 → 向上取整为1张
+            contracts_count = max(1, int(contracts / 0.01 + 0.5))  # 四舍五入
             contracts_str = str(contracts_count)
         elif 'ETH' in inst_id:
             # ETH-USDT-SWAP: 1张合约=0.1ETH
-            contracts_count = int(contracts / 0.1) if contracts >= 0.1 else 1
+            contracts_count = max(1, int(contracts / 0.1 + 0.5))
+            contracts_str = str(contracts_count)
+        elif 'SOL' in inst_id or 'DOGE' in inst_id or 'XRP' in inst_id:
+            # 小面值币种：1张合约=1币（如SOL, DOGE, XRP等）
+            contracts_count = max(1, int(contracts + 0.5))
             contracts_str = str(contracts_count)
         else:
-            # 其他币种：1张合约面值不同，这里采用保守策略
-            # 保留最多1位小数，最小为1张
-            contracts_count = max(1, int(contracts * 10) / 10)
-            contracts_str = str(int(contracts_count)) if contracts_count >= 1 else '1'
+            # 其他币种：默认1张合约=0.1币（如UNI, LINK等）
+            # 如果金额太小，至少下1张
+            contracts_count = max(1, int(contracts / 0.1 + 0.5))
+            contracts_str = str(contracts_count)
         
         # 构建请求体
         order_params = {
@@ -13612,6 +13616,135 @@ def get_okx_market_tickers():
         return jsonify({
             'success': False,
             'error': str(e)
+        })
+
+@app.route('/api/okx-trading/order-detail', methods=['POST'])
+def get_okx_order_detail():
+    """查询OKX订单详情"""
+    try:
+        import hmac
+        import base64
+        from datetime import datetime, timezone
+        import requests
+        
+        data = request.get_json()
+        api_key = data.get('apiKey', '')
+        secret_key = data.get('apiSecret', '')
+        passphrase = data.get('passphrase', '')
+        order_id = data.get('ordId', '')
+        inst_id = data.get('instId', '')
+        
+        if not api_key or not secret_key or not passphrase:
+            return jsonify({
+                'success': False,
+                'error': 'API凭证不完整'
+            })
+        
+        if not order_id or not inst_id:
+            return jsonify({
+                'success': False,
+                'error': '订单ID或交易对不能为空'
+            })
+        
+        # OKX API配置
+        base_url = 'https://www.okx.com'
+        request_path = f'/api/v5/trade/order?instId={inst_id}&ordId={order_id}'
+        method = 'GET'
+        
+        # 生成签名
+        timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        message = timestamp + method + request_path
+        mac = hmac.new(
+            bytes(secret_key, encoding='utf8'),
+            bytes(message, encoding='utf-8'),
+            digestmod='sha256'
+        )
+        signature = base64.b64encode(mac.digest()).decode()
+        
+        # 请求头
+        headers = {
+            'OK-ACCESS-KEY': api_key,
+            'OK-ACCESS-SIGN': signature,
+            'OK-ACCESS-TIMESTAMP': timestamp,
+            'OK-ACCESS-PASSPHRASE': passphrase,
+            'Content-Type': 'application/json'
+        }
+        
+        # 发送请求
+        response = requests.get(base_url + request_path, headers=headers, timeout=10)
+        result = response.json()
+        
+        print(f"[OKX订单查询] 订单ID: {order_id}, 响应: {result}")
+        
+        if result.get('code') == '0':
+            order_data = result.get('data', [])
+            if order_data:
+                order = order_data[0]
+                
+                # 订单状态映射
+                state_map = {
+                    'live': '等待成交',
+                    'partially_filled': '部分成交',
+                    'filled': '完全成交',
+                    'canceled': '已撤销',
+                    'mmp_canceled': '做市商保护撤单',
+                    'partially_canceled': '部分成交已撤销'
+                }
+                
+                state = order.get('state', '')
+                state_text = state_map.get(state, state)
+                
+                return jsonify({
+                    'success': True,
+                    'data': {
+                        'ordId': order.get('ordId'),
+                        'instId': order.get('instId'),
+                        'state': state,
+                        'stateText': state_text,
+                        'px': order.get('px', ''),  # 委托价格
+                        'sz': order.get('sz', ''),  # 委托数量
+                        'fillSz': order.get('fillSz', '0'),  # 成交数量
+                        'avgPx': order.get('avgPx', '0'),  # 成交均价
+                        'side': order.get('side', ''),  # buy/sell
+                        'posSide': order.get('posSide', ''),  # long/short
+                        'ordType': order.get('ordType', ''),  # market/limit
+                        'fee': order.get('fee', '0'),  # 手续费
+                        'rebate': order.get('rebate', '0'),  # 返佣
+                        'pnl': order.get('pnl', '0'),  # 收益
+                        'uTime': order.get('uTime', ''),  # 更新时间
+                        'cTime': order.get('cTime', ''),  # 创建时间
+                        'cancelSource': order.get('cancelSource', ''),  # 撤单来源
+                        'code': order.get('code', ''),  # 错误码
+                        'msg': order.get('msg', '')  # 错误信息
+                    }
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': '订单不存在或已过期'
+                })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('msg', '查询失败'),
+                'code': result.get('code', '')
+            })
+            
+    except requests.exceptions.Timeout:
+        return jsonify({
+            'success': False,
+            'error': 'API请求超时'
+        })
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            'success': False,
+            'error': f'网络请求失败: {str(e)}'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
         })
 
 @app.route('/api/anchor-system/auto-maintenance-config')
