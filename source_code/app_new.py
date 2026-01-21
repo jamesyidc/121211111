@@ -16479,17 +16479,215 @@ def get_liquidation_data():
 def batch_order_from_event():
     """从重大事件页面触发的批量开仓"""
     try:
+        import requests
+        import hmac
+        import base64
+        from datetime import datetime, timezone
+        
         data = request.get_json()
         direction = data.get('direction', 'short')  # long/short
         percent_per_coin = float(data.get('percentPerCoin', 5))
+        api_key = data.get('apiKey', '')
+        secret_key = data.get('apiSecret', '')
+        passphrase = data.get('passphrase', '')
         
-        # TODO: 这里需要获取账户配置
-        # 临时方案：返回提示信息，要求用户在交易页面配置账户后再使用
+        if not api_key or not secret_key or not passphrase:
+            return jsonify({
+                'success': False,
+                'error': 'API凭证不完整'
+            })
+        
+        # 1. 获取账户余额
+        base_url = 'https://www.okx.com'
+        balance_path = '/api/v5/account/balance'
+        balance_timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        balance_message = balance_timestamp + 'GET' + balance_path
+        balance_mac = hmac.new(bytes(secret_key, encoding='utf8'), bytes(balance_message, encoding='utf-8'), digestmod='sha256')
+        balance_signature = base64.b64encode(balance_mac.digest()).decode()
+        
+        balance_headers = {
+            'OK-ACCESS-KEY': api_key,
+            'OK-ACCESS-SIGN': balance_signature,
+            'OK-ACCESS-TIMESTAMP': balance_timestamp,
+            'OK-ACCESS-PASSPHRASE': passphrase,
+            'Content-Type': 'application/json'
+        }
+        
+        balance_response = requests.get(base_url + balance_path, headers=balance_headers, timeout=10)
+        balance_result = balance_response.json()
+        
+        if balance_result.get('code') != '0':
+            return jsonify({
+                'success': False,
+                'error': f"获取余额失败: {balance_result.get('msg')}"
+            })
+        
+        # 提取USDT可用余额
+        balance = 0
+        for detail in balance_result.get('data', [{}])[0].get('details', []):
+            if detail.get('ccy') == 'USDT':
+                balance = float(detail.get('availBal', 0))
+                break
+        
+        if balance <= 0:
+            return jsonify({
+                'success': False,
+                'error': f"USDT余额不足: {balance}"
+            })
+        
+        # 2. 获取常用币列表
+        favorite_file = 'data/favorite_symbols.jsonl'
+        favorite_symbols = []
+        try:
+            with open(favorite_file, 'r') as f:
+                lines = f.readlines()
+                if lines:
+                    favorite_data = json.loads(lines[-1].strip())
+                    favorite_symbols = favorite_data.get('symbols', [])
+        except:
+            favorite_symbols = ["BTC-USDT-SWAP", "ETH-USDT-SWAP", "SOL-USDT-SWAP", 
+                              "BNB-USDT-SWAP", "XRP-USDT-SWAP", "DOGE-USDT-SWAP"]
+        
+        if len(favorite_symbols) < 6:
+            return jsonify({
+                'success': False,
+                'error': f"常用币不足6个，当前: {len(favorite_symbols)}个"
+            })
+        
+        # 3. 获取市场行情，选择涨幅前6
+        ticker_path = '/api/v5/market/tickers?instType=SWAP'
+        ticker_response = requests.get(base_url + ticker_path, timeout=10)
+        ticker_result = ticker_response.json()
+        
+        if ticker_result.get('code') != '0':
+            return jsonify({
+                'success': False,
+                'error': f"获取行情失败: {ticker_result.get('msg')}"
+            })
+        
+        # 筛选常用币并按涨跌幅排序
+        symbols_data = []
+        for ticker in ticker_result.get('data', []):
+            inst_id = ticker.get('instId', '')
+            if inst_id in favorite_symbols:
+                change_24h = float(ticker.get('changeRate24h', 0)) * 100
+                price = float(ticker.get('last', 0))
+                symbols_data.append({
+                    'instId': inst_id,
+                    'price': price,
+                    'change': change_24h
+                })
+        
+        # 按涨跌幅排序，取前6
+        symbols_data.sort(key=lambda x: x['change'], reverse=True)
+        top6_symbols = symbols_data[:6]
+        
+        if len(top6_symbols) < 6:
+            return jsonify({
+                'success': False,
+                'error': f"可用币种不足6个，当前: {len(top6_symbols)}个"
+            })
+        
+        # 4. 计算每个币的开仓参数
+        margin_per_coin = balance * percent_per_coin / 100  # 保证金
+        contract_value_per_coin = margin_per_coin * 10  # 合约价值（10x杠杆）
+        
+        # 5. 批量下单
+        success_count = 0
+        fail_count = 0
+        results = []
+        
+        for symbol_data in top6_symbols:
+            inst_id = symbol_data['instId']
+            price = symbol_data['price']
+            
+            try:
+                # 设置杠杆
+                leverage = '10'
+                pos_side = direction  # long/short
+                
+                set_leverage_path = '/api/v5/account/set-leverage'
+                leverage_body = json.dumps({
+                    'instId': inst_id,
+                    'lever': leverage,
+                    'mgnMode': 'isolated',
+                    'posSide': pos_side
+                })
+                
+                leverage_timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+                leverage_message = leverage_timestamp + 'POST' + set_leverage_path + leverage_body
+                leverage_mac = hmac.new(bytes(secret_key, encoding='utf8'), bytes(leverage_message, encoding='utf-8'), digestmod='sha256')
+                leverage_signature = base64.b64encode(leverage_mac.digest()).decode()
+                
+                leverage_headers = {
+                    'OK-ACCESS-KEY': api_key,
+                    'OK-ACCESS-SIGN': leverage_signature,
+                    'OK-ACCESS-TIMESTAMP': leverage_timestamp,
+                    'OK-ACCESS-PASSPHRASE': passphrase,
+                    'Content-Type': 'application/json'
+                }
+                
+                requests.post(base_url + set_leverage_path, headers=leverage_headers, data=leverage_body, timeout=10)
+                
+                # 获取合约规格
+                instruments_path = f'/api/v5/public/instruments?instType=SWAP&instId={inst_id}'
+                instruments_response = requests.get(base_url + instruments_path, timeout=5)
+                instruments_data = instruments_response.json()
+                
+                ct_val = 0.1  # 默认值
+                if instruments_data.get('code') == '0' and instruments_data.get('data'):
+                    ct_val = float(instruments_data['data'][0].get('ctVal', 0.1))
+                
+                # 计算合约张数
+                usdt_per_contract = ct_val * price
+                contracts_count = max(1, round(contract_value_per_coin / usdt_per_contract))
+                
+                # 下单
+                request_path = '/api/v5/trade/order'
+                side = 'buy' if direction == 'long' else 'sell'
+                
+                order_params = {
+                    'instId': inst_id,
+                    'tdMode': 'isolated',
+                    'side': side,
+                    'posSide': pos_side,
+                    'ordType': 'market',
+                    'sz': str(int(contracts_count))
+                }
+                
+                body = json.dumps(order_params)
+                timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+                message = timestamp + 'POST' + request_path + body
+                mac = hmac.new(bytes(secret_key, encoding='utf8'), bytes(message, encoding='utf-8'), digestmod='sha256')
+                signature = base64.b64encode(mac.digest()).decode()
+                
+                headers = {
+                    'OK-ACCESS-KEY': api_key,
+                    'OK-ACCESS-SIGN': signature,
+                    'OK-ACCESS-TIMESTAMP': timestamp,
+                    'OK-ACCESS-PASSPHRASE': passphrase,
+                    'Content-Type': 'application/json'
+                }
+                
+                response = requests.post(base_url + request_path, headers=headers, data=body, timeout=10)
+                result = response.json()
+                
+                if result.get('code') == '0':
+                    success_count += 1
+                    results.append(f"✅ {inst_id}: 成功 ({contracts_count}张)")
+                else:
+                    fail_count += 1
+                    results.append(f"❌ {inst_id}: {result.get('msg')}")
+                    
+            except Exception as e:
+                fail_count += 1
+                results.append(f"❌ {inst_id}: {str(e)}")
         
         return jsonify({
-            'success': False,
-            'error': '此功能需要先在交易页面配置API密钥。\n\n请前往"OKX交易系统"页面配置账户后使用。',
-            'redirect': '/okx-trading'
+            'success': success_count > 0,
+            'successCount': success_count,
+            'failCount': fail_count,
+            'results': results
         })
         
     except Exception as e:
@@ -16499,6 +16697,7 @@ def batch_order_from_event():
             'error': str(e),
             'traceback': traceback.format_exc()
         })
+
 
 @app.route('/api/okx-trading/hedge-order', methods=['POST'])
 def hedge_order_from_event():

@@ -2052,13 +2052,31 @@
             const emoji = direction === 'long' ? '📈' : '📉';
             const strategyName = direction === 'long' ? '多单' : '空单';
             
+            // 从localStorage获取账户配置
+            let accounts = [];
+            try {
+                accounts = JSON.parse(localStorage.getItem('okx_accounts') || '[]');
+            } catch (e) {
+                console.error('无法读取账户配置:', e);
+            }
+            
+            if (accounts.length === 0 || !accounts[0].apiKey) {
+                if (confirm('⚠️ 未找到API配置\n\n需要先在OKX交易系统页面配置API密钥。\n\n是否现在前往配置？')) {
+                    window.open('https://5000-i4rq388xy9v1hw2uaz7ln-b9b802c4.sandbox.novita.ai/okx-trading', '_blank');
+                }
+                return;
+            }
+            
+            const account = accounts[0];  // 使用第一个账户
+            
             const confirmMsg = `${emoji} 确认批量${strategyName}策略？\n\n` +
                 `【策略参数】\n` +
+                `  • 账户: ${account.name}\n` +
                 `  • 方向: ${directionText}\n` +
                 `  • 每个币保证金: ${percentPerCoin}%\n` +
                 `  • 杠杆: 10x\n` +
                 `  • 币种数: 6个（涨幅前6）\n\n` +
-                `此操作将立即执行交易，确认继续？`;
+                `此操作将立即执行实盘交易，确认继续？`;
             
             if (!confirm(confirmMsg)) {
                 console.log('[批量开仓] 用户取消');
@@ -2072,7 +2090,10 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         direction: direction,
-                        percentPerCoin: percentPerCoin
+                        percentPerCoin: percentPerCoin,
+                        apiKey: account.apiKey,
+                        apiSecret: account.apiSecret,
+                        passphrase: account.passphrase
                     })
                 });
                 
@@ -2082,16 +2103,9 @@
                     alert(`✅ 批量开仓成功！\n\n` +
                         `成功: ${result.successCount}个\n` +
                         `失败: ${result.failCount}个\n\n` +
-                        `${result.details || ''}`);
+                        `详情:\n${result.results ? result.results.join('\n') : ''}`);
                 } else {
-                    // 如果需要配置，询问是否跳转
-                    if (result.redirect) {
-                        if (confirm(`${result.error}\n\n是否现在前往配置？`)) {
-                            window.open(result.redirect, '_blank');
-                        }
-                    } else {
-                        alert(`❌ 批量开仓失败\n\n${result.error || '未知错误'}`);
-                    }
+                    alert(`❌ 批量开仓失败\n\n${result.error || '未知错误'}`);
                 }
             } catch (error) {
                 console.error('[批量开仓] 异常:', error);
@@ -2104,12 +2118,30 @@
             const hedgeText = hedgeDirection === 'short' ? '空单配多单' : '多单配空单';
             const emoji = hedgeDirection === 'short' ? '🟣' : '🟠';
             
+            // 从localStorage获取账户配置
+            let accounts = [];
+            try {
+                accounts = JSON.parse(localStorage.getItem('okx_accounts') || '[]');
+            } catch (e) {
+                console.error('无法读取账户配置:', e);
+            }
+            
+            if (accounts.length === 0 || !accounts[0].apiKey) {
+                if (confirm('⚠️ 未找到API配置\n\n需要先在OKX交易系统页面配置API密钥。\n\n是否现在前往配置？')) {
+                    window.open('https://5000-i4rq388xy9v1hw2uaz7ln-b9b802c4.sandbox.novita.ai/okx-trading', '_blank');
+                }
+                return;
+            }
+            
+            const account = accounts[0];  // 使用第一个账户
+            
             const confirmMsg = `${emoji} 确认${hedgeText}对冲？\n\n` +
                 `【对冲说明】\n` +
+                `  • 账户: ${account.name}\n` +
                 `  • 根据现有${hedgeDirection === 'short' ? '空单' : '多单'}持仓\n` +
                 `  • 按1:1金额开${hedgeDirection === 'short' ? '多单' : '空单'}对冲\n` +
                 `  • 锁定当前盈亏，降低风险\n\n` +
-                `此操作将立即执行交易，确认继续？`;
+                `此操作将立即执行实盘交易，确认继续？`;
             
             if (!confirm(confirmMsg)) {
                 console.log('[对冲开仓] 用户取消');
@@ -2122,7 +2154,10 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        hedgeDirection: hedgeDirection
+                        hedgeDirection: hedgeDirection,
+                        apiKey: account.apiKey,
+                        apiSecret: account.apiSecret,
+                        passphrase: account.passphrase
                     })
                 });
                 
@@ -2132,16 +2167,9 @@
                     alert(`✅ 对冲开仓成功！\n\n` +
                         `成功: ${result.successCount}个\n` +
                         `失败: ${result.failCount}个\n\n` +
-                        `${result.details || ''}`);
+                        `详情:\n${result.results ? result.results.join('\n') : ''}`);
                 } else {
-                    // 如果需要配置，询问是否跳转
-                    if (result.redirect) {
-                        if (confirm(`${result.error}\n\n是否现在前往配置？`)) {
-                            window.open(result.redirect, '_blank');
-                        }
-                    } else {
-                        alert(`❌ 对冲开仓失败\n\n${result.error || '未知错误'}`);
-                    }
+                    alert(`❌ 对冲开仓失败\n\n${result.error || '未知错误'}`);
                 }
             } catch (error) {
                 console.error('[对冲开仓] 异常:', error);
