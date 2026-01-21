@@ -135,26 +135,47 @@ class MajorEventsMonitor:
     
     def get_2h_top_signal_count(self):
         """
-        获取2h见顶信号数量（从JSONL读取）
+        获取2h见顶信号数量（从anchor_profit_stats读取）
         返回: int, 见顶信号的币种数量
         """
         try:
-            jsonl_file = self.data_dir / 'sar_slope_data.jsonl'
+            # 使用escape signal数据源
+            jsonl_file = Path('/home/user/webapp/data/anchor_profit_stats/anchor_profit_stats.jsonl')
             if not jsonl_file.exists():
-                logger.warning(f"SAR数据文件不存在: {jsonl_file}")
+                logger.warning(f"Escape Signal数据文件不存在: {jsonl_file}")
                 return 0
             
-            # 读取最后一行（最新数据）
+            # 读取最后100行，统计最新时间的2h信号
             with open(jsonl_file, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
                 if not lines:
                     return 0
                 
-                last_line = lines[-1]
-                data = json.loads(last_line)
-                count = data.get('count', 0)
+                # 按时间分组统计
+                from collections import defaultdict
+                time_signals = defaultdict(list)
                 
-                logger.info(f"2h见顶信号数量: {count}")
+                # 读取最后100条记录
+                for line in lines[-100:]:
+                    if line.strip():
+                        try:
+                            data = json.loads(line)
+                            dt = data.get('datetime')
+                            signal_2h = data.get('escape_signal_2h', 0)
+                            if dt:
+                                time_signals[dt].append(signal_2h)
+                        except:
+                            continue
+                
+                # 获取最新时间的数据
+                if not time_signals:
+                    return 0
+                
+                latest_time = max(time_signals.keys())
+                signals = time_signals[latest_time]
+                count = sum(1 for s in signals if s != 0)
+                
+                logger.info(f"2h见顶信号数量: {count} (时间: {latest_time})")
                 return count
             
         except Exception as e:
