@@ -1230,10 +1230,20 @@
                     document.getElementById('availableBalance').textContent = data.availableBalance.toFixed(2) + ' USDT';
                     document.getElementById('usedMargin').textContent = data.usedMargin.toFixed(2) + ' USDT';
                     
+                    // 更新账户对象中的余额（使用可用余额）
+                    account.balance = data.availableBalance;
+                    localStorage.setItem('okx_accounts', JSON.stringify(accounts));
+                    
                     // 同时更新订单表单中的可用余额
                     const orderBalanceEl = document.getElementById('orderAvailableBalance');
                     if (orderBalanceEl) {
                         orderBalanceEl.textContent = data.availableBalance.toFixed(2) + ' USDT';
+                    }
+                    
+                    // 更新账户标签处的余额
+                    const accountBalanceEl = document.getElementById('accountBalance');
+                    if (accountBalanceEl) {
+                        accountBalanceEl.textContent = data.availableBalance.toFixed(2) + ' USDT';
                     }
                     
                     // 未实现盈亏带颜色
@@ -1550,10 +1560,32 @@
 
         // 设置金额百分比
         function setAmount(percent) {
-            const account = accounts.find(acc => acc.id === currentAccount);
-            const balance = account ? account.balance : 0;
+            // 从DOM中获取实时的可用余额
+            const orderBalanceEl = document.getElementById('orderAvailableBalance');
+            let balance = 0;
+            
+            if (orderBalanceEl && orderBalanceEl.textContent) {
+                // 提取数字部分，例如 "101.28 USDT" -> 101.28
+                const balanceText = orderBalanceEl.textContent.trim();
+                const balanceMatch = balanceText.match(/[\d.]+/);
+                if (balanceMatch) {
+                    balance = parseFloat(balanceMatch[0]);
+                }
+            }
+            
+            // 如果没有从DOM获取到，尝试从账户对象获取
+            if (balance === 0) {
+                const account = accounts.find(acc => acc.id === currentAccount);
+                balance = account ? (account.balance || 0) : 0;
+            }
+            
+            // 计算仓位金额
             const amount = (balance * percent / 100).toFixed(2);
-            document.getElementById('orderAmount').value = amount;
+            const orderAmountInput = document.getElementById('orderAmount');
+            if (orderAmountInput) {
+                orderAmountInput.value = amount;
+                console.log(`设置${percent}%仓位: 可用余额=${balance} USDT, 仓位金额=${amount} USDT`);
+            }
         }
 
         // 提交订单
