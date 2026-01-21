@@ -16129,6 +16129,25 @@ def service_health():
         })
 
 # ==================== 重大事件系统 API ====================
+@app.route('/major-events-test')
+def major_events_test():
+    """重大事件按钮测试页面"""
+    try:
+        html_file = '/home/user/webapp/test_buttons.html'
+        with open(html_file, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+        
+        # 添加no-cache头
+        response = make_response(html_content)
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '-1'
+        return response
+    except FileNotFoundError:
+        return "测试页面未找到", 404
+    except Exception as e:
+        return f"加载测试页面失败: {str(e)}", 500
+
 @app.route('/major-events')
 def major_events_page():
     """重大事件系统主页"""

@@ -701,38 +701,12 @@ class MajorEventsMonitor:
                     
                     # 检查趋势反转
                     if last_mark != previous_mark:
-                        # 事件5：从红转绿 → 开空单
-                        if last_mark == 'green' and previous_mark == 'red':
+                        # 事件5：从绿转红 → 开空单（绿色信号转红色信号）
+                        if last_mark == 'red' and previous_mark == 'green':
                             event = {
-                                'event_type': 'red_to_green_open_short',
+                                'event_type': 'green_to_red_open_short',
                                 'event_id': 5,
-                                'event_name': '红色标转绿色表',
-                                'reversal_type': 'red_to_green',
-                                'previous_mark': {
-                                    'color': 'red',
-                                    'datetime': history[-2]['datetime'],
-                                    'short_profit_120': history[-2]['short_profit_120']
-                                },
-                                'current_mark': {
-                                    'color': 'green',
-                                    'datetime': history[-1]['datetime'],
-                                    'short_loss': history[-1]['short_loss']
-                                },
-                                'action': '开空单',
-                                'confidence': 'medium',
-                                'description': f'红色标转绿色表：红色({history[-2]["short_profit_120"]}个盈利) → 绿色({history[-1]["short_loss"]}个亏损)，市场从强势转弱势，建议开空单'
-                            }
-                            
-                            logger.warning(f"🚨 事件5触发：红色标转绿色表 - 开空单！")
-                            self.save_event(event)
-                            return event
-                        
-                        # 事件6：从绿转红 → 开多单
-                        elif last_mark == 'red' and previous_mark == 'green':
-                            event = {
-                                'event_type': 'green_to_red_open_long',
-                                'event_id': 6,
-                                'event_name': '绿色表转红色标',
+                                'event_name': '绿色信号转红色信号',
                                 'reversal_type': 'green_to_red',
                                 'previous_mark': {
                                     'color': 'green',
@@ -744,12 +718,38 @@ class MajorEventsMonitor:
                                     'datetime': history[-1]['datetime'],
                                     'short_profit_120': history[-1]['short_profit_120']
                                 },
-                                'action': '开多单',
+                                'action': '开空单',
                                 'confidence': 'medium',
-                                'description': f'绿色表转红色标：绿色({history[-2]["short_loss"]}个亏损) → 红色({history[-1]["short_profit_120"]}个盈利)，市场从弱势转强势，建议开多单'
+                                'description': f'绿色信号转红色信号：绿色({history[-2]["short_loss"]}个亏损) → 红色({history[-1]["short_profit_120"]}个盈利)，市场转强但可能见顶，建议开空单'
                             }
                             
-                            logger.warning(f"🚨 事件6触发：绿色表转红色标 - 开多单！")
+                            logger.warning(f"🚨 事件5触发：绿色信号转红色信号 - 开空单！")
+                            self.save_event(event)
+                            return event
+                        
+                        # 事件6：从红转绿 → 开多单（红色信号转绿色信号）
+                        elif last_mark == 'green' and previous_mark == 'red':
+                            event = {
+                                'event_type': 'red_to_green_open_long',
+                                'event_id': 6,
+                                'event_name': '红色信号转绿色信号',
+                                'reversal_type': 'red_to_green',
+                                'previous_mark': {
+                                    'color': 'red',
+                                    'datetime': history[-2]['datetime'],
+                                    'short_profit_120': history[-2]['short_profit_120']
+                                },
+                                'current_mark': {
+                                    'color': 'green',
+                                    'datetime': history[-1]['datetime'],
+                                    'short_loss': history[-1]['short_loss']
+                                },
+                                'action': '开多单',
+                                'confidence': 'medium',
+                                'description': f'红色信号转绿色信号：红色({history[-2]["short_profit_120"]}个盈利) → 绿色({history[-1]["short_loss"]}个亏损)，市场转弱可能见底，建议开多单'
+                            }
+                            
+                            logger.warning(f"🚨 事件6触发：红色信号转绿色信号 - 开多单！")
                             self.save_event(event)
                             return event
         
@@ -812,8 +812,8 @@ class MajorEventsMonitor:
             'strong_short_liquidation': '💥',
             'weak_short_liquidation': '⚠️',
             'profit_trend_reversal': '🔄',
-            'red_to_green_open_short': '🔴➡️🟢',  # 事件5：红转绿开空单
-            'green_to_red_open_long': '🟢➡️🔴'    # 事件6：绿转红开多单
+            'green_to_red_open_short': '🟢➡️🔴',  # 事件5：绿转红开空单
+            'red_to_green_open_long': '🔴➡️🟢'    # 事件6：红转绿开多单
         }
         
         emoji = event_emoji.get(event.get('event_type'), '📢')
