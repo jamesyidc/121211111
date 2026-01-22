@@ -924,7 +924,9 @@
                         let extremeLowMarks = [];
                         
                         // 处理27币数据 - 对齐到逃顶信号时间轴
-                        let coinChangeData = [];
+                        let coinChangeData = [];  // 用于图表（采样后的数据）
+                        let coinChangeDataFull = []; // 用于表格（完整数据）
+                        
                         if (coinResult && coinResult.success && coinResult.data && coinResult.data.length > 0) {
                             // 创建27币数据的时间映射
                             const coinDataMap = new Map();
@@ -941,7 +943,7 @@
                                 coinDataMap.set(timestamp, totalSum);
                             });
                             
-                            // 对每个逃顶信号时间点，找最近的27币数据（30分钟内）
+                            // 对每个采样后的逃顶信号时间点，找最近的27币数据（用于图表）
                             sampledData.forEach((d, index) => {
                                 const targetTime = new Date(d.stat_time).getTime();
                                 let closestValue = null;
@@ -957,10 +959,27 @@
                                 
                                 // 调试：输出前5个和后5个对齐结果
                                 if (index < 5 || index >= sampledData.length - 5) {
-                                    console.log(`对齐 #${index}: ${d.stat_time} -> ${closestValue?.toFixed(2)}% (diff: ${(minDiff/60000).toFixed(1)}分钟)`);
+                                    console.log(`图表对齐 #${index}: ${d.stat_time} -> ${closestValue?.toFixed(2)}% (diff: ${(minDiff/60000).toFixed(1)}分钟)`);
                                 }
                                 
                                 coinChangeData.push(closestValue !== null ? closestValue.toFixed(2) : null);
+                            });
+                            
+                            // 对所有原始数据点，找最近的27币数据（用于表格）
+                            historyDataReversed.forEach((d, index) => {
+                                const targetTime = new Date(d.stat_time).getTime();
+                                let closestValue = null;
+                                let minDiff = Infinity;
+                                
+                                for (const [timestamp, value] of coinDataMap) {
+                                    const diff = Math.abs(timestamp - targetTime);
+                                    if (diff < 30 * 60 * 1000 && diff < minDiff) {
+                                        minDiff = diff;
+                                        closestValue = value;
+                                    }
+                                }
+                                
+                                coinChangeDataFull.push(closestValue !== null ? closestValue.toFixed(2) : null);
                             });
                             
                             console.log('💵 27币数据对齐完成，共', coinChangeData.length, '个点，有效数据', coinChangeData.filter(v => v !== null).length, '个');
@@ -1105,8 +1124,8 @@
                             let status = '正常';
                             let statusClass = 'status-normal';
                             
-                            // 获取对应的27币涨跌幅数据
-                            const coinChange = coinChangeData[i];
+                            // 获取对应的27币涨跌幅数据（使用完整数据）
+                            const coinChange = coinChangeDataFull[i];
                             
                             // 优先检查极端市场状态
                             if (coinChange !== null) {
