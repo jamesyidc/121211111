@@ -694,7 +694,7 @@
                         // ⚠️ API返回的数据是倒序的（最新在前），需要反转为正序（最早在前）
                         const historyDataReversed = result.history_data.slice().reverse();
                         
-                        // 🔥 智能关键点渲染：数据100%保存，图表只渲染1500-2000个关键点
+                        // 🔥 智能关键点渲染：数据100%保存，图表只渲染~2000个关键点
                         let sampledData = historyDataReversed;
                         let sampledIndices = [];
                         let keyPointsInfo = { total: historyDataReversed.length, sampled: 0, peaks: 0, valleys: 0, extreme: 0, uniform: 0, turning: 0 };
@@ -710,27 +710,27 @@
                             const p90 = sortedSignals[Math.floor(sortedSignals.length * 0.90)];
                             const p95 = sortedSignals[Math.floor(sortedSignals.length * 0.95)];
                             const p99 = sortedSignals[Math.floor(sortedSignals.length * 0.99)];
+                            const p999 = sortedSignals[Math.floor(sortedSignals.length * 0.999)];  // ⭐ P99.9: 只保留0.1%最极端数据
                             const avg = sortedSignals.reduce((a,b) => a+b, 0) / sortedSignals.length;
                             
-                            console.log('📊 数据分布: 平均=' + avg.toFixed(0) + ', P90=' + p90 + ', P95=' + p95 + ', P99=' + p99);
+                            console.log('📊 数据分布: 平均=' + avg.toFixed(0) + ', P90=' + p90 + ', P95=' + p95 + ', P99=' + p99 + ', P99.9=' + p999);
                             
                             // 关键点集合
                             const keyPoints = new Set();
                             
-                            // ========== 第1步：极值点检测 ==========
-                            // 只保留最极端的峰值（P99以上，约1%数据）
+                            // ========== 第1步：极端峰值检测（P99.9，约35个点） ==========
                             for (let i = 0; i < historyDataReversed.length; i++) {
                                 const signal24h = historyDataReversed[i].signal_24h_count || 0;
                                 const signal2h = historyDataReversed[i].signal_2h_count || 0;
                                 
-                                // 只保留最显著的峰值
-                                if (signal24h >= p99 || signal2h >= 55) {
+                                // 🔥 使用P99.9作为阈值，只保留最极端的0.1%数据
+                                if (signal24h >= p999 || signal2h >= 60) {
                                     keyPoints.add(i);
                                     keyPointsInfo.peaks++;
                                 }
                             }
                             
-                            // ========== 第2步：全局极值 ==========
+                            // ========== 第2步：全局极值（2个点） ==========
                             const maxValue = Math.max(...historyDataReversed.map(d => d.signal_24h_count || 0));
                             const minValue = Math.min(...historyDataReversed.map(d => (d.signal_24h_count || 0) > 0 ? d.signal_24h_count : Infinity));
                             for (let i = 0; i < historyDataReversed.length; i++) {
@@ -741,31 +741,31 @@
                                 }
                             }
                             
-                            // ========== 第3步：关键转折点检测 ==========
-                            // 检测信号急剧变化的点（每10个点检查一次，大幅减少）
-                            for (let i = 10; i < historyDataReversed.length - 10; i += 10) { 
-                                const prev = historyDataReversed[i-10]?.signal_24h_count || 0;
+                            // ========== 第3步：关键转折点检测（约50个点） ==========
+                            // 检测信号急剧变化的点（每20个点检查一次）
+                            for (let i = 20; i < historyDataReversed.length - 20; i += 20) { 
+                                const prev = historyDataReversed[i-20]?.signal_24h_count || 0;
                                 const current = historyDataReversed[i].signal_24h_count || 0;
-                                const next = historyDataReversed[i+10]?.signal_24h_count || 0;
+                                const next = historyDataReversed[i+20]?.signal_24h_count || 0;
                                 
-                                // 只检测极端急剧变化（变化超过平均值的3倍）
-                                const upChange = current - prev;
-                                const downChange = next - current;
+                                // 只检测极端急剧变化（变化超过P90）
+                                const upChange = Math.abs(current - prev);
+                                const downChange = Math.abs(next - current);
                                 
-                                if (Math.abs(upChange) > avg * 3 || Math.abs(downChange) > avg * 3) {
+                                if (upChange > p90 || downChange > p90) {
                                     keyPoints.add(i);
                                     keyPointsInfo.turning++;
                                 }
                             }
                             
-                            // ========== 第4步：稀疏局部峰谷点 ==========
-                            // 每3小时（180个点）只保留1个局部峰值
-                            const sparseWindow = 180; // 3小时窗口，大幅减少局部峰谷数量
+                            // ========== 第4步：稀疏局部峰谷点（约20个点） ==========
+                            // 每6小时（360个点）只保留1个局部峰值
+                            const sparseWindow = 360; // 6小时窗口，只保留最显著的局部峰值
                             for (let i = 0; i < historyDataReversed.length; i += sparseWindow) {
                                 const windowEnd = Math.min(i + sparseWindow, historyDataReversed.length);
                                 const windowData = historyDataReversed.slice(i, windowEnd);
                                 
-                                // 只找局部最大值（且必须超过P90才保留）
+                                // 只找局部最大值（且必须超过P95才保留）
                                 let maxIdx = 0, maxVal = -Infinity;
                                 
                                 windowData.forEach((d, idx) => {
@@ -773,8 +773,8 @@
                                     if (val > maxVal) { maxVal = val; maxIdx = i + idx; }
                                 });
                                 
-                                // 只保留真正显著的峰值（超过P90）
-                                if (maxVal >= p90) {
+                                // 只保留真正显著的峰值（超过P95）
+                                if (maxVal >= p95) {
                                     keyPoints.add(maxIdx);
                                     keyPointsInfo.valleys++;
                                 }
