@@ -690,13 +690,24 @@
                         // 更新图表 - 使用 history_data 显示完整历史
                         // ⚠️ API返回的数据是倒序的（最新在前），需要反转为正序（最早在前）
                         const historyDataReversed = result.history_data.slice().reverse();
-                        const times = historyDataReversed.map(d => d.stat_time.substring(5, 16)); // MM-DD HH:MM
-                        const signal24h = historyDataReversed.map(d => d.signal_24h_count);
-                        const signal2h = historyDataReversed.map(d => d.signal_2h_count);
+                        
+                        // 🔥 数据采样优化：对于超过10000个点的数据，进行智能采样
+                        let sampledData = historyDataReversed;
+                        let samplingRate = 1;
+                        
+                        if (historyDataReversed.length > 10000) {
+                            samplingRate = Math.ceil(historyDataReversed.length / 5000); // 采样到5000个点
+                            sampledData = historyDataReversed.filter((_, index) => index % samplingRate === 0);
+                            console.log(`📊 数据采样: 原始${historyDataReversed.length}点 -> 采样${sampledData.length}点 (采样率1/${samplingRate})`);
+                        }
+                        
+                        const times = sampledData.map(d => d.stat_time.substring(5, 16)); // MM-DD HH:MM
+                        const signal24h = sampledData.map(d => d.signal_24h_count);
+                        const signal2h = sampledData.map(d => d.signal_2h_count);
                         
                         // 计算每个自然日的2h最高点（仅标记>50的）
                         const dailyPeaks = {};
-                        historyDataReversed.forEach((d, index) => {
+                        sampledData.forEach((d, index) => {
                             const date = d.stat_time.substring(0, 10); // YYYY-MM-DD
                             const value = d.signal_2h_count;
                             
@@ -713,18 +724,18 @@
                         
                         // 计算24小时信号的48小时窗口最大值（仅标记>200的）
                         const window48hPeaks = [];
-                        const windowSize = 48 * 60; // 48小时，假设每分钟一个数据点
+                        const windowSize = Math.floor(48 * 60 / samplingRate); // 考虑采样率
                         
-                        for (let i = 0; i < historyDataReversed.length; i++) {
+                        for (let i = 0; i < sampledData.length; i++) {
                             // 找到当前位置前后48小时内的最大值
                             const startIndex = Math.max(0, i - windowSize / 2);
-                            const endIndex = Math.min(historyDataReversed.length - 1, i + windowSize / 2);
+                            const endIndex = Math.min(sampledData.length - 1, i + windowSize / 2);
                             
                             let maxValue = 0;
                             let maxIndex = i;
                             
                             for (let j = startIndex; j <= endIndex; j++) {
-                                const value = historyDataReversed[j].signal_24h_count;
+                                const value = sampledData[j].signal_24h_count;
                                 if (value > maxValue) {
                                     maxValue = value;
                                     maxIndex = j;
@@ -739,7 +750,7 @@
                                     window48hPeaks.push({
                                         index: i,
                                         value: maxValue,
-                                        time: historyDataReversed[i].stat_time
+                                        time: sampledData[i].stat_time
                                     });
                                 }
                             }
@@ -833,7 +844,8 @@
                                     const diff = Math.abs(new Date(d.stat_time).getTime() - pdTimestamp);
                                     if (diff < minDiff) {
                                         minDiff = diff;
-                                        closestIndex = index;
+                                        // 计算在采样数据中的索引
+                                        closestIndex = Math.floor(index / samplingRate);
                                     }
                                 });
                                 
@@ -871,7 +883,8 @@
                                     const diff = Math.abs(new Date(d.stat_time).getTime() - pdTimestamp);
                                     if (diff < minDiff) {
                                         minDiff = diff;
-                                        closestIndex = index;
+                                        // 计算在采样数据中的索引
+                                        closestIndex = Math.floor(index / samplingRate);
                                     }
                                 });
                                 
@@ -928,7 +941,7 @@
                             });
                             
                             // 对每个逃顶信号时间点，找最近的27币数据（30分钟内）
-                            historyDataReversed.forEach((d, index) => {
+                            sampledData.forEach((d, index) => {
                                 const targetTime = new Date(d.stat_time).getTime();
                                 let closestValue = null;
                                 let minDiff = Infinity;
@@ -942,7 +955,7 @@
                                 }
                                 
                                 // 调试：输出前5个和后5个对齐结果
-                                if (index < 5 || index >= historyDataReversed.length - 5) {
+                                if (index < 5 || index >= sampledData.length - 5) {
                                     console.log(`对齐 #${index}: ${d.stat_time} -> ${closestValue?.toFixed(2)}% (diff: ${(minDiff/60000).toFixed(1)}分钟)`);
                                 }
                                 
@@ -963,7 +976,7 @@
                                 if (value === null) return;
                                 
                                 const numValue = parseFloat(value);
-                                const record = historyDataReversed[index];
+                                const record = sampledData[index];
                                 const statTime = new Date(record.stat_time);
                                 const hourKey = `${statTime.getFullYear()}-${statTime.getMonth()+1}-${statTime.getDate()}-${statTime.getHours()}`;
                                 
