@@ -1274,17 +1274,44 @@
     </div>
 
     <script>
-        // 初始化图表
-        const profitChart = echarts.init(document.getElementById('profitChart'));
-        const profitStatsChart = echarts.init(document.getElementById('profitStatsChart'));
+        // 图表实例（延迟初始化）
+        let profitChart = null;
+        let profitStatsChart = null;
 
         // 图表翻页相关变量
         let currentPage = 0; // 0表示今天，-1表示昨天，-2表示前天
         let allHistoryData = []; // 存储所有历史数据
         
+        // 初始化图表（确保DOM已加载）
+        function initCharts() {
+            if (!profitChart) {
+                const profitChartDom = document.getElementById('profitChart');
+                if (profitChartDom) {
+                    profitChart = echarts.init(profitChartDom);
+                    console.log('✅ profitChart 初始化成功');
+                } else {
+                    console.error('❌ profitChart 容器未找到');
+                }
+            }
+            
+            if (!profitStatsChart) {
+                const profitStatsChartDom = document.getElementById('profitStatsChart');
+                if (profitStatsChartDom) {
+                    profitStatsChart = echarts.init(profitStatsChartDom);
+                    console.log('✅ profitStatsChart 初始化成功');
+                } else {
+                    console.error('❌ profitStatsChart 容器未找到');
+                }
+            }
+        }
+        
         // 加载空单盈利统计数据（加载全部数据）
         async function loadProfitStats() {
             console.log('🚀 开始加载空单盈利统计数据...');
+            
+            // 确保图表已初始化
+            initCharts();
+            
             try {
                 // 加载最近7天的数据（24小时×60分钟×7天 = 10080条）
                 const response = await fetch('/api/anchor-profit/history?limit=2880');  // 限制到最近2天数据（2880分钟）
