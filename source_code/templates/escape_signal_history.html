@@ -851,7 +851,7 @@
                         
                         // 创建时间戳映射表（逃顶信号数据的时间 -> 索引）
                         const timeToIndexMap = {};
-                        result.history_data.forEach((d, index) => {
+                        sampledData.forEach((d, index) => {
                             const timestamp = new Date(d.stat_time).getTime();
                             timeToIndexMap[timestamp] = index;
                         });
