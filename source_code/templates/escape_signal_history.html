@@ -723,13 +723,13 @@
                             // 关键点集合
                             const keyPoints = new Set();
                             
-                            // ========== 第1步：极端峰值检测（P99.9，约35+35=70个点） ==========
+                            // ========== 第1步：极端峰值检测（仅P99.9，约115个点） ==========
                             for (let i = 0; i < historyDataReversed.length; i++) {
                                 const signal24h = historyDataReversed[i].signal_24h_count || 0;
-                                const signal2h = historyDataReversed[i].signal_2h_count || 0;
                                 
-                                // 🔥 使用P99.9作为阈值，24h和2h都只保留最极端的0.1%数据
-                                if (signal24h >= p999 || signal2h >= p999_2h) {
+                                // 🔥 只使用signal_24h的P99.9作为阈值
+                                // 原因: signal_2h有上限cap(120)，396个点都是120，无法区分关键点
+                                if (signal24h >= p999) {
                                     keyPoints.add(i);
                                     keyPointsInfo.peaks++;
                                 }
