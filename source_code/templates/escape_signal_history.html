@@ -739,16 +739,36 @@
                 const profitData = profitResult.data || [];
                 
                 // 更新统计卡片（使用关键点API返回的统计信息）
-                document.getElementById('totalRecords').textContent = keypointsResult.total_records.toLocaleString();
-                document.getElementById('max24h').textContent = keypointsResult.max_signal_24h;
-                document.getElementById('max2h').textContent = keypointsResult.max_signal_2h;
-                document.getElementById('sample24h').textContent = keypointsResult.keypoint_count;
-                document.getElementById('median24h').textContent = '-';  // 暂时不计算中位数
+                const totalRecordsEl = document.getElementById('totalRecords');
+                const max24hEl = document.getElementById('max24h');
+                const max2hEl = document.getElementById('max2h');
+                const sample24hEl = document.getElementById('sample24h');
+                const median24hEl = document.getElementById('median24h');
+                const lastUpdateTimeEl = document.getElementById('lastUpdateTime');
+                
+                if (totalRecordsEl) totalRecordsEl.textContent = keypointsResult.total_records.toLocaleString();
+                if (max24hEl) max24hEl.textContent = keypointsResult.max_signal_24h;
+                if (max2hEl) max2hEl.textContent = keypointsResult.max_signal_2h;
+                if (sample24hEl) sample24hEl.textContent = keypointsResult.keypoint_count;
+                if (median24hEl) median24hEl.textContent = '-';  // 暂时不计算中位数
+                
+                console.log('📊 统计卡片更新:', {
+                    totalRecords: keypointsResult.total_records,
+                    max24h: keypointsResult.max_signal_24h,
+                    max2h: keypointsResult.max_signal_2h,
+                    sample24h: keypointsResult.keypoint_count,
+                    元素存在: {
+                        totalRecords: !!totalRecordsEl,
+                        max24h: !!max24hEl,
+                        max2h: !!max2hEl,
+                        sample24h: !!sample24hEl
+                    }
+                });
                 
                 // 更新最后更新时间
                 const now = new Date();
                 const timeStr = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                document.getElementById('lastUpdateTime').textContent = timeStr;
+                if (lastUpdateTimeEl) lastUpdateTimeEl.textContent = timeStr;
                 
                 console.log(`📊 数据规模: 原始=${keypointsResult.total_records.toLocaleString()}, 渲染=${keypointsResult.keypoint_count}, 压缩率=${keypointsResult.compression_rate}`);
                         
