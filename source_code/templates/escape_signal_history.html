@@ -1257,6 +1257,12 @@
                         
                         // 🔥 强制刷新图表
                         console.log('📊 图表setOption完成，开始resize');
+                        const chartDom = document.getElementById('trendChart');
+                        console.log('📏 图表容器尺寸:', {
+                            width: chartDom.offsetWidth,
+                            height: chartDom.offsetHeight,
+                            display: window.getComputedStyle(chartDom).display
+                        });
                         setTimeout(() => {
                             if (chart) {
                                 chart.resize();
