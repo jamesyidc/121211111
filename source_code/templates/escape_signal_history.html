@@ -835,7 +835,6 @@
                             // 数据量不大，全部渲染
                             sampledIndices = Array.from({length: historyDataReversed.length}, (_, i) => i);
                         }
-                        }
                         
                         const times = sampledData.map(d => d.stat_time.substring(5, 16)); // MM-DD HH:MM
                         const signal24h = sampledData.map(d => d.signal_24h_count);
