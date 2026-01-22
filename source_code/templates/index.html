@@ -385,6 +385,36 @@
                 <a href="/coin-price-tracker" class="module-btn" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">查看追踪 📈</a>
             </div>
             
+            <!-- 27币涨跌幅追踪系统（1分钟实时）NEW -->
+            <div class="module-card" onclick="location.href='/coin-change-tracker'" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.95) 0%, rgba(5, 150, 105, 0.95) 100%); border: 2px solid #10b981;">
+                <div class="module-icon">📈</div>
+                <h2>27币涨跌幅追踪系统 🆕</h2>
+                <p>1分钟精细粒度实时追踪，使用日线开盘价作为0点基准，标记最高/最低价</p>
+                <div class="module-stats">
+                    <div class="module-stats-row">
+                        <span class="stats-label">监控币种:</span>
+                        <span class="stats-value">27个</span>
+                    </div>
+                    <div class="module-stats-row">
+                        <span class="stats-label">采集周期:</span>
+                        <span class="stats-value" style="color: #fbbf24;">1分钟</span>
+                    </div>
+                    <div class="module-stats-row">
+                        <span class="stats-label">基准价:</span>
+                        <span class="stats-value">日线开盘价（0点）</span>
+                    </div>
+                    <div class="module-stats-row">
+                        <span class="stats-label">实时涨跌幅:</span>
+                        <span class="stats-value" id="coin-change-latest" style="color: #10b981;">-</span>
+                    </div>
+                    <div class="module-stats-row">
+                        <span class="stats-label">更新时间:</span>
+                        <span class="stats-value" id="coin-change-time">-</span>
+                    </div>
+                </div>
+                <a href="/coin-change-tracker" class="module-btn" style="background: linear-gradient(135deg, #059669 0%, #047857 100%);">实时追踪 🔥</a>
+            </div>
+            
             <div class="module-card" onclick="location.href='/query'">
                 <div class="module-icon">🔍</div>
                 <h2>历史数据查询</h2>
@@ -1248,6 +1278,35 @@
             })
             .catch(err => {
                 console.error('获取27币追踪器数据失败:', err);
+            });
+        
+        // 加载27币涨跌幅追踪系统数据（1分钟实时）
+        fetch('/api/coin-change-tracker/latest')
+            .then(res => res.json())
+            .then(response => {
+                if (response.success && response.data) {
+                    const data = response.data;
+                    
+                    // 更新实时涨跌幅
+                    const latestEl = document.getElementById('coin-change-latest');
+                    const totalChange = data.total_change || 0;
+                    latestEl.textContent = (totalChange > 0 ? '+' : '') + totalChange.toFixed(2) + '%';
+                    
+                    // 根据涨跌设置颜色
+                    if (totalChange > 0) {
+                        latestEl.style.color = '#10b981';
+                    } else if (totalChange < 0) {
+                        latestEl.style.color = '#ef4444';
+                    } else {
+                        latestEl.style.color = '#fbbf24';
+                    }
+                    
+                    // 更新时间
+                    document.getElementById('coin-change-time').textContent = formatTime(data.time || '-');
+                }
+            })
+            .catch(err => {
+                console.error('获取27币追踪系统数据失败:', err);
             });
         
         // 加载重大事件监控系统数据
