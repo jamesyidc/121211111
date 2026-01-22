@@ -694,14 +694,78 @@
                         // ⚠️ API返回的数据是倒序的（最新在前），需要反转为正序（最早在前）
                         const historyDataReversed = result.history_data.slice().reverse();
                         
-                        // 🔥 数据采样优化：对于超过10000个点的数据，进行智能采样
+                        // 🔥 智能关键点采样优化：保留峰值、谷值、转折点
                         let sampledData = historyDataReversed;
                         let samplingRate = 1;
+                        let keyPointsInfo = { total: historyDataReversed.length, sampled: historyDataReversed.length, peaks: 0, valleys: 0, inflection: 0 };
                         
                         if (historyDataReversed.length > 10000) {
-                            samplingRate = Math.ceil(historyDataReversed.length / 5000); // 采样到5000个点
-                            sampledData = historyDataReversed.filter((_, index) => index % samplingRate === 0);
-                            console.log(`📊 数据采样: 原始${historyDataReversed.length}点 -> 采样${sampledData.length}点 (采样率1/${samplingRate})`);
+                            const targetPoints = 5000;
+                            samplingRate = Math.ceil(historyDataReversed.length / targetPoints);
+                            
+                            // 第一步：识别关键点
+                            const keyPointIndices = new Set();
+                            
+                            // 1. 保留所有峰值点（局部最大值）和谷值点（局部最小值）
+                            const windowSize = Math.max(5, Math.floor(samplingRate / 2));
+                            for (let i = 0; i < historyDataReversed.length; i++) {
+                                const current = historyDataReversed[i].signal_24h_count;
+                                const start = Math.max(0, i - windowSize);
+                                const end = Math.min(historyDataReversed.length - 1, i + windowSize);
+                                
+                                let isPeak = true;
+                                let isValley = true;
+                                
+                                for (let j = start; j <= end; j++) {
+                                    if (j === i) continue;
+                                    const value = historyDataReversed[j].signal_24h_count;
+                                    if (value > current) isPeak = false;
+                                    if (value < current) isValley = false;
+                                }
+                                
+                                if (isPeak && current > 100) {  // 只保留显著峰值
+                                    keyPointIndices.add(i);
+                                    keyPointsInfo.peaks++;
+                                }
+                                if (isValley && current < 50) {  // 只保留显著谷值
+                                    keyPointIndices.add(i);
+                                    keyPointsInfo.valleys++;
+                                }
+                            }
+                            
+                            // 2. 保留极端值点
+                            const maxValue = Math.max(...historyDataReversed.map(d => d.signal_24h_count));
+                            const minValue = Math.min(...historyDataReversed.map(d => d.signal_24h_count));
+                            historyDataReversed.forEach((d, i) => {
+                                if (d.signal_24h_count === maxValue || d.signal_24h_count === minValue) {
+                                    keyPointIndices.add(i);
+                                }
+                            });
+                            
+                            // 3. 均匀采样其他点
+                            for (let i = 0; i < historyDataReversed.length; i += samplingRate) {
+                                keyPointIndices.add(i);
+                            }
+                            
+                            // 4. 确保首尾点都保留
+                            keyPointIndices.add(0);
+                            keyPointIndices.add(historyDataReversed.length - 1);
+                            
+                            // 第二步：按索引排序并提取数据
+                            const sortedIndices = Array.from(keyPointIndices).sort((a, b) => a - b);
+                            sampledData = sortedIndices.map(i => historyDataReversed[i]);
+                            
+                            // 创建原始索引到采样索引的映射
+                            const indexMapping = new Map();
+                            sortedIndices.forEach((originalIndex, sampledIndex) => {
+                                indexMapping.set(originalIndex, sampledIndex);
+                            });
+                            // 保存映射供后续使用
+                            window._indexMapping = indexMapping;
+                            window._sortedIndices = sortedIndices;
+                            
+                            keyPointsInfo.sampled = sampledData.length;
+                            console.log(`📊 智能采样: 原始${keyPointsInfo.total}点 -> ${keyPointsInfo.sampled}点 (${Math.round(keyPointsInfo.sampled/keyPointsInfo.total*100)}%) | 峰值:${keyPointsInfo.peaks} 谷值:${keyPointsInfo.valleys}`);
                         }
                         
                         const times = sampledData.map(d => d.stat_time.substring(5, 16)); // MM-DD HH:MM
@@ -848,8 +912,15 @@
                                     const diff = Math.abs(new Date(d.stat_time).getTime() - pdTimestamp);
                                     if (diff < minDiff) {
                                         minDiff = diff;
-                                        // 计算在采样数据中的索引
-                                        closestIndex = Math.floor(index / samplingRate);
+                                        // 使用索引映射找到采样后的索引
+                                        if (window._indexMapping && window._indexMapping.has(index)) {
+                                            closestIndex = window._indexMapping.get(index);
+                                        } else if (samplingRate > 1) {
+                                            // 如果没有精确映射，找最接近的采样点
+                                            closestIndex = Math.floor(index / samplingRate);
+                                        } else {
+                                            closestIndex = index;
+                                        }
                                     }
                                 });
                                 
@@ -887,8 +958,15 @@
                                     const diff = Math.abs(new Date(d.stat_time).getTime() - pdTimestamp);
                                     if (diff < minDiff) {
                                         minDiff = diff;
-                                        // 计算在采样数据中的索引
-                                        closestIndex = Math.floor(index / samplingRate);
+                                        // 使用索引映射找到采样后的索引
+                                        if (window._indexMapping && window._indexMapping.has(index)) {
+                                            closestIndex = window._indexMapping.get(index);
+                                        } else if (samplingRate > 1) {
+                                            // 如果没有精确映射，找最接近的采样点
+                                            closestIndex = Math.floor(index / samplingRate);
+                                        } else {
+                                            closestIndex = index;
+                                        }
                                     }
                                 });
                                 
