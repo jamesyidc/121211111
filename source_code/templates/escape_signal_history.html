@@ -1255,6 +1255,15 @@
                             ]
                         });
                         
+                        // 🔥 强制刷新图表
+                        console.log('📊 图表setOption完成，开始resize');
+                        setTimeout(() => {
+                            if (chart) {
+                                chart.resize();
+                                console.log('✅ 图表resize完成');
+                            }
+                        }, 100);
+                        
                         // 更新表格
                         const tbody = document.getElementById('tableBody');
                         tbody.innerHTML = '';
@@ -1329,6 +1338,13 @@
             
             // 每30秒自动刷新
             setInterval(loadData, 30000);
+            
+            // 监听窗口resize事件
+            window.addEventListener('resize', function() {
+                if (chart) {
+                    chart.resize();
+                }
+            });
         });
     </script>
 </body>
