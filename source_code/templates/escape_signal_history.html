@@ -791,18 +791,19 @@
                         
                         // 计算24小时信号的48小时窗口最大值（仅标记>200的）
                         const window48hPeaks = [];
-                        const windowSize = Math.floor(48 * 60 / samplingRate); // 考虑采样率
+                        // 智能采样后，窗口大小基于采样后的数据点数
+                        const windowSize = Math.max(50, Math.floor(sampledData.length / (historyDataReversed.length / (48 * 60))));
                         
                         for (let i = 0; i < sampledData.length; i++) {
                             // 找到当前位置前后48小时内的最大值
-                            const startIndex = Math.max(0, i - windowSize / 2);
-                            const endIndex = Math.min(sampledData.length - 1, i + windowSize / 2);
+                            const startIndex = Math.max(0, Math.floor(i - windowSize / 2));
+                            const endIndex = Math.min(sampledData.length - 1, Math.floor(i + windowSize / 2));
                             
                             let maxValue = 0;
                             let maxIndex = i;
                             
-                            for (let j = startIndex; j <= endIndex; j++) {
-                                if (j < 0 || j >= sampledData.length) continue; // 边界检查
+                            for (let j = Math.floor(startIndex); j <= Math.floor(endIndex); j++) {
+                                if (!sampledData[j]) continue; // 安全检查
                                 const value = sampledData[j].signal_24h_count;
                                 if (value > maxValue) {
                                     maxValue = value;
