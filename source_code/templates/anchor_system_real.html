@@ -1287,7 +1287,7 @@
             console.log('🚀 开始加载空单盈利统计数据...');
             try {
                 // 加载最近7天的数据（24小时×60分钟×7天 = 10080条）
-                const response = await fetch('/api/anchor-profit/history?limit=10080');
+                const response = await fetch('/api/anchor-profit/history?limit=2880');  // 限制到最近2天数据（2880分钟）
                 const result = await response.json();
                 
                 console.log('📊 API返回结果:', result);
@@ -1862,8 +1862,8 @@
             
             // 并行加载逃顶信号数据和OKX数据
             Promise.all([
-                fetch('/api/escape-signal-stats?v=' + Date.now()).then(r => r.json()),
-                fetch('/api/okx-day-change/latest?limit=10080&v=' + Date.now()).then(r => r.json())
+                fetch('/api/escape-signal-stats?limit=10080&v=' + Date.now()).then(r => r.json()),
+                fetch('/api/okx-day-change/latest?limit=7200&v=' + Date.now()).then(r => r.json())
             ])
                 .then(([escapeResult, okxResult]) => {
                     console.log('📡 数据加载完成');
@@ -2442,7 +2442,7 @@
                             fetch('/api/latest'),
                             fetch('/api/anchor-system/monitors?limit=50'),
                             fetch('/api/anchor-system/alerts?limit=10'),
-                            fetch('/api/anchor-system/profit-records-with-coins?trade_mode=real')  // 修改为新的API端点
+                            fetch('/api/anchor-system/profit-records-with-coins?trade_mode=real&limit=100')  // 限制返回100条
                         ]);
                         
                         // 处理计次数据（从/api/latest获取）
