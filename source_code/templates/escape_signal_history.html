@@ -706,25 +706,30 @@
                             
                             // 计算数据统计信息（只统计非零值）
                             const signal24hValues = historyDataReversed.map(d => d.signal_24h_count || 0).filter(v => v > 0);
-                            const sortedSignals = signal24hValues.sort((a, b) => a - b);
-                            const p90 = sortedSignals[Math.floor(sortedSignals.length * 0.90)];
-                            const p95 = sortedSignals[Math.floor(sortedSignals.length * 0.95)];
-                            const p99 = sortedSignals[Math.floor(sortedSignals.length * 0.99)];
-                            const p999 = sortedSignals[Math.floor(sortedSignals.length * 0.999)];  // ⭐ P99.9: 只保留0.1%最极端数据
-                            const avg = sortedSignals.reduce((a,b) => a+b, 0) / sortedSignals.length;
+                            const sortedSignals24h = signal24hValues.sort((a, b) => a - b);
+                            const p90 = sortedSignals24h[Math.floor(sortedSignals24h.length * 0.90)];
+                            const p95 = sortedSignals24h[Math.floor(sortedSignals24h.length * 0.95)];
+                            const p99 = sortedSignals24h[Math.floor(sortedSignals24h.length * 0.99)];
+                            const p999 = sortedSignals24h[Math.floor(sortedSignals24h.length * 0.999)];  // ⭐ P99.9: 只保留0.1%最极端数据
+                            const avg = sortedSignals24h.reduce((a,b) => a+b, 0) / sortedSignals24h.length;
                             
-                            console.log('📊 数据分布: 平均=' + avg.toFixed(0) + ', P90=' + p90 + ', P95=' + p95 + ', P99=' + p99 + ', P99.9=' + p999);
+                            // 计算signal_2h的P99.9阈值
+                            const signal2hValues = historyDataReversed.map(d => d.signal_2h_count || 0).filter(v => v > 0);
+                            const sortedSignals2h = signal2hValues.sort((a, b) => a - b);
+                            const p999_2h = sortedSignals2h[Math.floor(sortedSignals2h.length * 0.999)];
+                            
+                            console.log('📊 数据分布: 平均=' + avg.toFixed(0) + ', P90=' + p90 + ', P95=' + p95 + ', P99=' + p99 + ', P99.9=' + p999 + ', 2h_P99.9=' + p999_2h);
                             
                             // 关键点集合
                             const keyPoints = new Set();
                             
-                            // ========== 第1步：极端峰值检测（P99.9，约35个点） ==========
+                            // ========== 第1步：极端峰值检测（P99.9，约35+35=70个点） ==========
                             for (let i = 0; i < historyDataReversed.length; i++) {
                                 const signal24h = historyDataReversed[i].signal_24h_count || 0;
                                 const signal2h = historyDataReversed[i].signal_2h_count || 0;
                                 
-                                // 🔥 使用P99.9作为阈值，只保留最极端的0.1%数据
-                                if (signal24h >= p999 || signal2h >= 60) {
+                                // 🔥 使用P99.9作为阈值，24h和2h都只保留最极端的0.1%数据
+                                if (signal24h >= p999 || signal2h >= p999_2h) {
                                     keyPoints.add(i);
                                     keyPointsInfo.peaks++;
                                 }
@@ -818,7 +823,7 @@
                             console.log('✨ 智能关键点渲染策略:');
                             console.log('   📊 原始数据: ' + keyPointsInfo.total.toLocaleString() + ' 点 (100%完整保存)');
                             console.log('   🎯 渲染点数: ' + keyPointsInfo.sampled.toLocaleString() + ' 点');
-                            console.log('   📈 极端峰值: ' + keyPointsInfo.peaks + ' (P99以上)');
+                            console.log('   📈 极端峰值: ' + keyPointsInfo.peaks + ' (P99.9以上)');
                             console.log('   🔺 局部峰谷: ' + keyPointsInfo.valleys + ' (每小时1对)');
                             console.log('   ⭐ 全局极值: ' + keyPointsInfo.extreme + ' (最大/最小)');
                             console.log('   🔄 转折点: ' + keyPointsInfo.turning + ' (急剧变化)');
