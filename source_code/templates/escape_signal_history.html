@@ -984,10 +984,8 @@
                                         // 使用索引映射找到采样后的索引
                                         if (window._indexMapping && window._indexMapping.has(index)) {
                                             closestIndex = window._indexMapping.get(index);
-                                        } else if (samplingRate > 1) {
-                                            // 如果没有精确映射，找最接近的采样点
-                                            closestIndex = Math.floor(index / samplingRate);
                                         } else {
+                                            // 如果没有精确映射，使用最接近的采样点
                                             closestIndex = index;
                                         }
                                     }
@@ -1030,10 +1028,8 @@
                                         // 使用索引映射找到采样后的索引
                                         if (window._indexMapping && window._indexMapping.has(index)) {
                                             closestIndex = window._indexMapping.get(index);
-                                        } else if (samplingRate > 1) {
-                                            // 如果没有精确映射，找最接近的采样点
-                                            closestIndex = Math.floor(index / samplingRate);
                                         } else {
+                                            // 如果没有精确映射，使用最接近的采样点
                                             closestIndex = index;
                                         }
                                     }
