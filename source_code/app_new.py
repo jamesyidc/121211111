@@ -6318,6 +6318,60 @@ def api_escape_signal_stats():
             'traceback': traceback.format_exc()
         }), 500
 
+@app.route('/escape-signal-simple')
+def escape_signal_simple_page():
+    """逃顶信号简洁版页面"""
+    response = make_response(render_template('escape_signal_simple.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+@app.route('/api/escape-signal-simple')
+def api_escape_signal_simple():
+    """获取逃顶信号数据 - 极简API"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp')
+        from escape_signal_jsonl_manager import EscapeSignalJSONLManager
+        
+        manager = EscapeSignalJSONLManager()
+        
+        # 获取limit参数
+        limit = request.args.get('limit', type=int, default=1000)
+        
+        # 读取最近的记录
+        records = manager.read_records(limit=limit, reverse=True)  # 倒序（最新在前）
+        
+        # 过滤1月3日之后的数据
+        since_date = '2026-01-03 00:00:00'
+        filtered_records = [r for r in records if r.get('stat_time', '') >= since_date]
+        
+        # 计算统计信息
+        stats_info = manager.get_statistics()
+        
+        max_24h = max([r.get('signal_24h_count', 0) for r in filtered_records]) if filtered_records else 0
+        max_2h = max([r.get('signal_2h_count', 0) for r in filtered_records]) if filtered_records else 0
+        
+        return jsonify({
+            'success': True,
+            'total_count': stats_info['total_records'],
+            'records': filtered_records,
+            'max_signal_24h': max_24h,
+            'max_signal_2h': max_2h,
+            'data_source': 'JSONL',
+            'timezone': 'Beijing Time (UTC+8)'
+        })
+        
+    except Exception as e:
+        print(f"❌ API错误: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/trading-signals')
 def trading_signals_page():
     """决策-交易信号系统页面"""
