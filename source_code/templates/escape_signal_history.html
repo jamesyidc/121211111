@@ -735,6 +735,7 @@
                             let maxIndex = i;
                             
                             for (let j = startIndex; j <= endIndex; j++) {
+                                if (j < 0 || j >= sampledData.length) continue; // 边界检查
                                 const value = sampledData[j].signal_24h_count;
                                 if (value > maxValue) {
                                     maxValue = value;
