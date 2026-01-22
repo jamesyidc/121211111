@@ -6327,6 +6327,15 @@ def escape_signal_simple_page():
     response.headers['Expires'] = '0'
     return response
 
+@app.route('/test-simple')
+def test_simple_page():
+    """最简测试页面"""
+    response = make_response(render_template('test_simple.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
 @app.route('/api/escape-signal-simple')
 def api_escape_signal_simple():
     """获取逃顶信号数据 - 极简API"""
