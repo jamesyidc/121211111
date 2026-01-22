@@ -6090,6 +6090,129 @@ def escape_signal_history_page():
     response.headers['Expires'] = '0'
     return response
 
+@app.route('/api/escape-signal-stats/keypoints')
+def api_escape_signal_stats_keypoints():
+    """获取逃顶信号关键点数据（用于图表快速渲染）- 后端智能采样"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp')
+        from escape_signal_jsonl_manager import EscapeSignalJSONLManager
+        
+        manager = EscapeSignalJSONLManager()
+        
+        # 读取所有记录
+        all_records = manager.read_records(reverse=False)
+        
+        # 过滤出1月3日之后的数据
+        since_date = '2026-01-03 00:00:00'
+        filtered_records = [r for r in all_records if r.get('stat_time', '') >= since_date]
+        filtered_records = sorted(filtered_records, key=lambda x: x.get('stat_time', ''))
+        
+        if not filtered_records:
+            return jsonify({'success': False, 'message': 'No data available'})
+        
+        total_count = len(filtered_records)
+        
+        # 智能关键点采样算法
+        def extract_keypoints(data, target_points=2000):
+            """提取关键点（后端版本）"""
+            if len(data) <= target_points:
+                return list(range(len(data)))
+            
+            keypoints = set()
+            
+            # 1. 计算P99.9阈值
+            signal24h_values = [d.get('signal_24h_count', 0) for d in data if d.get('signal_24h_count', 0) > 0]
+            if not signal24h_values:
+                return list(range(len(data)))
+            
+            sorted_signals = sorted(signal24h_values)
+            p999_idx = int(len(sorted_signals) * 0.999)
+            p999 = sorted_signals[p999_idx] if p999_idx < len(sorted_signals) else sorted_signals[-1]
+            p95_idx = int(len(sorted_signals) * 0.95)
+            p95 = sorted_signals[p95_idx] if p95_idx < len(sorted_signals) else sorted_signals[-1]
+            
+            # 2. 极端峰值（P99.9以上）
+            for i, d in enumerate(data):
+                if d.get('signal_24h_count', 0) >= p999:
+                    keypoints.add(i)
+            
+            # 3. 全局极值
+            max_val = max(d.get('signal_24h_count', 0) for d in data)
+            min_vals = [d.get('signal_24h_count', 0) for d in data if d.get('signal_24h_count', 0) > 0]
+            min_val = min(min_vals) if min_vals else 0
+            
+            for i, d in enumerate(data):
+                val = d.get('signal_24h_count', 0)
+                if val == max_val or (val == min_val and val > 0):
+                    keypoints.add(i)
+            
+            # 4. 局部峰值（每6小时窗口保留1个显著峰值）
+            window_size = 360  # 6小时
+            for i in range(0, len(data), window_size):
+                window_end = min(i + window_size, len(data))
+                window_max = max(
+                    (d.get('signal_24h_count', 0), idx) 
+                    for idx, d in enumerate(data[i:window_end], start=i)
+                )
+                if window_max[0] >= p95:  # 只保留超过P95的局部峰值
+                    keypoints.add(window_max[1])
+            
+            # 5. 首尾点
+            keypoints.add(0)
+            keypoints.add(len(data) - 1)
+            
+            # 6. 均匀填充到目标点数
+            current_count = len(keypoints)
+            if current_count < target_points:
+                needed = target_points - current_count
+                step = max(1, len(data) // needed)
+                for i in range(0, len(data), step):
+                    if i not in keypoints:
+                        keypoints.add(i)
+                    if len(keypoints) >= target_points:
+                        break
+            
+            return sorted(list(keypoints))
+        
+        # 提取关键点索引
+        keypoint_indices = extract_keypoints(filtered_records, target_points=2000)
+        
+        # 构建关键点数据
+        keypoints_data = [
+            {
+                'stat_time': filtered_records[i].get('stat_time'),
+                'signal_24h_count': filtered_records[i].get('signal_24h_count', 0),
+                'signal_2h_count': filtered_records[i].get('signal_2h_count', 0),
+                'decline_strength_level': filtered_records[i].get('decline_strength_level', 0),
+                'rise_strength_level': filtered_records[i].get('rise_strength_level', 0)
+            }
+            for i in keypoint_indices
+        ]
+        
+        # 计算统计信息
+        max_signal_24h = max((r.get('signal_24h_count', 0) or 0) for r in filtered_records)
+        max_signal_2h = max((r.get('signal_2h_count', 0) or 0) for r in filtered_records)
+        
+        return jsonify({
+            'success': True,
+            'keypoints': keypoints_data,
+            'total_records': total_count,
+            'keypoint_count': len(keypoints_data),
+            'compression_rate': f'{len(keypoints_data) / total_count * 100:.1f}%',
+            'max_signal_24h': max_signal_24h,
+            'max_signal_2h': max_signal_2h,
+            'data_range': f'{filtered_records[0].get("stat_time")} ~ {filtered_records[-1].get("stat_time")}'
+        })
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
 @app.route('/api/escape-signal-stats')
 def api_escape_signal_stats():
     """获取逃顶信号统计数据（从JSONL读取）- 优化版本"""
