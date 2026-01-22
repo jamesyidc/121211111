@@ -72,24 +72,31 @@
             </div>
         </div>
 
-        <!-- 图表区域 -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <!-- 总涨跌幅趋势图 -->
+        <!-- 图表区域 - 趋势图独占一行，放大2倍 -->
+        <div class="grid grid-cols-1 gap-6 mb-6">
+            <!-- 总涨跌幅趋势图 - 放大2倍 -->
             <div class="bg-white rounded-lg shadow-lg p-6">
                 <h2 class="text-xl font-bold mb-4">
                     <i class="fas fa-chart-area text-blue-600 mr-2"></i>
                     总涨跌幅趋势（今日）
+                    <span class="text-sm font-normal text-gray-500 ml-2">
+                        <i class="fas fa-arrow-up text-red-500"></i> 最高价
+                        <i class="fas fa-arrow-down text-green-500 ml-3"></i> 最低价
+                    </span>
                 </h2>
-                <div id="trendChart" style="height: 400px;"></div>
+                <div id="trendChart" style="height: 800px;"></div>
             </div>
+        </div>
 
+        <!-- 排行榜 -->
+        <div class="grid grid-cols-1 gap-6 mb-6">
             <!-- 单币涨跌幅排行 -->
             <div class="bg-white rounded-lg shadow-lg p-6">
                 <h2 class="text-xl font-bold mb-4">
                     <i class="fas fa-trophy text-yellow-600 mr-2"></i>
                     单币涨跌幅排行（实时）
                 </h2>
-                <div id="rankChart" style="height: 400px;"></div>
+                <div id="rankChart" style="height: 800px;"></div>
             </div>
         </div>
 
@@ -225,10 +232,63 @@
                     const times = historyData.map(d => d.time);
                     const changes = historyData.map(d => d.total_change);
                     
-                    // 更新趋势图
+                    // 找出最高价和最低价
+                    const maxChange = Math.max(...changes);
+                    const minChange = Math.min(...changes);
+                    const maxIndex = changes.indexOf(maxChange);
+                    const minIndex = changes.indexOf(minChange);
+                    
+                    // 更新趋势图，添加最高价和最低价标记
                     trendChart.setOption({
                         xAxis: { data: times },
-                        series: [{ data: changes }]
+                        series: [{
+                            data: changes,
+                            markPoint: {
+                                data: [
+                                    {
+                                        name: '最高价',
+                                        value: maxChange.toFixed(2) + '%',
+                                        xAxis: maxIndex,
+                                        yAxis: maxChange,
+                                        itemStyle: {
+                                            color: '#EF4444'
+                                        },
+                                        label: {
+                                            formatter: '{b}\n{c}',
+                                            fontSize: 14,
+                                            fontWeight: 'bold'
+                                        }
+                                    },
+                                    {
+                                        name: '最低价',
+                                        value: minChange.toFixed(2) + '%',
+                                        xAxis: minIndex,
+                                        yAxis: minChange,
+                                        itemStyle: {
+                                            color: '#10B981'
+                                        },
+                                        label: {
+                                            formatter: '{b}\n{c}',
+                                            fontSize: 14,
+                                            fontWeight: 'bold'
+                                        }
+                                    }
+                                ],
+                                symbol: 'pin',
+                                symbolSize: 60
+                            },
+                            markLine: {
+                                silent: true,
+                                lineStyle: {
+                                    color: '#ddd',
+                                    type: 'dashed'
+                                },
+                                data: [
+                                    { yAxis: maxChange },
+                                    { yAxis: minChange }
+                                ]
+                            }
+                        }]
                     });
                 }
             } catch (error) {
