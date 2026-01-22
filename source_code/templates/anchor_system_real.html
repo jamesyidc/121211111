@@ -1860,9 +1860,9 @@
         function loadEscapeSignalData() {
             console.log('🔍 开始加载逃顶信号数据...');
             
-            // 并行加载逃顶信号数据和OKX数据 - 限制为最近7天（10080分钟）
+            // 并行加载逃顶信号数据和OKX数据
             Promise.all([
-                fetch('/api/escape-signal-stats?limit=10080&v=' + Date.now()).then(r => r.json()),
+                fetch('/api/escape-signal-stats?v=' + Date.now()).then(r => r.json()),
                 fetch('/api/okx-day-change/latest?limit=10080&v=' + Date.now()).then(r => r.json())
             ])
                 .then(([escapeResult, okxResult]) => {
@@ -2442,7 +2442,7 @@
                             fetch('/api/latest'),
                             fetch('/api/anchor-system/monitors?limit=50'),
                             fetch('/api/anchor-system/alerts?limit=10'),
-                            fetch('/api/anchor-system/profit-records-with-coins?trade_mode=real&limit=100')  // 限制返回100条记录
+                            fetch('/api/anchor-system/profit-records-with-coins?trade_mode=real')  // 修改为新的API端点
                         ]);
                         
                         // 处理计次数据（从/api/latest获取）
@@ -4876,12 +4876,6 @@
             initEscapeSignalChart();
             initLiquidation1hChart();  // 初始化1小时爆仓金额图表
             
-            // 添加超时保护：30秒后强制隐藏加载指示器
-            const loadingTimeout = setTimeout(() => {
-                console.warn('⚠️ 加载超时（30秒），强制隐藏加载指示器');
-                document.getElementById('loading-indicator').classList.add('hidden');
-            }, 30000);
-            
             // 异步并行加载所有数据（不阻塞页面显示）
             Promise.all([
                 loadData(),
@@ -4890,12 +4884,10 @@
                 loadEscapeSignalData()
             ]).then(() => {
                 console.log('✅ 所有数据加载完成');
-                clearTimeout(loadingTimeout);  // 清除超时定时器
                 // 隐藏加载指示器
                 document.getElementById('loading-indicator').classList.add('hidden');
             }).catch(error => {
                 console.error('❌ 数据加载出错:', error);
-                clearTimeout(loadingTimeout);  // 清除超时定时器
                 // 即使出错也隐藏指示器
                 document.getElementById('loading-indicator').classList.add('hidden');
             });

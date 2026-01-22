@@ -6102,8 +6102,8 @@ def api_escape_signal_stats():
         
         manager = EscapeSignalJSONLManager()
         
-        # 获取请求参数 - 默认最近7天数据（约10080条，7*24*60）
-        limit = request.args.get('limit', type=int, default=10080)  # 默认7天数据
+        # 获取请求参数
+        limit = request.args.get('limit', type=int, default=None)  # None表示不限制
         
         # 获取统计信息
         stats_info = manager.get_statistics()
@@ -14609,15 +14609,10 @@ def get_profit_records_with_coins():
     """获取历史极值记录 + 27个币的实时涨跌幅和价格"""
     try:
         trade_mode = request.args.get('trade_mode', 'real')
-        limit = request.args.get('limit', type=int, default=100)  # 默认返回100条记录
         
         # 1. 获取极值记录
         manager = ExtremeJSONLManager(trade_mode=trade_mode)
         all_records = manager.get_deduplicated_records()
-        
-        # 限制返回数量
-        if limit > 0 and len(all_records) > limit:
-            all_records = all_records[-limit:]  # 取最新的limit条
         
         # 转换为API格式
         records = []
