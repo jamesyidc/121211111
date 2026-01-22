@@ -741,46 +741,41 @@
                                 }
                             }
                             
-                            // ========== 第3步：转折点检测 ==========
-                            // 检测信号急剧变化的点
-                            for (let i = 5; i < historyDataReversed.length - 5; i += 3) { // 每3个点检查一次
-                                const prev = historyDataReversed[i-5]?.signal_24h_count || 0;
+                            // ========== 第3步：关键转折点检测 ==========
+                            // 检测信号急剧变化的点（每10个点检查一次，大幅减少）
+                            for (let i = 10; i < historyDataReversed.length - 10; i += 10) { 
+                                const prev = historyDataReversed[i-10]?.signal_24h_count || 0;
                                 const current = historyDataReversed[i].signal_24h_count || 0;
-                                const next = historyDataReversed[i+5]?.signal_24h_count || 0;
+                                const next = historyDataReversed[i+10]?.signal_24h_count || 0;
                                 
-                                // 检测急剧上升或下降（变化超过平均值的2倍）
+                                // 只检测极端急剧变化（变化超过平均值的3倍）
                                 const upChange = current - prev;
                                 const downChange = next - current;
                                 
-                                if (Math.abs(upChange) > avg * 2 || Math.abs(downChange) > avg * 2) {
+                                if (Math.abs(upChange) > avg * 3 || Math.abs(downChange) > avg * 3) {
                                     keyPoints.add(i);
                                     keyPointsInfo.turning++;
                                 }
                             }
                             
-                            // ========== 第4步：局部峰谷点 ==========
-                            // 每小时（60个点）只保留1个局部峰值和1个谷值
-                            const hourlyWindow = 60;
-                            for (let i = 0; i < historyDataReversed.length; i += hourlyWindow) {
-                                const windowEnd = Math.min(i + hourlyWindow, historyDataReversed.length);
+                            // ========== 第4步：稀疏局部峰谷点 ==========
+                            // 每3小时（180个点）只保留1个局部峰值
+                            const sparseWindow = 180; // 3小时窗口，大幅减少局部峰谷数量
+                            for (let i = 0; i < historyDataReversed.length; i += sparseWindow) {
+                                const windowEnd = Math.min(i + sparseWindow, historyDataReversed.length);
                                 const windowData = historyDataReversed.slice(i, windowEnd);
                                 
-                                // 找局部最大值
+                                // 只找局部最大值（且必须超过P90才保留）
                                 let maxIdx = 0, maxVal = -Infinity;
-                                let minIdx = 0, minVal = Infinity;
                                 
                                 windowData.forEach((d, idx) => {
                                     const val = d.signal_24h_count || 0;
                                     if (val > maxVal) { maxVal = val; maxIdx = i + idx; }
-                                    if (val > 0 && val < minVal) { minVal = val; minIdx = i + idx; }
                                 });
                                 
-                                if (maxVal > avg * 0.8) { // 只保留有意义的峰值
+                                // 只保留真正显著的峰值（超过P90）
+                                if (maxVal >= p90) {
                                     keyPoints.add(maxIdx);
-                                    keyPointsInfo.valleys++;
-                                }
-                                if (minVal < avg * 0.5 && minVal > 0) { // 只保留有意义的谷值
-                                    keyPoints.add(minIdx);
                                     keyPointsInfo.valleys++;
                                 }
                             }
