@@ -6,7 +6,20 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>逃顶信号系统统计 - 历史数据明细 v2.1</title>
+    <title>逃顶信号系统统计 - 历史数据明细 v2.2-20260122</title>
+    <script>
+        // 🔥 强制版本检查和缓存清除
+        const CURRENT_VERSION = '2.2-20260122';
+        const storedVersion = localStorage.getItem('escape_signal_history_version');
+        if (storedVersion !== CURRENT_VERSION) {
+            console.log('🔄 检测到新版本，清除缓存...');
+            localStorage.setItem('escape_signal_history_version', CURRENT_VERSION);
+            // 强制刷新页面，绕过缓存
+            if (storedVersion) {  // 只有在有旧版本时才刷新
+                location.reload(true);
+            }
+        }
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <style>
         * {
@@ -362,10 +375,11 @@
         </div>
         
         <div class="header">
-            <h1>📊 逃顶信号系统统计 - 历史数据明细</h1>
+            <h1>📊 逃顶信号系统统计 - 历史数据明细 <span style="font-size: 14px; color: #10b981; font-weight: normal;">(v2.2-20260122)</span></h1>
             <div style="margin-top: 15px; display: flex; align-items: center; justify-content: center; gap: 15px;">
                 <span style="color: #666; font-size: 14px;">📅 最后更新: <span id="lastUpdateTime" style="color: #10b981; font-weight: 600;">--</span></span>
                 <button onclick="loadData(); this.blur();" style="padding: 8px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.3s;">🔄 立即刷新</button>
+                <button onclick="window.location.reload(true); this.blur();" style="padding: 8px 20px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.3s;">💪 强制刷新</button>
                 <span style="color: #999; font-size: 12px;">⏰ 每30秒自动刷新</span>
             </div>
         </div>
