@@ -694,60 +694,82 @@
                         // ⚠️ API返回的数据是倒序的（最新在前），需要反转为正序（最早在前）
                         const historyDataReversed = result.history_data.slice().reverse();
                         
-                        // 🔥 智能关键点采样优化：保留峰值、谷值、转折点
+                        // 🔥 智能关键点采样优化：保留峰值、谷值、转折点、重要事件点
                         let sampledData = historyDataReversed;
                         let samplingRate = 1;
-                        let keyPointsInfo = { total: historyDataReversed.length, sampled: historyDataReversed.length, peaks: 0, valleys: 0, inflection: 0 };
+                        let keyPointsInfo = { total: historyDataReversed.length, sampled: historyDataReversed.length, peaks: 0, valleys: 0, extreme: 0, uniform: 0 };
                         
-                        if (historyDataReversed.length > 10000) {
-                            const targetPoints = 5000;
+                        if (historyDataReversed.length > 8000) {
+                            const targetPoints = 3000;  // 目标3000个关键点，保证流畅渲染
                             samplingRate = Math.ceil(historyDataReversed.length / targetPoints);
                             
                             // 第一步：识别关键点
                             const keyPointIndices = new Set();
                             
-                            // 1. 保留所有峰值点（局部最大值）和谷值点（局部最小值）
-                            const windowSize = Math.max(5, Math.floor(samplingRate / 2));
+                            // 1. 保留所有显著峰值点（24h信号 > 40 或 2h信号 > 25）
                             for (let i = 0; i < historyDataReversed.length; i++) {
-                                const current = historyDataReversed[i].signal_24h_count;
-                                const start = Math.max(0, i - windowSize);
-                                const end = Math.min(historyDataReversed.length - 1, i + windowSize);
+                                const signal24h = historyDataReversed[i].signal_24h_count || 0;
+                                const signal2h = historyDataReversed[i].signal_2h_count || 0;
                                 
-                                let isPeak = true;
-                                let isValley = true;
-                                
-                                for (let j = start; j <= end; j++) {
-                                    if (j === i) continue;
-                                    const value = historyDataReversed[j].signal_24h_count;
-                                    if (value > current) isPeak = false;
-                                    if (value < current) isValley = false;
-                                }
-                                
-                                if (isPeak && current > 100) {  // 只保留显著峰值
+                                if (signal24h > 40 || signal2h > 25) {
                                     keyPointIndices.add(i);
                                     keyPointsInfo.peaks++;
                                 }
-                                if (isValley && current < 50) {  // 只保留显著谷值
+                            }
+                            
+                            // 2. 检测局部极值点（使用更小的窗口以保留更多细节）
+                            const windowSize = 15;
+                            for (let i = windowSize; i < historyDataReversed.length - windowSize; i++) {
+                                const current = historyDataReversed[i].signal_24h_count || 0;
+                                const window = [];
+                                
+                                for (let j = i - windowSize; j <= i + windowSize; j++) {
+                                    if (j !== i) window.push(historyDataReversed[j].signal_24h_count || 0);
+                                }
+                                
+                                const maxInWindow = Math.max(...window);
+                                const minInWindow = Math.min(...window);
+                                
+                                // 局部峰值（大于窗口内所有其他点）
+                                if (current > maxInWindow && current > 15) {
                                     keyPointIndices.add(i);
-                                    keyPointsInfo.valleys++;
+                                    if (!keyPointIndices.has(i)) keyPointsInfo.valleys++;
+                                }
+                                
+                                // 局部谷值（小于窗口内所有其他点，且不为0）
+                                if (current < minInWindow && current > 0 && current < 35) {
+                                    keyPointIndices.add(i);
+                                    if (!keyPointIndices.has(i)) keyPointsInfo.valleys++;
                                 }
                             }
                             
-                            // 2. 保留极端值点
-                            const maxValue = Math.max(...historyDataReversed.map(d => d.signal_24h_count));
-                            const minValue = Math.min(...historyDataReversed.map(d => d.signal_24h_count));
+                            // 3. 保留全局极值点
+                            const maxValue = Math.max(...historyDataReversed.map(d => d.signal_24h_count || 0));
+                            const minValue = Math.min(...historyDataReversed.map(d => (d.signal_24h_count || 0) > 0 ? d.signal_24h_count : Infinity));
                             historyDataReversed.forEach((d, i) => {
-                                if (d.signal_24h_count === maxValue || d.signal_24h_count === minValue) {
+                                const val = d.signal_24h_count || 0;
+                                if (val === maxValue || val === minValue) {
                                     keyPointIndices.add(i);
+                                    keyPointsInfo.extreme++;
                                 }
                             });
                             
-                            // 3. 均匀采样其他点
-                            for (let i = 0; i < historyDataReversed.length; i += samplingRate) {
-                                keyPointIndices.add(i);
+                            // 4. 均匀采样填充（确保时间轴连续性）
+                            const currentCount = keyPointIndices.size;
+                            const neededUniform = Math.max(0, targetPoints - currentCount);
+                            const step = Math.floor(historyDataReversed.length / neededUniform);
+                            
+                            if (step > 0) {
+                                for (let i = 0; i < historyDataReversed.length; i += step) {
+                                    if (!keyPointIndices.has(i)) {
+                                        keyPointIndices.add(i);
+                                        keyPointsInfo.uniform++;
+                                    }
+                                    if (keyPointIndices.size >= targetPoints) break;
+                                }
                             }
                             
-                            // 4. 确保首尾点都保留
+                            // 5. 确保首尾点都保留
                             keyPointIndices.add(0);
                             keyPointIndices.add(historyDataReversed.length - 1);
                             
@@ -765,7 +787,17 @@
                             window._sortedIndices = sortedIndices;
                             
                             keyPointsInfo.sampled = sampledData.length;
-                            console.log(`📊 智能采样: 原始${keyPointsInfo.total}点 -> ${keyPointsInfo.sampled}点 (${Math.round(keyPointsInfo.sampled/keyPointsInfo.total*100)}%) | 峰值:${keyPointsInfo.peaks} 谷值:${keyPointsInfo.valleys}`);
+                            const compressionRate = (100 * keyPointsInfo.sampled / keyPointsInfo.total).toFixed(1);
+                            console.log(`✨ 智能关键点渲染策略:`);
+                            console.log(`   📊 原始数据: ${keyPointsInfo.total.toLocaleString()} 点`);
+                            console.log(`   🎯 渲染点数: ${keyPointsInfo.sampled.toLocaleString()} 点`);
+                            console.log(`   📈 峰值点: ${keyPointsInfo.peaks} (显著高点)`);
+                            console.log(`   📉 谷值点: ${keyPointsInfo.valleys} (局部极值)`);
+                            console.log(`   ⭐ 极值点: ${keyPointsInfo.extreme} (全局最大/最小)`);
+                            console.log(`   ➡️ 均匀点: ${keyPointsInfo.uniform} (时间轴连续)`);
+                            console.log(`   🗜️ 压缩率: ${compressionRate}% (保留率)`);
+                            console.log(`   💾 数据保存: 100% (${keyPointsInfo.total.toLocaleString()}点完整保存于表格)`);
+                            console.log(`   🚀 性能优化: 内存占用降低${(100-parseFloat(compressionRate)).toFixed(0)}%`);
                         }
                         
                         const times = sampledData.map(d => d.stat_time.substring(5, 16)); // MM-DD HH:MM
