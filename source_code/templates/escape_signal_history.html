@@ -714,13 +714,13 @@
                             // 第一步：识别关键点
                             const keyPointIndices = new Set();
                             
-                            // 1. 只保留显著高峰值（超过90分位）
+                            // 1. 只保留最显著高峰值（超过95分位，或2h信号极高）
                             for (let i = 0; i < historyDataReversed.length; i++) {
                                 const signal24h = historyDataReversed[i].signal_24h_count || 0;
                                 const signal2h = historyDataReversed[i].signal_2h_count || 0;
                                 
-                                // 使用动态阈值：90分位以上的点才算显著峰值
-                                if (signal24h >= p90 || signal2h >= 40) {
+                                // 使用P95阈值，只保留最显著的5%峰值
+                                if (signal24h >= p95 || signal2h >= 50) {
                                     keyPointIndices.add(i);
                                     keyPointsInfo.peaks++;
                                 }
