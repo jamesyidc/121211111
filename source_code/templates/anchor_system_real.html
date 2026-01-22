@@ -515,7 +515,7 @@
                     </div>
                 </div>
             </div>
-            <div class="chart-container" id="profitStatsChart" style="height: 400px; background: white; border-radius: 0 0 15px 15px;"></div>
+            <div class="chart-container" id="profitStatsChart" style="height: 500px; width: 100%; background: white; border-radius: 0 0 15px 15px;"></div>
         </div>
 
         <!-- 持仓摘要卡片 -->
@@ -1684,10 +1684,13 @@
             
             profitStatsChart.setOption(option);
             
-            // 强制刷新图表尺寸
+            // 强制刷新图表尺寸并验证渲染
             setTimeout(() => {
                 profitStatsChart.resize();
                 console.log('🔄 图表尺寸已刷新');
+                console.log('📏 图表容器高度:', document.getElementById('profitStatsChart').offsetHeight);
+                console.log('📊 X轴数据点数:', times.length);
+                console.log('📊 空单盈利≥120%数据点数:', short_gte120Data.length);
             }, 100);
             
             console.log('✅ 多空单盈利统计图表渲染完成');
