@@ -3,7 +3,7 @@
 """
 27币涨跌幅追踪系统
 - 1分钟周期连续追踪
-- 每天0点0分重置基准价
+- 每天0点基准价：使用日线开盘价（代表当天0点的价格）
 - 计算涨跌幅并求和
 - 数据独立保存
 """
@@ -88,6 +88,58 @@ class CoinChangeTracker:
             print(f"❌ 获取币价异常: {str(e)}")
             return None
     
+    def fetch_daily_open_prices(self):
+        """从OKX获取日线开盘价（作为0点基准价）"""
+        try:
+            prices = {}
+            success_count = 0
+            
+            for symbol in self.symbols:
+                try:
+                    # 获取日线K线数据，bar=1D表示日线
+                    url = f'{self.okx_base_url}/api/v5/market/candles'
+                    params = {
+                        'instId': symbol,
+                        'bar': '1D',  # 日线
+                        'limit': 1    # 只取最新一根K线
+                    }
+                    response = requests.get(url, params=params, timeout=10)
+                    data = response.json()
+                    
+                    if data.get('code') == '0' and data.get('data'):
+                        # K线数据格式: [ts, open, high, low, close, vol, volCcy, ...]
+                        candle = data['data'][0]
+                        open_price = float(candle[1])  # 开盘价在索引1
+                        prices[symbol] = open_price
+                        success_count += 1
+                        
+                        # 每隔5个币种打印一次进度
+                        if success_count % 5 == 0:
+                            print(f"   获取进度: {success_count}/{len(self.symbols)}")
+                    else:
+                        print(f"⚠️  {symbol}: 获取日线失败 - {data.get('msg')}")
+                    
+                    # 避免请求过快
+                    time.sleep(0.1)
+                    
+                except Exception as e:
+                    print(f"⚠️  {symbol}: 获取异常 - {str(e)}")
+                    continue
+            
+            if success_count == len(self.symbols):
+                print(f"✅ 成功获取所有 {success_count} 个币种的日线开盘价")
+                return prices
+            elif success_count > 0:
+                print(f"⚠️  部分成功: {success_count}/{len(self.symbols)}")
+                return prices
+            else:
+                print(f"❌ 全部失败，无法获取日线开盘价")
+                return None
+            
+        except Exception as e:
+            print(f"❌ 获取日线开盘价异常: {str(e)}")
+            return None
+    
     def check_and_reset_baseline(self):
         """检查是否需要重置基准价（每天0点）"""
         current_time = self.get_beijing_time()
@@ -111,25 +163,13 @@ class CoinChangeTracker:
                     print(f"⚠️  读取基准价文件失败: {str(e)}")
             
             # 如果文件不存在，创建新的基准价
-            # 检查当前时间，如果不是接近0点，提示等待
-            current_hour = current_time.hour
-            current_minute = current_time.minute
-            
-            # 只有在23:58到00:05之间才创建基准价，其他时间等待
-            is_near_midnight = (current_hour == 23 and current_minute >= 58) or \
-                              (current_hour == 0 and current_minute <= 5)
-            
-            if not is_near_midnight:
-                print(f"\n⚠️  当前时间 {current_time.strftime('%H:%M:%S')} 不在0点附近")
-                print(f"⏰ 等待到今晚23:58或明天00:05之前创建基准价")
-                print(f"💡 临时使用当前价格作为基准价进行追踪")
-            
             print(f"\n🔄 检测到新的一天: {current_date}，创建新基准价")
+            print(f"📊 使用日线开盘价作为当天0点的基准价...")
             
-            # 获取当前价格作为基准价
-            current_prices = self.fetch_current_prices()
-            if current_prices:
-                self.baseline_prices = current_prices
+            # 获取日线开盘价作为基准价
+            daily_open_prices = self.fetch_daily_open_prices()
+            if daily_open_prices:
+                self.baseline_prices = daily_open_prices
                 self.baseline_date = current_date
                 
                 # 保存基准价到文件
@@ -138,17 +178,35 @@ class CoinChangeTracker:
                         'date': current_date,
                         'timestamp': current_time.isoformat(),
                         'prices': self.baseline_prices,
-                        'note': '基准价设置时间' if is_near_midnight else '临时基准价（非0点）'
+                        'note': '日线开盘价（当天0点基准价）'
                     }, f, indent=2)
                 
-                time_note = "（接近0点）" if is_near_midnight else "（非0点，仅供参考）"
-                print(f"✅ 基准价已创建并保存: {baseline_file} {time_note}")
+                print(f"✅ 基准价已创建并保存: {baseline_file}")
                 print(f"📊 基准价时间: {current_time.isoformat()}")
                 print(f"📊 基准价数量: {len(self.baseline_prices)}")
+                print(f"💡 基准价来源: 日线开盘价（代表当天0点价格）")
                 return True
             else:
-                print(f"❌ 获取基准价失败")
-                return False
+                print(f"❌ 获取日线开盘价失败，使用当前价格作为临时基准")
+                # 回退方案：使用当前价格
+                current_prices = self.fetch_current_prices()
+                if current_prices:
+                    self.baseline_prices = current_prices
+                    self.baseline_date = current_date
+                    
+                    with open(baseline_file, 'w') as f:
+                        json.dump({
+                            'date': current_date,
+                            'timestamp': current_time.isoformat(),
+                            'prices': self.baseline_prices,
+                            'note': '临时基准价（日线开盘价获取失败，使用当前价格）'
+                        }, f, indent=2)
+                    
+                    print(f"⚠️  使用临时基准价: {baseline_file}")
+                    return True
+                else:
+                    print(f"❌ 获取基准价失败")
+                    return False
         
         return True
     
@@ -261,7 +319,7 @@ class CoinChangeTracker:
         """持续运行（1分钟周期）"""
         print(f"\n🚀 开始27币涨跌幅持续追踪")
         print(f"⏱️  追踪周期: 1分钟")
-        print(f"🔄 基准价重置: 每天0点0分")
+        print(f"🔄 基准价设置: 每天使用日线开盘价（代表0点价格）")
         print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         
         while True:
