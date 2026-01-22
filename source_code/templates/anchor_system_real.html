@@ -1462,20 +1462,21 @@
             // 2小时逃顶信号（橙色）
             const escape2hData = dataList.map(d => d.escape_signal_2h || 0);
             
-            console.log('📊 图表数据:', {
+            console.log('📊 图表数据长度:', {
+                times: times.length,
+                long_lte40: long_lte40Data.length,
+                long_loss: long_lossData.length,
+                long_gte80: long_gte80Data.length,
+                long_gte120: long_gte120Data.length,
+                short_lte40: short_lte40Data.length,
+                short_loss: short_lossData.length,
+                short_gte80: short_gte80Data.length,
+                short_gte120: short_gte120Data.length,
+                escape2h: escape2hData.length
+            });
+            console.log('📊 前3个数据样本:', {
                 times: times.slice(0, 3),
-                long: {
-                    lte40: long_lte40Data.slice(0, 3),
-                    loss: long_lossData.slice(0, 3),
-                    gte80: long_gte80Data.slice(0, 3),
-                    gte120: long_gte120Data.slice(0, 3)
-                },
-                short: {
-                    lte40: short_lte40Data.slice(0, 3),
-                    loss: short_lossData.slice(0, 3),
-                    gte80: short_gte80Data.slice(0, 3),
-                    gte120: short_gte120Data.slice(0, 3)
-                },
+                short_gte120: short_gte120Data.slice(0, 3),
                 escape2h: escape2hData.slice(0, 3)
             });
             
