@@ -4876,6 +4876,15 @@
             initEscapeSignalChart();
             initLiquidation1hChart();  // 初始化1小时爆仓金额图表
             
+            // 添加超时保护：15秒后强制隐藏加载指示器
+            const loadingTimeout = setTimeout(() => {
+                console.warn('⚠️ 加载超时（15秒），强制隐藏加载指示器');
+                const indicator = document.getElementById('loading-indicator');
+                if (indicator) {
+                    indicator.style.display = 'none';  // 强制隐藏
+                }
+            }, 15000);
+            
             // 异步并行加载所有数据（不阻塞页面显示）
             Promise.all([
                 loadData(),
@@ -4884,12 +4893,22 @@
                 loadEscapeSignalData()
             ]).then(() => {
                 console.log('✅ 所有数据加载完成');
-                // 隐藏加载指示器
-                document.getElementById('loading-indicator').classList.add('hidden');
+                clearTimeout(loadingTimeout);
+                // 隐藏加载指示器（使用两种方式确保隐藏）
+                const indicator = document.getElementById('loading-indicator');
+                if (indicator) {
+                    indicator.classList.add('hidden');
+                    indicator.style.display = 'none';  // 强制隐藏
+                }
             }).catch(error => {
                 console.error('❌ 数据加载出错:', error);
+                clearTimeout(loadingTimeout);
                 // 即使出错也隐藏指示器
-                document.getElementById('loading-indicator').classList.add('hidden');
+                const indicator = document.getElementById('loading-indicator');
+                if (indicator) {
+                    indicator.classList.add('hidden');
+                    indicator.style.display = 'none';  // 强制隐藏
+                }
             });
             
             // 定期刷新空单盈利统计（每60秒）
