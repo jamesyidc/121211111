@@ -762,7 +762,7 @@
                         // 计算24小时信号的48小时窗口最大值（仅标记>200的）
                         const window48hPeaks = [];
                         // 智能采样后，窗口大小基于采样后的数据点数
-                        const windowSize = Math.max(50, Math.floor(sampledData.length / (historyDataReversed.length / (48 * 60))));
+                        const windowSize = Math.max(50, Math.floor(sampledData.length / (keypointsResult.total_records / (48 * 60))));
                         
                         for (let i = 0; i < sampledData.length; i++) {
                             // 找到当前位置前后48小时内的最大值
@@ -879,7 +879,7 @@
                                 let closestIndex = -1;
                                 let minDiff = Infinity;
                                 
-                                historyDataReversed.forEach((d, index) => {
+                                sampledData.forEach((d, index) => {
                                     const diff = Math.abs(new Date(d.stat_time).getTime() - pdTimestamp);
                                     if (diff < minDiff) {
                                         minDiff = diff;
@@ -923,7 +923,7 @@
                                 let closestIndex = -1;
                                 let minDiff = Infinity;
                                 
-                                historyDataReversed.forEach((d, index) => {
+                                sampledData.forEach((d, index) => {
                                     const diff = Math.abs(new Date(d.stat_time).getTime() - pdTimestamp);
                                     if (diff < minDiff) {
                                         minDiff = diff;
@@ -1014,7 +1014,7 @@
                             });
                             
                             // 对所有原始数据点，找最近的27币数据（用于表格）
-                            historyDataReversed.forEach((d, index) => {
+                            sampledData.forEach((d, index) => {
                                 const targetTime = new Date(d.stat_time).getTime();
                                 let closestValue = null;
                                 let minDiff = Infinity;
@@ -1105,7 +1105,7 @@
                             console.log('💀 极端暴跌标记 (<=-80%):', extremeLowMarks.length, '个');
                             
                             // 更新当天极值统计卡片
-                            updateTodayExtremeStats(extremeHighMarks, extremeLowMarks, coinChangeData, historyDataReversed);
+                            updateTodayExtremeStats(extremeHighMarks, extremeLowMarks, coinChangeData, sampledData);
                         } else {
                             // 如果没有27币数据，填充null
                             coinChangeData = new Array(times.length).fill(null);
