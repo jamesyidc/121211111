@@ -542,28 +542,59 @@
             });
         }
         
+        // 全局图表变量
+        let chart = null;
+        
         // 初始化图表
         function initChart() {
+            console.log('🎨 开始初始化趋势图表...');
             const chartDom = document.getElementById('trendChart');
-            chart = echarts.init(chartDom);
+            if (!chartDom) {
+                console.error('❌ 找不到图表容器 #trendChart');
+                return;
+            }
             
+            console.log('📏 图表容器信息:', {
+                width: chartDom.offsetWidth,
+                height: chartDom.offsetHeight,
+                display: window.getComputedStyle(chartDom).display
+            });
+            
+            // 销毁旧图表（如果存在）
+            if (chart) {
+                chart.dispose();
+            }
+            
+            // 创建新图表
+            chart = echarts.init(chartDom);
+            console.log('✅ 图表实例创建成功');
+            
+            // 设置初始配置
             const option = {
                 backgroundColor: '#ffffff',
                 tooltip: {
                     trigger: 'axis',
                     backgroundColor: 'rgba(0,0,0,0.8)',
                     borderColor: 'rgba(0,0,0,0.2)',
-                    textStyle: { color: '#fff' }
+                    textStyle: { color: '#fff' },
+                    axisPointer: {
+                        type: 'cross',
+                        label: {
+                            backgroundColor: '#6a7985'
+                        }
+                    }
                 },
                 legend: {
                     data: ['24小时信号数', '2小时信号数', '27币涨跌幅总和'],
-                    textStyle: { color: '#000' },
-                    top: 10
+                    textStyle: { color: '#000', fontSize: 12 },
+                    top: 10,
+                    left: 'center'
                 },
                 grid: {
                     left: '3%',
                     right: '8%',
                     bottom: '15%',
+                    top: 50,
                     containLabel: true
                 },
                 dataZoom: [
@@ -571,22 +602,22 @@
                         type: 'slider',
                         show: true,
                         xAxisIndex: [0],
-                        start: 0,    // 从0%开始，显示全部历史数据
-                        end: 100,    // 到100%结束，可拖动查看任意时间段
+                        start: 0,
+                        end: 100,
                         bottom: 5,
                         height: 25,
                         showDataShadow: true,
                         handleSize: '80%',
                         textStyle: { color: '#000' },
-                        filterMode: 'none'  // 不过滤数据，确保所有数据点都可见
+                        filterMode: 'none'
                     },
                     {
                         type: 'inside',
                         xAxisIndex: [0],
                         start: 0,
                         end: 100,
-                        zoomOnMouseWheel: true,  // 支持鼠标滚轮缩放
-                        moveOnMouseMove: true     // 支持鼠标拖动
+                        zoomOnMouseWheel: true,
+                        moveOnMouseMove: true
                     }
                 ],
                 xAxis: {
@@ -594,25 +625,27 @@
                     boundaryGap: false,
                     data: [],
                     axisLine: { lineStyle: { color: 'rgba(0,0,0,0.3)' } },
-                    axisLabel: { color: '#000', rotate: 45 }
+                    axisLabel: { color: '#000', rotate: 45, fontSize: 10 }
                 },
                 yAxis: [
                     {
                         type: 'value',
                         name: '信号数量',
-                        nameTextStyle: { color: '#000' },
-                        axisLine: { lineStyle: { color: 'rgba(0,0,0,0.3)' } },
-                        axisLabel: { color: '#000' },
-                        splitLine: { lineStyle: { color: 'rgba(0,0,0,0.1)' } }
+                        nameTextStyle: { color: '#000', fontSize: 12 },
+                        axisLine: { show: true, lineStyle: { color: 'rgba(0,0,0,0.3)' } },
+                        axisLabel: { color: '#000', fontSize: 10 },
+                        splitLine: { lineStyle: { color: 'rgba(0,0,0,0.1)' } },
+                        min: 0
                     },
                     {
                         type: 'value',
                         name: '27币涨跌幅(%)',
-                        nameTextStyle: { color: '#667eea' },
+                        nameTextStyle: { color: '#667eea', fontSize: 12 },
                         position: 'right',
-                        axisLine: { lineStyle: { color: '#667eea' } },
+                        axisLine: { show: true, lineStyle: { color: '#667eea' } },
                         axisLabel: { 
                             color: '#667eea',
+                            fontSize: 10,
                             formatter: '{value}%'
                         },
                         splitLine: { show: false }
@@ -625,8 +658,10 @@
                         yAxisIndex: 0,
                         data: [],
                         smooth: true,
+                        sampling: 'lttb',
                         lineStyle: { color: '#ef4444', width: 2 },
                         itemStyle: { color: '#ef4444' },
+                        showSymbol: false,
                         areaStyle: { color: 'rgba(239, 68, 68, 0.2)' }
                     },
                     {
@@ -635,8 +670,10 @@
                         yAxisIndex: 0,
                         data: [],
                         smooth: true,
+                        sampling: 'lttb',
                         lineStyle: { color: '#f59e0b', width: 2 },
                         itemStyle: { color: '#f59e0b' },
+                        showSymbol: false,
                         areaStyle: { color: 'rgba(245, 158, 11, 0.2)' }
                     },
                     {
