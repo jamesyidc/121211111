@@ -1352,20 +1352,31 @@
         function renderProfitStatsChart(pageOffset) {
             console.log(`📈 渲染图表，页码偏移: ${pageOffset}天`);
             
-            // 计算日期范围（显示24小时数据）
+            // 计算日期范围（显示24小时数据）- 使用UTC+8北京时间
             const now = new Date();
-            const targetDate = new Date(now);
+            // 转换为北京时间（UTC+8）
+            const beijingOffset = 8 * 60; // 北京时间比UTC快8小时
+            const localOffset = now.getTimezoneOffset(); // 本地时区偏移（分钟，负数表示东时区）
+            const offsetDiff = beijingOffset + localOffset; // 计算差异
+            
+            const beijingNow = new Date(now.getTime() + offsetDiff * 60 * 1000);
+            const targetDate = new Date(beijingNow);
             targetDate.setDate(targetDate.getDate() + pageOffset);
             
-            // 设置为目标日期的00:00:00
+            // 设置为目标日期的00:00:00（北京时间）
             const startOfDay = new Date(targetDate);
             startOfDay.setHours(0, 0, 0, 0);
-            const startTimestamp = Math.floor(startOfDay.getTime() / 1000);
+            // 转回UTC时间戳
+            const startTimestamp = Math.floor((startOfDay.getTime() - offsetDiff * 60 * 1000) / 1000);
             
-            // 设置为目标日期的23:59:59
+            // 设置为目标日期的23:59:59（北京时间）
             const endOfDay = new Date(targetDate);
             endOfDay.setHours(23, 59, 59, 999);
-            const endTimestamp = Math.floor(endOfDay.getTime() / 1000);
+            // 转回UTC时间戳
+            const endTimestamp = Math.floor((endOfDay.getTime() - offsetDiff * 60 * 1000) / 1000);
+            
+            console.log(`🕐 时区信息: 本地=${localOffset}分钟, 北京=+480分钟, 差异=${offsetDiff}分钟`);
+            console.log(`📅 日期范围: ${new Date(startTimestamp * 1000).toISOString()} ~ ${new Date(endTimestamp * 1000).toISOString()}`);
             
             // 过滤出24小时内的数据
             const dataList = allHistoryData.filter(d => {
