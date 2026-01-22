@@ -1379,6 +1379,16 @@
         function renderProfitStatsChart(pageOffset) {
             console.log(`📈 渲染图表，页码偏移: ${pageOffset}天`);
             
+            // 确保图表已初始化
+            if (!profitStatsChart) {
+                console.error('❌ profitStatsChart 未初始化，尝试重新初始化...');
+                initCharts();
+                if (!profitStatsChart) {
+                    console.error('❌ profitStatsChart 初始化失败，无法渲染图表');
+                    return;
+                }
+            }
+            
             // 计算日期范围（显示24小时数据）- 使用UTC+8北京时间
             const now = new Date();
             // 转换为北京时间（UTC+8）
