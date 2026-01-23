@@ -15985,6 +15985,87 @@ def get_anchor_profit_history():
             'error': str(e)
         })
 
+@app.route('/api/anchor-profit/dates')
+def get_anchor_profit_dates():
+    """获取可用的日期列表"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from anchor_daily_reader import AnchorDailyReader
+        
+        reader = AnchorDailyReader()
+        dates = reader.get_available_dates()
+        
+        return jsonify({
+            'success': True,
+            'dates': dates,
+            'count': len(dates)
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@app.route('/api/anchor-profit/by-date')
+def get_anchor_profit_by_date():
+    """按日期获取锚点盈利数据"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from anchor_daily_reader import AnchorDailyReader
+        from datetime import datetime
+        
+        # 获取日期参数（默认今天）
+        date = request.args.get('date', datetime.now().strftime("%Y-%m-%d"))
+        data_type = request.args.get('type', 'profit_stats')  # 默认只返回盈利统计
+        
+        reader = AnchorDailyReader()
+        data = reader.get_date_data(date, data_type)
+        
+        # 获取统计信息
+        stats = reader.get_date_statistics(date)
+        
+        return jsonify({
+            'success': True,
+            'date': date,
+            'data': data,
+            'count': len(data),
+            'statistics': stats
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/anchor-profit/summary')
+def get_anchor_profit_summary():
+    """获取盈利统计摘要"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from anchor_daily_reader import AnchorDailyReader
+        from datetime import datetime
+        
+        # 获取日期参数（默认今天）
+        date = request.args.get('date', datetime.now().strftime("%Y-%m-%d"))
+        
+        reader = AnchorDailyReader()
+        summary = reader.get_profit_stats_summary(date)
+        
+        return jsonify({
+            'success': True,
+            'summary': summary
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
 @app.route('/backfill-monitor')
 def backfill_monitor():
     """数据回填监控页面"""
