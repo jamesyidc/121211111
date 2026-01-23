@@ -6381,6 +6381,104 @@ def api_escape_signal_simple():
             'error': str(e)
         }), 500
 
+@app.route('/api/escape-signal-stats/dates')
+def get_escape_signal_dates():
+    """获取逃顶信号可用的日期列表"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from escape_signal_daily_reader import EscapeSignalDailyReader
+        
+        reader = EscapeSignalDailyReader()
+        dates = reader.get_available_dates()
+        
+        return jsonify({
+            'success': True,
+            'dates': dates,
+            'count': len(dates)
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@app.route('/api/escape-signal-stats/keypoints-monthly')
+def get_escape_signal_keypoints_monthly():
+    """获取逃顶信号关键点数据（用于月度总图）"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from escape_signal_daily_reader import EscapeSignalDailyReader
+        
+        reader = EscapeSignalDailyReader()
+        keypoints = reader.get_keypoints()
+        
+        return jsonify({
+            'success': True,
+            'data': keypoints,
+            'count': len(keypoints)
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/escape-signal-stats/by-date')
+def get_escape_signal_by_date():
+    """按日期获取逃顶信号数据（用于日线图）"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from escape_signal_daily_reader import EscapeSignalDailyReader
+        from datetime import datetime
+        
+        # 获取日期参数（默认今天）
+        date = request.args.get('date', datetime.now().strftime("%Y-%m-%d"))
+        
+        reader = EscapeSignalDailyReader()
+        data = reader.get_date_data(date)
+        stats = reader.get_date_statistics(date)
+        
+        return jsonify({
+            'success': True,
+            'date': date,
+            'data': data,
+            'count': len(data),
+            'statistics': stats
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/escape-signal-stats/summary')
+def get_escape_signal_summary():
+    """获取逃顶信号数据总览"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from escape_signal_daily_reader import EscapeSignalDailyReader
+        
+        reader = EscapeSignalDailyReader()
+        summary = reader.get_summary()
+        
+        return jsonify({
+            'success': True,
+            'summary': summary
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
 @app.route('/trading-signals')
 def trading_signals_page():
     """决策-交易信号系统页面"""
