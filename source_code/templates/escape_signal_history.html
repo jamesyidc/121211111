@@ -448,12 +448,12 @@
         </div>
         
         <div class="table-container">
-            <h2>📋 历史极值统计明细</h2>
+            <h2>📋 历史极值统计明细 <span id="tableDataInfo" style="font-size: 14px; color: #999; font-weight: normal;"></span></h2>
             <div id="loading" class="loading">正在加载数据...</div>
             <table id="dataTable" style="display: none;">
                 <thead>
                     <tr>
-                        <th>记录时间</th>
+                        <th>记录时间 ⬇️ (最新在前)</th>
                         <th>24小时信号数</th>
                         <th>2小时信号数</th>
                         <th>27币涨跌幅总和</th>
@@ -1260,6 +1260,17 @@
                                 }
                         
                         console.log('✅ 表格渲染完成，共 ' + historyDataReversed.length + ' 行（倒序显示）');
+                        
+                        // 📊 更新表格数据范围显示
+                        if (historyDataReversed.length > 0) {
+                            const firstRecord = historyDataReversed[0];  // 最新的
+                            const lastIdx = Math.min(historyDataReversed.length - 1, 999);
+                            const lastRecord = historyDataReversed[lastIdx];  // 最旧的（显示范围内）
+                            const infoEl = document.getElementById('tableDataInfo');
+                            if (infoEl) {
+                                infoEl.textContent = `(显示 ${Math.min(1000, historyDataReversed.length)} 条，最新: ${firstRecord.stat_time})`;
+                            }
+                        }
                         
                         // 🔥 强制隐藏loading，显示表格
                         const loadingEl = document.getElementById('loading');
