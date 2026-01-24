@@ -48,27 +48,30 @@ class SupportResistanceAPIAdapter:
             # 格式化数据
             formatted_data = []
             for level in latest_levels:
+                # 提取data字段（新格式）
+                data = level.get('data', level)  # 兼容新旧格式
+                
                 formatted_data.append({
-                    'symbol': level.get('symbol'),
-                    'current_price': level.get('current_price'),
-                    'support_line_1': level.get('support_line_1'),
-                    'support_line_2': level.get('support_line_2'),
-                    'resistance_line_1': level.get('resistance_line_1'),
-                    'resistance_line_2': level.get('resistance_line_2'),
-                    'distance_to_support_1': level.get('distance_to_support_1'),
-                    'distance_to_support_2': level.get('distance_to_support_2'),
-                    'distance_to_resistance_1': level.get('distance_to_resistance_1'),
-                    'distance_to_resistance_2': level.get('distance_to_resistance_2'),
-                    'position_7d': level.get('position_7d'),
-                    'position_48h': level.get('position_48h'),
-                    'price_change_24h': level.get('price_change_24h'),
-                    'change_percent_24h': level.get('change_percent_24h'),
-                    'baseline_price_24h': level.get('baseline_price_24h'),
-                    'record_time': level.get('record_time_beijing') or level.get('record_time'),
-                    'alert_7d_low': level.get('alert_7d_low', 0),
-                    'alert_7d_high': level.get('alert_7d_high', 0),
-                    'alert_48h_low': level.get('alert_48h_low', 0),
-                    'alert_48h_high': level.get('alert_48h_high', 0)
+                    'symbol': data.get('symbol'),
+                    'current_price': data.get('current_price'),
+                    'support_line_1': data.get('support_line_1'),
+                    'support_line_2': data.get('support_line_2'),
+                    'resistance_line_1': data.get('resistance_line_1'),
+                    'resistance_line_2': data.get('resistance_line_2'),
+                    'distance_to_support_1': data.get('distance_to_support_1'),
+                    'distance_to_support_2': data.get('distance_to_support_2'),
+                    'distance_to_resistance_1': data.get('distance_to_resistance_1'),
+                    'distance_to_resistance_2': data.get('distance_to_resistance_2'),
+                    'position_7d': data.get('position_7d'),
+                    'position_48h': data.get('position_48h'),
+                    'price_change_24h': data.get('price_change_24h'),
+                    'change_percent_24h': data.get('change_percent_24h'),
+                    'baseline_price_24h': data.get('baseline_price_24h'),
+                    'record_time': data.get('record_time_beijing') or data.get('record_time'),
+                    'alert_7d_low': data.get('alert_7d_low', 0),
+                    'alert_7d_high': data.get('alert_7d_high', 0),
+                    'alert_48h_low': data.get('alert_48h_low', 0),
+                    'alert_48h_high': data.get('alert_48h_high', 0)
                 })
             
             # 按币种排序
@@ -123,22 +126,25 @@ class SupportResistanceAPIAdapter:
             # 格式化数据
             formatted_data = []
             for record in records:
+                # 提取data字段（新格式）
+                data = record.get('data', record)  # 兼容新旧格式
+                
                 formatted_data.append({
-                    'symbol': record.get('symbol'),
-                    'current_price': record.get('current_price'),
-                    'support_line_1': record.get('support_line_1'),
-                    'support_line_2': record.get('support_line_2'),
-                    'resistance_line_1': record.get('resistance_line_1'),
-                    'resistance_line_2': record.get('resistance_line_2'),
-                    'distance_to_support_1': record.get('distance_to_support_1'),
-                    'distance_to_support_2': record.get('distance_to_support_2'),
-                    'distance_to_resistance_1': record.get('distance_to_resistance_1'),
-                    'distance_to_resistance_2': record.get('distance_to_resistance_2'),
-                    'position_7d': record.get('position_7d'),
-                    'position_48h': record.get('position_48h'),
-                    'price_change_24h': record.get('price_change_24h'),
-                    'change_percent_24h': record.get('change_percent_24h'),
-                    'record_time': record.get('record_time_beijing') or record.get('record_time')
+                    'symbol': data.get('symbol'),
+                    'current_price': data.get('current_price'),
+                    'support_line_1': data.get('support_line_1'),
+                    'support_line_2': data.get('support_line_2'),
+                    'resistance_line_1': data.get('resistance_line_1'),
+                    'resistance_line_2': data.get('resistance_line_2'),
+                    'distance_to_support_1': data.get('distance_to_support_1'),
+                    'distance_to_support_2': data.get('distance_to_support_2'),
+                    'distance_to_resistance_1': data.get('distance_to_resistance_1'),
+                    'distance_to_resistance_2': data.get('distance_to_resistance_2'),
+                    'position_7d': data.get('position_7d'),
+                    'position_48h': data.get('position_48h'),
+                    'price_change_24h': data.get('price_change_24h'),
+                    'change_percent_24h': data.get('change_percent_24h'),
+                    'record_time': data.get('record_time_beijing') or data.get('record_time')
                 })
             
             return {
@@ -193,18 +199,21 @@ class SupportResistanceAPIAdapter:
             # 格式化数据
             formatted_data = []
             for snapshot in snapshots:
+                # 提取data字段（新格式）
+                data = snapshot.get('data', snapshot)  # 兼容新旧格式
+                
                 formatted_data.append({
-                    'snapshot_time': snapshot.get('snapshot_time_beijing') or snapshot.get('snapshot_time'),
-                    'snapshot_date': snapshot.get('snapshot_date_beijing') or snapshot.get('snapshot_date'),
-                    'scenario_1_count': snapshot.get('scenario_1_count', 0),
-                    'scenario_2_count': snapshot.get('scenario_2_count', 0),
-                    'scenario_3_count': snapshot.get('scenario_3_count', 0),
-                    'scenario_4_count': snapshot.get('scenario_4_count', 0),
-                    'scenario_1_coins': snapshot.get('scenario_1_coins', '[]'),
-                    'scenario_2_coins': snapshot.get('scenario_2_coins', '[]'),
-                    'scenario_3_coins': snapshot.get('scenario_3_coins', '[]'),
-                    'scenario_4_coins': snapshot.get('scenario_4_coins', '[]'),
-                    'total_coins': snapshot.get('total_coins', 0)
+                    'snapshot_time': data.get('snapshot_time_beijing') or data.get('snapshot_time'),
+                    'snapshot_date': data.get('snapshot_date_beijing') or data.get('snapshot_date'),
+                    'scenario_1_count': data.get('scenario_1_count', 0),
+                    'scenario_2_count': data.get('scenario_2_count', 0),
+                    'scenario_3_count': data.get('scenario_3_count', 0),
+                    'scenario_4_count': data.get('scenario_4_count', 0),
+                    'scenario_1_coins': data.get('scenario_1_coins', '[]'),
+                    'scenario_2_coins': data.get('scenario_2_coins', '[]'),
+                    'scenario_3_coins': data.get('scenario_3_coins', '[]'),
+                    'scenario_4_coins': data.get('scenario_4_coins', '[]'),
+                    'total_coins': data.get('total_coins', 0)
                 })
             
             return {
