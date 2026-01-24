@@ -6074,8 +6074,17 @@ def coin_pool_page():
 
 @app.route('/support-resistance')
 def support_resistance_page():
-    """支撑压力线系统页面"""
+    """支撑压力线系统页面（旧版）"""
     response = make_response(render_template('support_resistance.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+@app.route('/support-resistance-v2')
+def support_resistance_page_v2():
+    """支撑压力线系统页面 v2.0 - 完全基于JSONL按日期存储"""
+    response = make_response(render_template('support_resistance_new.html'))
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
@@ -7813,45 +7822,30 @@ def api_support_resistance_chart_data():
 
 @app.route('/api/support-resistance/latest-signal')
 def api_support_resistance_latest_signal():
-    """获取最新快照数据并检测是否触发信号"""
+    """获取最新快照数据并检测是否触发信号（从按日期存储的JSONL）"""
     try:
-        import json
-        from datetime import datetime
-        import pytz
+        import sys
+        sys.path.insert(0, '/home/user/webapp')
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from support_resistance_api_adapter import SupportResistanceAPIAdapter
         
-        conn = sqlite3.connect('/home/user/webapp/databases/support_resistance.db')
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+        adapter = SupportResistanceAPIAdapter()
         
-        # 获取最新的快照
-        cursor.execute('''
-            SELECT 
-                snapshot_time, snapshot_date,
-                scenario_1_count, scenario_2_count, scenario_3_count, scenario_4_count,
-                scenario_1_coins, scenario_2_coins, scenario_3_coins, scenario_4_coins,
-                total_coins
-            FROM support_resistance_snapshots
-            ORDER BY snapshot_time DESC
-            LIMIT 1
-        ''')
+        # 从API适配器获取最新快照
+        result = adapter.get_snapshots(limit=1)
         
-        row = cursor.fetchone()
-        conn.close()
-        
-        if not row:
+        if not result['success'] or not result['data']:
             return jsonify({
                 'success': False,
                 'message': '暂无快照数据'
             })
         
-        # 注意：数据库中存储的已经是北京时间，不需要再次转换
-        # 数据采集脚本使用 datetime.now(pytz.timezone('Asia/Shanghai')) 存储
-        snapshot_time_str = row['snapshot_time']  # 已经是北京时间
+        row = result['data'][0]
         
-        scenario_1 = row['scenario_1_count'] or 0
-        scenario_2 = row['scenario_2_count'] or 0
-        scenario_3 = row['scenario_3_count'] or 0
-        scenario_4 = row['scenario_4_count'] or 0
+        scenario_1 = row.get('scenario_1_count', 0) or 0
+        scenario_2 = row.get('scenario_2_count', 0) or 0
+        scenario_3 = row.get('scenario_3_count', 0) or 0
+        scenario_4 = row.get('scenario_4_count', 0) or 0
         
         # 检测信号
         # 抄底信号：情况1 >= 8 AND 情况2 >= 8（两个条件都要满足）
@@ -7860,28 +7854,30 @@ def api_support_resistance_latest_signal():
         # 逃顶信号：(情况3 + 情况4) >= 8（总和满足即可）
         sell_signal = (scenario_3 + scenario_4) >= 8
         
-        result = {
+        result_data = {
             'success': True,
-            'snapshot_time': snapshot_time_str,  # 直接使用数据库中的北京时间
-            'snapshot_date': row['snapshot_date'],
+            'snapshot_time': row.get('snapshot_time'),
+            'snapshot_date': row.get('snapshot_date'),
             'scenario_1_count': scenario_1,
             'scenario_2_count': scenario_2,
             'scenario_3_count': scenario_3,
             'scenario_4_count': scenario_4,
-            'scenario_1_coins': json.loads(row['scenario_1_coins']) if row['scenario_1_coins'] else [],
-            'scenario_2_coins': json.loads(row['scenario_2_coins']) if row['scenario_2_coins'] else [],
-            'scenario_3_coins': json.loads(row['scenario_3_coins']) if row['scenario_3_coins'] else [],
-            'scenario_4_coins': json.loads(row['scenario_4_coins']) if row['scenario_4_coins'] else [],
-            'total_coins': row['total_coins'],
+            'scenario_1_coins': row.get('scenario_1_coins', []),
+            'scenario_2_coins': row.get('scenario_2_coins', []),
+            'scenario_3_coins': row.get('scenario_3_coins', []),
+            'scenario_4_coins': row.get('scenario_4_coins', []),
+            'total_coins': row.get('total_coins', 27),
             'signals': {
                 'buy': buy_signal,
                 'sell': sell_signal,
                 'buy_count': scenario_1 + scenario_2 if buy_signal else 0,
                 'sell_count': scenario_3 + scenario_4 if sell_signal else 0
-            }
+            },
+            'data_source': 'JSONL (按日期存储)',
+            'timezone': 'Beijing Time (UTC+8)'
         }
         
-        return jsonify(result)
+        return jsonify(result_data)
         
     except Exception as e:
         return jsonify({
@@ -7926,52 +7922,66 @@ def api_support_resistance_dates():
 
 @app.route('/api/support-resistance/escape-max-stats')
 def api_support_resistance_escape_max_stats():
-    """获取逃顶快照数的历史最大值统计"""
+    """获取逃顶快照数的历史最大值统计（从按日期存储的JSONL）"""
     try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp')
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from support_resistance_api_adapter import SupportResistanceAPIAdapter
         from datetime import datetime, timedelta
         
-        conn = sqlite3.connect('/home/user/webapp/databases/support_resistance.db')
-        cursor = conn.cursor()
+        adapter = SupportResistanceAPIAdapter()
         
         # 计算24小时前的时间
         now = datetime.now()
-        time_24h_ago = (now - timedelta(hours=24)).strftime('%Y-%m-%d %H:%M:%S')
-        time_2h_ago = (now - timedelta(hours=2)).strftime('%Y-%m-%d %H:%M:%S')
+        time_24h_ago = now - timedelta(hours=24)
+        time_2h_ago = now - timedelta(hours=2)
         
-        # 获取所有快照数据并计算逃顶信号数（scenario3 + scenario4 >= 5）
-        # 24小时内的数据
-        cursor.execute('''
-            SELECT 
-                snapshot_time,
-                scenario_3_count + scenario_4_count as escape_count
-            FROM support_resistance_snapshots
-            WHERE snapshot_time >= ?
-            ORDER BY snapshot_time DESC
-        ''', (time_24h_ago,))
+        # 获取最近2天的所有快照（确保覆盖24小时）
+        today = now.strftime('%Y-%m-%d')
+        yesterday = (now - timedelta(days=1)).strftime('%Y-%m-%d')
         
-        rows_24h = cursor.fetchall()
+        # 获取今日和昨日的快照
+        snapshots_today = adapter.get_snapshots(date=today, limit=None)
+        snapshots_yesterday = adapter.get_snapshots(date=yesterday, limit=None)
+        
+        all_snapshots = []
+        if snapshots_today['success'] and snapshots_today['data']:
+            all_snapshots.extend(snapshots_today['data'])
+        if snapshots_yesterday['success'] and snapshots_yesterday['data']:
+            all_snapshots.extend(snapshots_yesterday['data'])
+        
+        # 筛选24小时内和2小时内的快照
+        rows_24h = []
+        rows_2h = []
+        
+        for snapshot in all_snapshots:
+            snapshot_time_str = snapshot.get('snapshot_time', '')
+            if not snapshot_time_str:
+                continue
+                
+            try:
+                snapshot_time = datetime.strptime(snapshot_time_str, '%Y-%m-%d %H:%M:%S')
+            except:
+                continue
+            
+            scenario_3 = snapshot.get('scenario_3_count', 0) or 0
+            scenario_4 = snapshot.get('scenario_4_count', 0) or 0
+            escape_count = scenario_3 + scenario_4
+            
+            if snapshot_time >= time_24h_ago:
+                rows_24h.append(escape_count)
+                
+                if snapshot_time >= time_2h_ago:
+                    rows_2h.append(escape_count)
         
         # 计算24小时内的逃顶快照数和最大的逃顶信号数
-        escape_snapshot_count_24h = sum(1 for row in rows_24h if row[1] >= 5)
-        max_escape_count_24h = max([row[1] for row in rows_24h], default=0)
-        
-        # 2小时内的数据
-        cursor.execute('''
-            SELECT 
-                snapshot_time,
-                scenario_3_count + scenario_4_count as escape_count
-            FROM support_resistance_snapshots
-            WHERE snapshot_time >= ?
-            ORDER BY snapshot_time DESC
-        ''', (time_2h_ago,))
-        
-        rows_2h = cursor.fetchall()
+        escape_snapshot_count_24h = sum(1 for count in rows_24h if count >= 5)
+        max_escape_count_24h = max(rows_24h, default=0)
         
         # 计算2小时内的逃顶快照数和最大的逃顶信号数
-        escape_snapshot_count_2h = sum(1 for row in rows_2h if row[1] >= 5)
-        max_escape_count_2h = max([row[1] for row in rows_2h], default=0)
-        
-        conn.close()
+        escape_snapshot_count_2h = sum(1 for count in rows_2h if count >= 5)
+        max_escape_count_2h = max(rows_2h, default=0)
         
         return jsonify({
             'success': True,
@@ -7982,7 +7992,9 @@ def api_support_resistance_escape_max_stats():
             'stats_2h': {
                 'escape_snapshot_count': escape_snapshot_count_2h,
                 'max_escape_count': max_escape_count_2h
-            }
+            },
+            'data_source': 'JSONL (按日期存储)',
+            'timezone': 'Beijing Time (UTC+8)'
         })
         
     except Exception as e:

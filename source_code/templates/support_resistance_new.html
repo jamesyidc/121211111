@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>支撑压力线系统 v2.0 - 按日期存储</title>
+    <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/4.6.0/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.4.2/echarts.min.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .main-container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .header-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header-title {
+            font-size: 32px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+        .header-subtitle {
+            color: #666;
+            font-size: 14px;
+        }
+        .scenario-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .scenario-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+        .scenario-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        }
+        .scenario-card.scenario-1 {
+            border-color: #28a745;
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+        }
+        .scenario-card.scenario-2 {
+            border-color: #20c997;
+            background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
+        }
+        .scenario-card.scenario-3 {
+            border-color: #fd7e14;
+            background: linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%);
+        }
+        .scenario-card.scenario-4 {
+            border-color: #dc3545;
+            background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+        }
+        .scenario-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .scenario-count {
+            font-size: 36px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .scenario-coins {
+            font-size: 12px;
+            color: #666;
+            max-height: 60px;
+            overflow-y: auto;
+        }
+        .chart-container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        .table-container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            overflow-x: auto;
+        }
+        .table {
+            margin-bottom: 0;
+        }
+        .table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: bold;
+            text-align: center;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+        .table td {
+            vertical-align: middle;
+            text-align: center;
+        }
+        .alert-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .alert-low {
+            background: #28a745;
+            color: white;
+        }
+        .alert-high {
+            background: #dc3545;
+            color: white;
+        }
+        .controls-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .date-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .update-info {
+            font-size: 13px;
+            color: #666;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+            color: #666;
+        }
+        .error-message {
+            background: #fee2e2;
+            border: 2px solid #dc3545;
+            color: #dc3545;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .refresh-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .refresh-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        .data-source-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- 头部 -->
+        <div class="header-section">
+            <div class="header-title">📊 支撑压力线系统 v2.0</div>
+            <div class="header-subtitle">
+                <span class="data-source-badge">JSONL 按日期存储</span>
+                <span style="margin: 0 10px;">|</span>
+                <span id="updateTime" class="update-info">数据加载中...</span>
+            </div>
+        </div>
+
+        <!-- 控制面板 -->
+        <div class="controls-section">
+            <div class="date-selector">
+                <label for="dateSelect" style="margin: 0;">选择日期：</label>
+                <select id="dateSelect" class="form-control" style="width: 200px;">
+                    <option value="">今日数据（实时）</option>
+                </select>
+            </div>
+            <div>
+                <button class="refresh-btn" onclick="refreshData()">🔄 刷新数据</button>
+            </div>
+        </div>
+
+        <!-- 加载提示 -->
+        <div id="loadingSection" class="loading">
+            <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">加载中...</span>
+            </div>
+            <p style="margin-top: 10px;">正在加载数据...</p>
+        </div>
+
+        <!-- 错误提示 -->
+        <div id="errorSection" class="error-message" style="display: none;"></div>
+
+        <!-- 场景统计卡片 -->
+        <div id="scenarioCards" class="scenario-cards" style="display: none;"></div>
+
+        <!-- 图表 -->
+        <div id="chartContainer" class="chart-container" style="display: none;">
+            <div id="mainChart" style="width: 100%; height: 500px;"></div>
+        </div>
+
+        <!-- 数据表格 -->
+        <div id="tableContainer" class="table-container" style="display: none;">
+            <h5 style="margin-bottom: 20px;">27个币种详细数据</h5>
+            <table class="table table-bordered table-hover">
+                <thead>
+                    <tr>
+                        <th>币种</th>
+                        <th>当前价格</th>
+                        <th>支撑线1<br/>(7日)</th>
+                        <th>支撑线2<br/>(48小时)</th>
+                        <th>阻力线1<br/>(7日)</th>
+                        <th>阻力线2<br/>(48小时)</th>
+                        <th>7日位置</th>
+                        <th>48h位置</th>
+                        <th>记录时间</th>
+                    </tr>
+                </thead>
+                <tbody id="dataTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let chartInstance = null;
+        let currentDate = ''; // 当前选择的日期
+
+        // 页面加载时初始化
+        $(document).ready(function() {
+            loadAvailableDates();
+            loadLatestData();
+            
+            // 每30秒自动刷新（仅当查看今日数据时）
+            setInterval(function() {
+                if (!currentDate) {
+                    loadLatestData();
+                }
+            }, 30000);
+        });
+
+        // 加载可用日期列表
+        function loadAvailableDates() {
+            $.ajax({
+                url: '/api/support-resistance/dates',
+                method: 'GET',
+                success: function(response) {
+                    if (response.success && response.dates) {
+                        const dateSelect = $('#dateSelect');
+                        response.dates.forEach(date => {
+                            dateSelect.append(`<option value="${date}">${date}</option>`);
+                        });
+                    }
+                },
+                error: function(error) {
+                    console.error('加载日期列表失败:', error);
+                }
+            });
+        }
+
+        // 日期选择变化
+        $('#dateSelect').on('change', function() {
+            currentDate = $(this).val();
+            if (currentDate) {
+                loadHistoricalData(currentDate);
+            } else {
+                loadLatestData();
+            }
+        });
+
+        // 刷新数据
+        function refreshData() {
+            if (currentDate) {
+                loadHistoricalData(currentDate);
+            } else {
+                loadLatestData();
+            }
+        }
+
+        // 加载最新数据
+        function loadLatestData() {
+            showLoading();
+            
+            $.ajax({
+                url: '/api/support-resistance/latest',
+                method: 'GET',
+                success: function(response) {
+                    if (response.success) {
+                        renderData(response);
+                        loadLatestSnapshot();
+                    } else {
+                        showError('加载数据失败: ' + (response.message || '未知错误'));
+                    }
+                },
+                error: function(xhr, status, error) {
+                    showError('网络请求失败: ' + error);
+                }
+            });
+        }
+
+        // 加载历史数据
+        function loadHistoricalData(date) {
+            showLoading();
+            
+            $.ajax({
+                url: '/api/support-resistance/latest?date=' + date,
+                method: 'GET',
+                success: function(response) {
+                    if (response.success) {
+                        renderData(response);
+                        loadHistoricalSnapshot(date);
+                    } else {
+                        showError('加载历史数据失败: ' + (response.message || '未知错误'));
+                    }
+                },
+                error: function(xhr, status, error) {
+                    showError('网络请求失败: ' + error);
+                }
+            });
+        }
+
+        // 加载最新快照
+        function loadLatestSnapshot() {
+            $.ajax({
+                url: '/api/support-resistance/snapshots?limit=1',
+                method: 'GET',
+                success: function(response) {
+                    if (response.success && response.data && response.data.length > 0) {
+                        renderScenarioCards(response.data[0]);
+                    }
+                },
+                error: function(error) {
+                    console.error('加载快照失败:', error);
+                }
+            });
+        }
+
+        // 加载历史快照
+        function loadHistoricalSnapshot(date) {
+            $.ajax({
+                url: '/api/support-resistance/snapshots?date=' + date + '&limit=1',
+                method: 'GET',
+                success: function(response) {
+                    if (response.success && response.data && response.data.length > 0) {
+                        renderScenarioCards(response.data[0]);
+                    } else {
+                        // 如果没有快照数据，显示空状态
+                        renderScenarioCards({
+                            scenario_1_count: 0,
+                            scenario_2_count: 0,
+                            scenario_3_count: 0,
+                            scenario_4_count: 0,
+                            scenario_1_coins: [],
+                            scenario_2_coins: [],
+                            scenario_3_coins: [],
+                            scenario_4_coins: []
+                        });
+                    }
+                },
+                error: function(error) {
+                    console.error('加载历史快照失败:', error);
+                }
+            });
+        }
+
+        // 渲染数据
+        function renderData(response) {
+            // 更新时间
+            $('#updateTime').text('更新时间: ' + (response.update_time || '未知') + ' | ' + (response.timezone || ''));
+            
+            // 渲染表格
+            renderTable(response.data);
+            
+            // 渲染图表
+            renderChart(response.data);
+            
+            // 隐藏加载，显示内容
+            hideLoading();
+        }
+
+        // 渲染场景卡片
+        function renderScenarioCards(snapshot) {
+            const scenariosHtml = `
+                <div class="scenario-card scenario-1">
+                    <div class="scenario-title">🟢 场景1: 7日低位</div>
+                    <div class="scenario-count">${snapshot.scenario_1_count || 0}</div>
+                    <div class="scenario-coins">${formatCoins(snapshot.scenario_1_coins || [])}</div>
+                </div>
+                <div class="scenario-card scenario-2">
+                    <div class="scenario-title">🔵 场景2: 7日高位</div>
+                    <div class="scenario-count">${snapshot.scenario_2_count || 0}</div>
+                    <div class="scenario-coins">${formatCoins(snapshot.scenario_2_coins || [])}</div>
+                </div>
+                <div class="scenario-card scenario-3">
+                    <div class="scenario-title">🟠 场景3: 48h低位</div>
+                    <div class="scenario-count">${snapshot.scenario_3_count || 0}</div>
+                    <div class="scenario-coins">${formatCoins(snapshot.scenario_3_coins || [])}</div>
+                </div>
+                <div class="scenario-card scenario-4">
+                    <div class="scenario-title">🔴 场景4: 48h高位</div>
+                    <div class="scenario-count">${snapshot.scenario_4_count || 0}</div>
+                    <div class="scenario-coins">${formatCoins(snapshot.scenario_4_coins || [])}</div>
+                </div>
+            `;
+            
+            $('#scenarioCards').html(scenariosHtml).show();
+        }
+
+        // 格式化币种列表
+        function formatCoins(coins) {
+            if (!coins || coins.length === 0) return '无';
+            return coins.map(coin => coin.replace('-USDT-SWAP', '')).join(', ');
+        }
+
+        // 渲染表格
+        function renderTable(data) {
+            if (!data || data.length === 0) {
+                $('#dataTableBody').html('<tr><td colspan="9">暂无数据</td></tr>');
+                return;
+            }
+            
+            let html = '';
+            data.forEach(item => {
+                const symbol = (item.symbol || '').replace('-USDT-SWAP', '');
+                const position7d = item.position_7d || 0;
+                const position48h = item.position_48h || 0;
+                
+                // 生成警报标记
+                let alert7d = '';
+                if (position7d <= 10) alert7d = '<span class="alert-badge alert-low">低</span>';
+                if (position7d >= 90) alert7d = '<span class="alert-badge alert-high">高</span>';
+                
+                let alert48h = '';
+                if (position48h <= 10) alert48h = '<span class="alert-badge alert-low">低</span>';
+                if (position48h >= 90) alert48h = '<span class="alert-badge alert-high">高</span>';
+                
+                html += `
+                    <tr>
+                        <td><strong>${symbol}</strong></td>
+                        <td>${formatPrice(item.current_price)}</td>
+                        <td>${formatPrice(item.support_line_1)}</td>
+                        <td>${formatPrice(item.support_line_2)}</td>
+                        <td>${formatPrice(item.resistance_line_1)}</td>
+                        <td>${formatPrice(item.resistance_line_2)}</td>
+                        <td>${position7d.toFixed(2)}% ${alert7d}</td>
+                        <td>${position48h.toFixed(2)}% ${alert48h}</td>
+                        <td style="font-size: 11px;">${item.record_time || '-'}</td>
+                    </tr>
+                `;
+            });
+            
+            $('#dataTableBody').html(html);
+            $('#tableContainer').show();
+        }
+
+        // 渲染图表
+        function renderChart(data) {
+            if (!data || data.length === 0) return;
+            
+            if (!chartInstance) {
+                chartInstance = echarts.init(document.getElementById('mainChart'));
+            }
+            
+            // 准备图表数据
+            const symbols = data.map(item => (item.symbol || '').replace('-USDT-SWAP', ''));
+            const position7dData = data.map(item => (item.position_7d || 0).toFixed(2));
+            const position48hData = data.map(item => (item.position_48h || 0).toFixed(2));
+            
+            const option = {
+                title: {
+                    text: '支撑压力线位置分布',
+                    left: 'center',
+                    textStyle: {
+                        fontSize: 18,
+                        fontWeight: 'bold'
+                    }
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                        type: 'shadow'
+                    }
+                },
+                legend: {
+                    data: ['7日位置', '48小时位置'],
+                    top: 30
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: symbols,
+                    axisLabel: {
+                        rotate: 45,
+                        fontSize: 10
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    name: '位置 (%)',
+                    min: 0,
+                    max: 100
+                },
+                series: [
+                    {
+                        name: '7日位置',
+                        type: 'bar',
+                        data: position7dData,
+                        itemStyle: {
+                            color: '#667eea'
+                        },
+                        markLine: {
+                            data: [
+                                { yAxis: 10, lineStyle: { color: '#28a745', width: 2 }, label: { formatter: '低位线(10%)' } },
+                                { yAxis: 90, lineStyle: { color: '#dc3545', width: 2 }, label: { formatter: '高位线(90%)' } }
+                            ]
+                        }
+                    },
+                    {
+                        name: '48小时位置',
+                        type: 'bar',
+                        data: position48hData,
+                        itemStyle: {
+                            color: '#764ba2'
+                        }
+                    }
+                ]
+            };
+            
+            chartInstance.setOption(option);
+            $('#chartContainer').show();
+        }
+
+        // 格式化价格
+        function formatPrice(price) {
+            if (!price) return '-';
+            const num = parseFloat(price);
+            if (num >= 1000) return num.toFixed(2);
+            if (num >= 10) return num.toFixed(3);
+            if (num >= 1) return num.toFixed(4);
+            return num.toFixed(6);
+        }
+
+        // 显示加载
+        function showLoading() {
+            $('#loadingSection').show();
+            $('#errorSection').hide();
+            $('#scenarioCards').hide();
+            $('#chartContainer').hide();
+            $('#tableContainer').hide();
+        }
+
+        // 隐藏加载
+        function hideLoading() {
+            $('#loadingSection').hide();
+        }
+
+        // 显示错误
+        function showError(message) {
+            $('#loadingSection').hide();
+            $('#errorSection').text(message).show();
+            $('#scenarioCards').hide();
+            $('#chartContainer').hide();
+            $('#tableContainer').hide();
+        }
+
+        // 窗口大小改变时重绘图表
+        $(window).resize(function() {
+            if (chartInstance) {
+                chartInstance.resize();
+            }
+        });
+    </script>
+</body>
+</html>
