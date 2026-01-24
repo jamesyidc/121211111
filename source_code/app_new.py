@@ -7298,16 +7298,17 @@ def api_trading_signals_history():
 
 @app.route('/api/support-resistance/latest')
 def api_support_resistance_latest():
-    """获取最新的支撑压力线数据（从 JSONL）"""
+    """获取最新的支撑压力线数据（从按日期存储的JSONL）"""
     try:
         import sys
         sys.path.insert(0, '/home/user/webapp')
-        from support_resistance_jsonl_manager import SupportResistanceJSONLManager
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from support_resistance_daily_manager import SupportResistanceDailyManager
         
-        manager = SupportResistanceJSONLManager()
+        manager = SupportResistanceDailyManager()
         
-        # 获取所有币种的最新数据
-        latest_levels = manager.get_all_latest_levels()
+        # 获取所有币种的最新数据（今日）
+        latest_levels = manager.get_latest_levels()
         
         if not latest_levels:
             return jsonify({
@@ -7890,26 +7891,31 @@ def api_support_resistance_latest_signal():
 
 @app.route('/api/support-resistance/dates')
 def api_support_resistance_dates():
-    """获取有快照数据的所有日期列表"""
+    """获取有快照数据的所有日期列表（从按日期存储的JSONL）"""
     try:
-        conn = sqlite3.connect('/home/user/webapp/databases/support_resistance.db')
-        cursor = conn.cursor()
+        import sys
+        sys.path.insert(0, '/home/user/webapp')
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from support_resistance_daily_manager import SupportResistanceDailyManager
         
-        cursor.execute('''
-            SELECT DISTINCT snapshot_date
-            FROM support_resistance_snapshots
-            ORDER BY snapshot_date DESC
-        ''')
+        manager = SupportResistanceDailyManager()
         
-        rows = cursor.fetchall()
-        conn.close()
+        # 获取所有可用日期
+        available_dates = manager.get_available_dates()
         
-        dates = [row[0] for row in rows]
+        # 转换格式：YYYYMMDD -> YYYY-MM-DD
+        formatted_dates = []
+        for date_str in reversed(available_dates):  # 倒序，最新的在前
+            if len(date_str) == 8:
+                formatted_dates.append(f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}")
+            else:
+                formatted_dates.append(date_str)
         
         return jsonify({
             'success': True,
-            'dates': dates,
-            'count': len(dates)
+            'dates': formatted_dates,
+            'count': len(formatted_dates),
+            'data_source': 'JSONL (按日期存储)'
         })
         
     except Exception as e:

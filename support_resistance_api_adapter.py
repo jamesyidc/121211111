@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
 支撑压力线系统 API 适配器
-功能：为 Flask 应用提供从 JSONL 读取数据的接口
+功能：为 Flask 应用提供从 JSONL 读取数据的接口（按日期存储）
 时区：统一使用北京时间 (UTC+8)
+更新：2026-01-24 - 使用按日期存储的新管理器
 """
 
 import os
@@ -13,18 +14,19 @@ from typing import Dict, List, Optional, Any
 
 # 添加项目路径
 sys.path.insert(0, '/home/user/webapp')
+sys.path.insert(0, '/home/user/webapp/source_code')
 
-from support_resistance_jsonl_manager import SupportResistanceJSONLManager
+from support_resistance_daily_manager import SupportResistanceDailyManager
 
 # 北京时区
 BEIJING_TZ = timezone(timedelta(hours=8))
 
 
 class SupportResistanceAPIAdapter:
-    """支撑压力线 API 适配器"""
+    """支撑压力线 API 适配器（使用按日期存储）"""
     
     def __init__(self):
-        self.manager = SupportResistanceJSONLManager()
+        self.manager = SupportResistanceDailyManager()
     
     def get_all_symbols_latest(self) -> Dict[str, Any]:
         """
@@ -35,12 +37,13 @@ class SupportResistanceAPIAdapter:
             'success': True,
             'data': [...],
             'count': 27,
-            'data_source': 'JSONL',
+            'data_source': 'JSONL (按日期存储)',
             'timezone': 'Beijing Time (UTC+8)'
         }
         """
         try:
-            latest_levels = self.manager.get_all_latest_levels()
+            # 使用新管理器获取今日最新数据
+            latest_levels = self.manager.get_latest_levels()
             
             # 格式化数据
             formatted_data = []
@@ -75,7 +78,7 @@ class SupportResistanceAPIAdapter:
                 'success': True,
                 'data': formatted_data,
                 'count': len(formatted_data),
-                'data_source': 'JSONL',
+                'data_source': 'JSONL (按日期存储)',
                 'timezone': 'Beijing Time (UTC+8)',
                 'timestamp': datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S')
             }
@@ -88,13 +91,14 @@ class SupportResistanceAPIAdapter:
                 'count': 0
             }
     
-    def get_symbol_detail(self, symbol: str, limit: int = 100) -> Dict[str, Any]:
+    def get_symbol_detail(self, symbol: str, limit: int = 100, date: Optional[str] = None) -> Dict[str, Any]:
         """
         获取单个币种的详细历史数据
         
         参数:
             symbol: 币种（如 'BTCUSDT'）
             limit: 返回记录数
+            date: 日期（YYYY-MM-DD格式），None表示今天
         
         返回格式：
         {
@@ -102,12 +106,19 @@ class SupportResistanceAPIAdapter:
             'symbol': 'BTCUSDT',
             'data': [...],
             'count': 100,
-            'data_source': 'JSONL',
+            'data_source': 'JSONL (按日期存储)',
             'timezone': 'Beijing Time (UTC+8)'
         }
         """
         try:
-            records = self.manager.get_support_resistance_levels(symbol=symbol, limit=limit)
+            # 如果指定日期，读取特定日期的数据；否则读取今天的数据
+            if date:
+                date_str = date.replace('-', '')  # YYYY-MM-DD -> YYYYMMDD
+                records = self.manager.get_levels_by_date(date_str, symbol=symbol, limit=limit)
+            else:
+                # 获取今天的数据（最新）
+                all_records = self.manager.get_latest_levels(symbol=symbol)
+                records = all_records[-limit:] if len(all_records) > limit else all_records
             
             # 格式化数据
             formatted_data = []
@@ -135,7 +146,7 @@ class SupportResistanceAPIAdapter:
                 'symbol': symbol,
                 'data': formatted_data,
                 'count': len(formatted_data),
-                'data_source': 'JSONL',
+                'data_source': 'JSONL (按日期存储)',
                 'timezone': 'Beijing Time (UTC+8)',
                 'timestamp': datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S')
             }
@@ -149,24 +160,35 @@ class SupportResistanceAPIAdapter:
                 'count': 0
             }
     
-    def get_snapshots(self, limit: Optional[int] = 100) -> Dict[str, Any]:
+    def get_snapshots(self, limit: Optional[int] = 100, date: Optional[str] = None) -> Dict[str, Any]:
         """
         获取快照数据
         
         参数:
             limit: 返回记录数，None表示返回所有数据
+            date: 日期（YYYY-MM-DD格式），None表示今天
         
         返回格式：
         {
             'success': True,
             'data': [...],
             'count': 100,
-            'data_source': 'JSONL',
+            'data_source': 'JSONL (按日期存储)',
             'timezone': 'Beijing Time (UTC+8)'
         }
         """
         try:
-            snapshots = self.manager.get_snapshots(limit=limit)
+            # 如果指定日期，读取特定日期的数据；否则读取今天的数据
+            if date:
+                date_str = date.replace('-', '')  # YYYY-MM-DD -> YYYYMMDD
+                snapshots = self.manager.get_snapshots_by_date(date_str, limit=limit)
+            else:
+                # 获取今天最新的快照
+                snapshots = self.manager.get_latest_snapshot()
+                if snapshots:
+                    snapshots = [snapshots]  # 转换为列表
+                else:
+                    snapshots = []
             
             # 格式化数据
             formatted_data = []
@@ -189,7 +211,7 @@ class SupportResistanceAPIAdapter:
                 'success': True,
                 'data': formatted_data,
                 'count': len(formatted_data),
-                'data_source': 'JSONL',
+                'data_source': 'JSONL (按日期存储)',
                 'timezone': 'Beijing Time (UTC+8)',
                 'timestamp': datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S')
             }
@@ -210,17 +232,31 @@ class SupportResistanceAPIAdapter:
         {
             'success': True,
             'statistics': {...},
-            'data_source': 'JSONL',
+            'data_source': 'JSONL (按日期存储)',
             'timezone': 'Beijing Time (UTC+8)'
         }
         """
         try:
-            stats = self.manager.get_statistics()
+            # 使用新管理器的统计方法
+            available_dates = self.manager.get_available_dates()
+            
+            # 统计今日数据
+            today_levels = self.manager.get_latest_levels()
+            today_snapshots = self.manager.get_latest_snapshot()
+            
+            stats = {
+                'total_dates': len(available_dates),
+                'earliest_date': available_dates[0] if available_dates else None,
+                'latest_date': available_dates[-1] if available_dates else None,
+                'today_levels_count': len(today_levels),
+                'today_has_snapshot': today_snapshots is not None,
+                'available_dates': available_dates
+            }
             
             return {
                 'success': True,
                 'statistics': stats,
-                'data_source': 'JSONL',
+                'data_source': 'JSONL (按日期存储)',
                 'timezone': 'Beijing Time (UTC+8)',
                 'timestamp': datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S')
             }

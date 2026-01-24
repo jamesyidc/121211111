@@ -15,11 +15,15 @@ from datetime import datetime
 from typing import Dict, List
 
 # 添加项目路径
-sys.path.insert(0, os.path.dirname(__file__))
-from support_resistance_daily_manager import SupportResistanceDailyManager
+sys.path.insert(0, '/home/user/webapp')
+from support_resistance_jsonl_manager import SupportResistanceJSONLManager
 
 # 数据库配置（用于写入快照）
 DB_PATH = '/home/user/webapp/databases/support_resistance.db'
+
+# JSONL配置
+JSONL_DIR = '/home/user/webapp/data/support_resistance_jsonl'
+SNAPSHOT_FILE = os.path.join(JSONL_DIR, 'support_resistance_snapshots.jsonl')
 
 # 日志文件
 LOG_FILE = os.path.join(os.path.dirname(__file__), 'support_resistance_snapshot.log')
@@ -82,33 +86,30 @@ def create_snapshot_table():
         return False
 
 def get_latest_data() -> List[Dict]:
-    """从按日期JSONL获取最新的支撑压力线数据"""
+    """从JSONL获取最新的支撑压力线数据"""
     try:
-        manager = SupportResistanceDailyManager()
+        manager = SupportResistanceJSONLManager()
         
-        # 获取今天最新的levels数据（27个币种）
-        latest_records = manager.get_latest_levels(limit=27)
+        # 获取所有币种的最新数据
+        all_latest = manager.get_all_latest_levels()
         
-        if not latest_records:
-            log("⚠️ 从按日期JSONL未获取到数据")
+        if not all_latest:
+            log("⚠️ 从JSONL未获取到数据")
             return []
         
         results = []
-        for record in latest_records:
-            # 提取data字段
-            data = record.get('data', {})
-            
+        for record in all_latest:
             # 计算alert场景
-            position_7d = data.get('position_7d', 0) or 0
-            position_48h = data.get('position_48h', 0) or 0
+            position_7d = record.get('position_7d', 0) or 0
+            position_48h = record.get('position_48h', 0) or 0
             
             results.append({
-                'symbol': data.get('symbol'),
-                'current_price': data.get('current_price'),
-                'support_line_1': data.get('support_line_1'),
-                'support_line_2': data.get('support_line_2'),
-                'resistance_line_1': data.get('resistance_line_1'),
-                'resistance_line_2': data.get('resistance_line_2'),
+                'symbol': record.get('symbol'),
+                'current_price': record.get('current_price'),
+                'support_line_1': record.get('support_line_1'),
+                'support_line_2': record.get('support_line_2'),
+                'resistance_line_1': record.get('resistance_line_1'),
+                'resistance_line_2': record.get('resistance_line_2'),
                 'position_s2_r1': position_7d,  # 7天位置
                 'position_s1_r2': position_48h,  # 48小时位置
                 'position_s1_r2_upper': position_48h,
@@ -117,10 +118,10 @@ def get_latest_data() -> List[Dict]:
                 'alert_scenario_2': position_7d >= 95,  # 7天高位警报
                 'alert_scenario_3': position_48h >= 95,  # 48h高位警报
                 'alert_scenario_4': position_7d >= 95,  # 7天高位警报（与scenario_2相同逻辑）
-                'record_time': data.get('record_time_beijing') or data.get('record_time')
+                'record_time': record.get('record_time_beijing') or record.get('record_time')
             })
         
-        log(f"✅ 从按日期JSONL获取到 {len(results)} 个币种的最新数据")
+        log(f"✅ 从JSONL获取到 {len(results)} 个币种的最新数据")
         return results
         
     except Exception as e:
@@ -200,7 +201,7 @@ def analyze_scenarios(data_list: List[Dict]) -> Dict:
     }
 
 def save_snapshot(analysis: Dict) -> bool:
-    """保存快照到数据库和按日期JSONL文件"""
+    """保存快照到数据库和JSONL文件"""
     try:
         # 使用北京时间存储（UTC+8）
         now_beijing = datetime.now(pytz.timezone('Asia/Shanghai'))
@@ -237,10 +238,10 @@ def save_snapshot(analysis: Dict) -> bool:
         except Exception as e:
             log(f"⚠️ SQLite写入失败: {e}")
         
-        # 2. 使用新的按日期管理器写入JSONL
-        manager = SupportResistanceDailyManager()
+        # 2. 保存到JSONL文件（主要数据源）
+        os.makedirs(JSONL_DIR, exist_ok=True)
         
-        snapshot_data = {
+        jsonl_record = {
             'snapshot_time': snapshot_time,
             'snapshot_date': snapshot_date,
             'scenario_1_count': analysis['scenario_1']['count'],
@@ -257,9 +258,10 @@ def save_snapshot(analysis: Dict) -> bool:
             'created_at_beijing': snapshot_time
         }
         
-        manager.write_snapshot_record(snapshot_data)
+        with open(SNAPSHOT_FILE, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(jsonl_record, ensure_ascii=False) + '\n')
         
-        log(f"✅ 快照保存成功 (SQLite+按日期JSONL): {snapshot_time} | "
+        log(f"✅ 快照保存成功 (SQLite+JSONL): {snapshot_time} | "
             f"情况1:{analysis['scenario_1']['count']} "
             f"情况2:{analysis['scenario_2']['count']} "
             f"情况3:{analysis['scenario_3']['count']} "

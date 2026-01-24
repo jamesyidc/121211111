@@ -18,9 +18,9 @@ from typing import Dict, List, Optional
 # 数据库配置
 DB_PATH = '/home/user/webapp/databases/support_resistance.db'
 
-# 导入新的按日期管理器
-sys.path.insert(0, os.path.dirname(__file__))
-from support_resistance_daily_manager import SupportResistanceDailyManager
+# JSONL文件配置
+JSONL_DIR = '/home/user/webapp/data/support_resistance_jsonl'
+JSONL_LEVELS_FILE = os.path.join(JSONL_DIR, 'support_resistance_levels.jsonl')
 
 # 日志文件
 LOG_FILE = os.path.join(os.path.dirname(__file__), 'support_resistance.log')
@@ -350,7 +350,7 @@ def calculate_support_resistance(symbol: str) -> Optional[Dict]:
         return None
 
 def save_to_database(data: Dict) -> bool:
-    """保存到数据库和按日期JSONL文件"""
+    """保存到数据库和JSONL文件"""
     try:
         # 1. 保存到SQLite数据库
         conn = sqlite3.connect(DB_PATH)
@@ -390,12 +390,11 @@ def save_to_database(data: Dict) -> bool:
         conn.commit()
         conn.close()
         
-        # 2. 使用新的按日期管理器写入JSONL
-        manager = SupportResistanceDailyManager()
+        # 2. 同时写入JSONL文件（用于API快速读取）
         beijing_tz = pytz.timezone('Asia/Shanghai')
         record_time = datetime.now(beijing_tz).strftime('%Y-%m-%d %H:%M:%S')
         
-        level_data = {
+        jsonl_data = {
             'symbol': data['symbol'],
             'current_price': data['current_price'],
             'support_line_1': data['support_line_1'],
@@ -432,15 +431,15 @@ def save_to_database(data: Dict) -> bool:
             'record_time_beijing': record_time
         }
         
-        # 写入按日期JSONL
-        manager.write_level_record(level_data)
+        # 追加写入JSONL文件
+        os.makedirs(JSONL_DIR, exist_ok=True)
+        with open(JSONL_LEVELS_FILE, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(jsonl_data, ensure_ascii=False) + '\n')
         
         return True
         
     except Exception as e:
-        log(f"❌ 保存数据失败: {e}")
-        import traceback
-        traceback.print_exc()
+        log(f"❌ 保存数据库失败: {e}")
         return False
 
 def collect_all_symbols():
