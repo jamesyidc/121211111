@@ -13079,6 +13079,13 @@ def anchor_test():
     from flask import send_file
     return send_file('/home/user/webapp/anchor_test.html')
 
+@app.route('/test-anchor-chart')
+def test_anchor_chart():
+    """锚点图表测试页面"""
+    response = make_response(render_template('test_anchor_chart.html'))
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return response
+
 @app.route('/anchor-system-real')
 def anchor_system_real():
     """实盘锚点系统"""
@@ -16719,35 +16726,150 @@ def trigger_event_check():
 
 @app.route('/api/anchor-system/profit-history', methods=['GET'])
 def get_anchor_system_profit_history():
-    """获取锚定系统盈利历史数据（从JSONL读取）"""
+    """获取锚定系统盈利历史数据（按日期查询，支持分页加载）"""
     try:
         import json
         from pathlib import Path
         
         # 获取参数
         trade_mode = request.args.get('trade_mode', 'real')  # real or paper
-        hours = int(request.args.get('hours', 24))  # 默认24小时
+        date_str = request.args.get('date')  # YYYY-MM-DD 格式
         
-        # JSONL文件路径 - 使用主数据文件
-        jsonl_file = Path('/home/user/webapp/data/anchor_profit_stats/anchor_profit_stats.jsonl')
+        # 数据目录
+        data_dir = Path('/home/user/webapp/data/anchor_profit_stats')
         
-        if not jsonl_file.exists():
-            return jsonify({
-                'success': False,
-                'error': 'JSONL文件不存在'
-            })
+        # 如果指定了日期，尝试从按日期文件读取
+        if date_str:
+            # 尝试按日期文件（新格式）
+            date_file = data_dir / f'anchor_profit_{date_str}.jsonl'
+            
+            if date_file.exists():
+                # 从按日期文件读取
+                history_data = []
+                with open(date_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        try:
+                            data = json.loads(line.strip())
+                            # 兼容旧数据：如果没有 trade_mode 字段，默认认为是 real
+                            data_trade_mode = data.get('trade_mode', 'real')
+                            if data_trade_mode == trade_mode:
+                                history_data.append(data)
+                        except:
+                            continue
+                
+                return jsonify({
+                    'success': True,
+                    'trade_mode': trade_mode,
+                    'date': date_str,
+                    'history': history_data,
+                    'count': len(history_data),
+                    'source': 'date_file'
+                })
+            else:
+                # 按日期文件不存在，尝试从主文件读取（兼容旧数据）
+                main_file = data_dir / 'anchor_profit_stats.jsonl'
+                if not main_file.exists():
+                    return jsonify({
+                        'success': False,
+                        'error': f'数据文件不存在：{date_str}'
+                    })
+                
+                # 解析日期范围
+                from datetime import datetime as dt
+                target_date = dt.strptime(date_str, '%Y-%m-%d')
+                start_timestamp = int(target_date.replace(hour=0, minute=0, second=0).timestamp())
+                end_timestamp = int(target_date.replace(hour=23, minute=59, second=59).timestamp())
+                
+                # 从主文件读取指定日期的数据
+                history_data = []
+                with open(main_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        try:
+                            data = json.loads(line.strip())
+                            timestamp = data.get('timestamp', 0)
+                            if start_timestamp <= timestamp <= end_timestamp:
+                                # 兼容旧数据：如果没有 trade_mode 字段，默认认为是 real
+                                data_trade_mode = data.get('trade_mode', 'real')
+                                if data_trade_mode == trade_mode:
+                                    history_data.append(data)
+                        except:
+                            continue
+                
+                return jsonify({
+                    'success': True,
+                    'trade_mode': trade_mode,
+                    'date': date_str,
+                    'history': history_data,
+                    'count': len(history_data),
+                    'source': 'main_file_filtered'
+                })
         
-        # 读取JSONL数据
+        # 如果没有指定日期，返回今天的数据（默认行为）
+        else:
+            today_str = datetime.now(BEIJING_TZ).strftime('%Y-%m-%d')
+            return get_anchor_system_profit_history_by_date(trade_mode, today_str, data_dir)
+            
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+def get_anchor_system_profit_history_by_date(trade_mode, date_str, data_dir):
+    """辅助函数：按日期查询数据"""
+    import json
+    from pathlib import Path
+    from datetime import datetime as dt
+    
+    # 尝试按日期文件
+    date_file = data_dir / f'anchor_profit_{date_str}.jsonl'
+    
+    if date_file.exists():
         history_data = []
-        cutoff_time = int(time.time()) - (hours * 3600)
-        
-        with open(jsonl_file, 'r', encoding='utf-8') as f:
+        with open(date_file, 'r', encoding='utf-8') as f:
             for line in f:
                 try:
                     data = json.loads(line.strip())
-                    # 过滤时间范围和交易模式
-                    if data.get('timestamp', 0) >= cutoff_time:
-                        if data.get('trade_mode') == trade_mode:
+                    # 兼容旧数据：如果没有 trade_mode 字段，默认认为是 real
+                    data_trade_mode = data.get('trade_mode', 'real')
+                    if data_trade_mode == trade_mode:
+                        history_data.append(data)
+                except:
+                    continue
+        
+        return jsonify({
+            'success': True,
+            'trade_mode': trade_mode,
+            'date': date_str,
+            'history': history_data,
+            'count': len(history_data),
+            'source': 'date_file'
+        })
+    else:
+        # 从主文件读取
+        main_file = data_dir / 'anchor_profit_stats.jsonl'
+        if not main_file.exists():
+            return jsonify({
+                'success': False,
+                'error': f'数据文件不存在：{date_str}'
+            })
+        
+        target_date = dt.strptime(date_str, '%Y-%m-%d')
+        start_timestamp = int(target_date.replace(hour=0, minute=0, second=0).timestamp())
+        end_timestamp = int(target_date.replace(hour=23, minute=59, second=59).timestamp())
+        
+        history_data = []
+        with open(main_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    data = json.loads(line.strip())
+                    timestamp = data.get('timestamp', 0)
+                    if start_timestamp <= timestamp <= end_timestamp:
+                        # 兼容旧数据：如果没有 trade_mode 字段，默认认为是 real
+                        data_trade_mode = data.get('trade_mode', 'real')
+                        if data_trade_mode == trade_mode:
                             history_data.append(data)
                 except:
                     continue
@@ -16755,16 +16877,10 @@ def get_anchor_system_profit_history():
         return jsonify({
             'success': True,
             'trade_mode': trade_mode,
-            'hours': hours,
+            'date': date_str,
             'history': history_data,
-            'count': len(history_data)
-        })
-    except Exception as e:
-        import traceback
-        return jsonify({
-            'success': False,
-            'error': str(e),
-            'traceback': traceback.format_exc()
+            'count': len(history_data),
+            'source': 'main_file_filtered'
         })
 
 @app.route('/api/major-events/data/sar-slope', methods=['GET'])

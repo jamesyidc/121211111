@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>锚点图表测试</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
+        #chart { width: 100%; height: 500px; background: white; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 锚点图表测试页面</h1>
+        
+        <div id="status" class="status info">准备测试...</div>
+        
+        <div style="margin: 20px 0;">
+            <button onclick="testAPI()">测试 API</button>
+            <button onclick="loadChart('2026-01-23')">加载昨天数据</button>
+            <button onclick="loadChart('2026-01-22')">加载前天数据</button>
+        </div>
+        
+        <div id="chart"></div>
+        
+        <div id="console" style="margin-top: 20px; padding: 10px; background: #f9f9f9; border: 1px solid #ddd; max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px;">
+            <strong>控制台日志:</strong><br>
+        </div>
+    </div>
+
+    <script>
+        let chart = null;
+        
+        function log(message, type = 'info') {
+            const consoleDiv = document.getElementById('console');
+            const time = new Date().toLocaleTimeString();
+            const color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'blue';
+            consoleDiv.innerHTML += `<div style="color: ${color}">[${time}] ${message}</div>`;
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+            console.log(message);
+        }
+        
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            log(message, type);
+        }
+        
+        async function testAPI() {
+            updateStatus('🔍 测试 API 连接...', 'info');
+            
+            try {
+                const response = await fetch('/api/anchor-profit/by-date?date=2026-01-23&type=profit_stats');
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateStatus(`✅ API 测试成功！数据条数: ${data.data.length}`, 'success');
+                    log(`数据样本: ${JSON.stringify(data.data[0]).substring(0, 200)}...`);
+                } else {
+                    updateStatus(`❌ API 返回失败: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                updateStatus(`❌ API 请求失败: ${error.message}`, 'error');
+            }
+        }
+        
+        async function loadChart(date) {
+            updateStatus(`📊 加载 ${date} 的数据...`, 'info');
+            
+            try {
+                // 初始化图表
+                if (!chart) {
+                    chart = echarts.init(document.getElementById('chart'));
+                    log('✅ 图表初始化成功');
+                }
+                
+                // 加载数据
+                const response = await fetch(`/api/anchor-profit/by-date?date=${date}&type=profit_stats`);
+                const result = await response.json();
+                
+                if (!result.success || !result.data || result.data.length === 0) {
+                    updateStatus(`⚠️ ${date} 没有数据`, 'error');
+                    return;
+                }
+                
+                const data = result.data;
+                log(`✅ 获取到 ${data.length} 条数据`);
+                
+                // 提取时间和数据
+                const times = data.map(d => {
+                    const dt = new Date(d.timestamp * 1000);
+                    return `${dt.getHours().toString().padStart(2, '0')}:${dt.getMinutes().toString().padStart(2, '0')}`;
+                });
+                
+                const shortLte40 = data.map(d => d.stats?.short?.lte_40 || 0);
+                const shortGte80 = data.map(d => d.stats?.short?.gte_80 || 0);
+                const shortGte120 = data.map(d => d.stats?.short?.gte_120 || 0);
+                
+                log(`时间点数: ${times.length}, 样本: ${times.slice(0, 5).join(', ')}`);
+                log(`空单≤40%: ${shortLte40.slice(0, 5).join(', ')}`);
+                log(`空单≥80%: ${shortGte80.slice(0, 5).join(', ')}`);
+                log(`空单≥120%: ${shortGte120.slice(0, 5).join(', ')}`);
+                
+                // 配置图表
+                const option = {
+                    title: {
+                        text: `多空单盈利统计 (${date})`,
+                        left: 'center'
+                    },
+                    tooltip: {
+                        trigger: 'axis'
+                    },
+                    legend: {
+                        data: ['空单≤40%', '空单≥80%', '空单≥120%'],
+                        top: 30
+                    },
+                    grid: {
+                        left: '10%',
+                        right: '10%',
+                        bottom: '15%',
+                        top: 80
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: times,
+                        axisLabel: {
+                            rotate: 45
+                        }
+                    },
+                    yAxis: {
+                        type: 'value',
+                        name: '数量'
+                    },
+                    series: [
+                        {
+                            name: '空单≤40%',
+                            type: 'line',
+                            data: shortLte40,
+                            smooth: true,
+                            itemStyle: { color: '#10b981' }
+                        },
+                        {
+                            name: '空单≥80%',
+                            type: 'line',
+                            data: shortGte80,
+                            smooth: true,
+                            itemStyle: { color: '#ef4444' }
+                        },
+                        {
+                            name: '空单≥120%',
+                            type: 'line',
+                            data: shortGte120,
+                            smooth: true,
+                            itemStyle: { color: '#991b1b' }
+                        }
+                    ]
+                };
+                
+                chart.setOption(option);
+                log('✅ 图表配置已应用');
+                
+                updateStatus(`✅ 图表加载成功！显示 ${date} 的 ${data.length} 条数据`, 'success');
+                
+            } catch (error) {
+                updateStatus(`❌ 加载失败: ${error.message}`, 'error');
+                log(error.stack, 'error');
+            }
+        }
+        
+        // 页面加载完成后自动测试
+        window.addEventListener('load', () => {
+            log('✅ 页面加载完成');
+            updateStatus('✅ 页面就绪，自动开始测试...', 'success');
+            
+            // 自动执行测试序列
+            setTimeout(() => {
+                log('🚀 自动测试序列开始');
+                testAPI();
+            }, 1000);
+            
+            setTimeout(() => {
+                loadChart('2026-01-23');
+            }, 2000);
+        });
+    </script>
+</body>
+</html>
