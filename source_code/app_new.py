@@ -6719,7 +6719,8 @@ def api_trading_signals_analyze():
         import pytz
         from opening_logic import get_opening_suggestion
         
-        conn = sqlite3.connect('/home/user/webapp/databases/support_resistance.db')
+        # 连接crypto_data数据库（用于其他系统数据）
+        conn = sqlite3.connect('/home/user/webapp/databases/crypto_data.db')
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         
@@ -6737,19 +6738,49 @@ def api_trading_signals_analyze():
             opening_can_long = False
             opening_position_percent = 0
         
-        # 1. 获取支撑压力线数据
-        cursor.execute('''
-            SELECT symbol, current_price, support_line_1, support_line_2, resistance_line_1,
-                   distance_to_support_1, distance_to_support_2, distance_to_resistance_1,
-                   position_s2_r1, record_time
-            FROM support_resistance_levels
-            WHERE id IN (
-                SELECT MAX(id) 
-                FROM support_resistance_levels 
-                GROUP BY symbol
-            )
-        ''')
-        sr_data = {row['symbol']: dict(row) for row in cursor.fetchall()}
+        # 1. 获取支撑压力线数据（从JSONL）
+        import sys
+        sys.path.insert(0, '/home/user/webapp')
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from support_resistance_api_adapter import SupportResistanceAPIAdapter
+        
+        adapter = SupportResistanceAPIAdapter()
+        sr_result = adapter.get_all_symbols_latest()
+        
+        sr_data = {}
+        if sr_result['success'] and sr_result['data']:
+            for item in sr_result['data']:
+                symbol = item.get('symbol', '')
+                # 计算距离支撑线的距离百分比
+                current_price = item.get('current_price', 0)
+                support_1 = item.get('support_line_1', 0)
+                support_2 = item.get('support_line_2', 0)
+                resistance_1 = item.get('resistance_line_1', 0)
+                
+                distance_to_support_1 = None
+                distance_to_support_2 = None
+                distance_to_resistance_1 = None
+                position_s2_r1 = item.get('position_7d', 0)  # 使用position_7d作为s2_r1位置
+                
+                if support_1 and current_price:
+                    distance_to_support_1 = ((current_price - support_1) / support_1) * 100
+                if support_2 and current_price:
+                    distance_to_support_2 = ((current_price - support_2) / support_2) * 100
+                if resistance_1 and current_price:
+                    distance_to_resistance_1 = ((resistance_1 - current_price) / current_price) * 100
+                
+                sr_data[symbol] = {
+                    'symbol': symbol,
+                    'current_price': current_price,
+                    'support_line_1': support_1,
+                    'support_line_2': support_2,
+                    'resistance_line_1': resistance_1,
+                    'distance_to_support_1': distance_to_support_1,
+                    'distance_to_support_2': distance_to_support_2,
+                    'distance_to_resistance_1': distance_to_resistance_1,
+                    'position_s2_r1': position_s2_r1,
+                    'record_time': item.get('record_time', '')
+                }
         
         # 2. 获取价格突破数据(创新低统计 - 最近7天)
         seven_days_ago = now - timedelta(days=7)

@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-支撑压力线快照采集器
+支撑压力线快照采集器 v2.0 - 完全基于JSONL
 每1分钟保存一次4种情况的统计数据和符合条件的币种列表
 数据源：从JSONL文件读取最新数据
+数据存储：JSONL按日期分片存储，不再使用数据库
 """
 
 import os
 import sys
 import time
-import sqlite3
 import json
 import pytz
 from datetime import datetime
@@ -17,9 +17,6 @@ from typing import Dict, List
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(__file__))
 from support_resistance_daily_manager import SupportResistanceDailyManager
-
-# 数据库配置（用于写入快照）
-DB_PATH = '/home/user/webapp/databases/support_resistance.db'
 
 # 日志文件
 LOG_FILE = os.path.join(os.path.dirname(__file__), 'support_resistance_snapshot.log')
@@ -35,51 +32,6 @@ def log(message: str):
             f.write(log_msg + '\n')
     except Exception as e:
         print(f"写入日志失败: {e}")
-
-def create_snapshot_table():
-    """创建快照表（如果不存在）"""
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        
-        # 创建快照表
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS support_resistance_snapshots (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                snapshot_time TEXT NOT NULL,
-                snapshot_date TEXT NOT NULL,
-                scenario_1_count INTEGER DEFAULT 0,
-                scenario_2_count INTEGER DEFAULT 0,
-                scenario_3_count INTEGER DEFAULT 0,
-                scenario_4_count INTEGER DEFAULT 0,
-                scenario_1_coins TEXT,
-                scenario_2_coins TEXT,
-                scenario_3_coins TEXT,
-                scenario_4_coins TEXT,
-                total_coins INTEGER DEFAULT 27,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # 创建索引
-        cursor.execute('''
-            CREATE INDEX IF NOT EXISTS idx_snapshot_time 
-            ON support_resistance_snapshots(snapshot_time)
-        ''')
-        
-        cursor.execute('''
-            CREATE INDEX IF NOT EXISTS idx_snapshot_date 
-            ON support_resistance_snapshots(snapshot_date)
-        ''')
-        
-        conn.commit()
-        conn.close()
-        log("✅ 快照表检查/创建完成")
-        return True
-        
-    except Exception as e:
-        log(f"❌ 创建快照表失败: {e}")
-        return False
 
 def get_latest_data() -> List[Dict]:
     """从按日期JSONL获取最新的支撑压力线数据"""
@@ -207,37 +159,7 @@ def save_snapshot(analysis: Dict) -> bool:
         snapshot_time = now_beijing.strftime('%Y-%m-%d %H:%M:%S')
         snapshot_date = now_beijing.strftime('%Y-%m-%d')
         
-        # 1. 保存到SQLite（用于兼容性）
-        try:
-            conn = sqlite3.connect(DB_PATH)
-            cursor = conn.cursor()
-            
-            cursor.execute('''
-                INSERT INTO support_resistance_snapshots (
-                    snapshot_time, snapshot_date,
-                    scenario_1_count, scenario_2_count, scenario_3_count, scenario_4_count,
-                    scenario_1_coins, scenario_2_coins, scenario_3_coins, scenario_4_coins,
-                    total_coins
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                snapshot_time, snapshot_date,
-                analysis['scenario_1']['count'],
-                analysis['scenario_2']['count'],
-                analysis['scenario_3']['count'],
-                analysis['scenario_4']['count'],
-                json.dumps(analysis['scenario_1']['coins'], ensure_ascii=False),
-                json.dumps(analysis['scenario_2']['coins'], ensure_ascii=False),
-                json.dumps(analysis['scenario_3']['coins'], ensure_ascii=False),
-                json.dumps(analysis['scenario_4']['coins'], ensure_ascii=False),
-                analysis['total_coins']
-            ))
-            
-            conn.commit()
-            conn.close()
-        except Exception as e:
-            log(f"⚠️ SQLite写入失败: {e}")
-        
-        # 2. 使用新的按日期管理器写入JSONL
+        # 保存快照到JSONL（按日期存储）
         manager = SupportResistanceDailyManager()
         
         snapshot_data = {
@@ -247,10 +169,10 @@ def save_snapshot(analysis: Dict) -> bool:
             'scenario_2_count': analysis['scenario_2']['count'],
             'scenario_3_count': analysis['scenario_3']['count'],
             'scenario_4_count': analysis['scenario_4']['count'],
-            'scenario_1_coins': json.dumps(analysis['scenario_1']['coins'], ensure_ascii=False),
-            'scenario_2_coins': json.dumps(analysis['scenario_2']['coins'], ensure_ascii=False),
-            'scenario_3_coins': json.dumps(analysis['scenario_3']['coins'], ensure_ascii=False),
-            'scenario_4_coins': json.dumps(analysis['scenario_4']['coins'], ensure_ascii=False),
+            'scenario_1_coins': analysis['scenario_1']['coins'],
+            'scenario_2_coins': analysis['scenario_2']['coins'],
+            'scenario_3_coins': analysis['scenario_3']['coins'],
+            'scenario_4_coins': analysis['scenario_4']['coins'],
             'total_coins': analysis['total_coins'],
             'created_at': snapshot_time,
             'snapshot_time_beijing': snapshot_time,
@@ -259,7 +181,7 @@ def save_snapshot(analysis: Dict) -> bool:
         
         manager.write_snapshot_record(snapshot_data)
         
-        log(f"✅ 快照保存成功 (SQLite+按日期JSONL): {snapshot_time} | "
+        log(f"✅ 快照保存成功 (JSONL): {snapshot_time} | "
             f"情况1:{analysis['scenario_1']['count']} "
             f"情况2:{analysis['scenario_2']['count']} "
             f"情况3:{analysis['scenario_3']['count']} "
@@ -303,15 +225,10 @@ def collect_snapshot():
 
 def main():
     """主函数"""
-    log("🎯 支撑压力线快照采集器启动 (JSONL模式)")
+    log("🎯 支撑压力线快照采集器启动 (JSONL模式 v2.0)")
     log(f"⏰ 采集间隔: 60秒 (1分钟)")
-    log(f"📁 数据源: JSONL (/home/user/webapp/data/support_resistance_jsonl/)")
-    log(f"📁 兼容写入: {DB_PATH}")
-    
-    # 创建表
-    if not create_snapshot_table():
-        log("❌ 无法创建数据库表，退出")
-        return
+    log(f"📁 数据源: JSONL 按日期存储 (/home/user/webapp/data/support_resistance_daily/)")
+    log(f"✅ 数据存储: 仅JSONL，不再写入数据库")
     
     while True:
         try:
