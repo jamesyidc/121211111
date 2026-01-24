@@ -13086,6 +13086,13 @@ def test_anchor_chart():
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     return response
 
+@app.route('/test-anchor-markpoint')
+def test_anchor_markpoint():
+    """锚点图表标记点测试页面"""
+    response = make_response(render_template('test_anchor_markpoint.html'))
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return response
+
 @app.route('/anchor-system-real')
 def anchor_system_real():
     """实盘锚点系统"""
