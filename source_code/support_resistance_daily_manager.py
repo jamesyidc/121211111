@@ -170,13 +170,14 @@ class SupportResistanceDailyManager:
             print(f"❌ 读取日期记录失败 ({date_str}): {e}")
             return []
     
-    def get_latest_levels(self, date_str: str = None, limit: int = 27) -> List[Dict]:
+    def get_latest_levels(self, date_str: str = None, limit: int = 27, symbol: str = None) -> List[Dict]:
         """
-        获取最新的支撑阻力位数据
+        获取最新的支撑阻力位数据（优化版：反向读取文件）
         
         Args:
             date_str: 日期字符串（默认今天）
             limit: 返回记录数量
+            symbol: 可选，只获取指定币种
         
         Returns:
             List[Dict]: level记录列表（最新的N条）
@@ -184,14 +185,77 @@ class SupportResistanceDailyManager:
         if date_str is None:
             date_str = self.get_current_date()
         
-        records = self.read_date_records(date_str, record_type='level')
+        file_path = self.get_file_path(date_str)
         
-        # 返回最新的N条
-        return records[-limit:] if len(records) > limit else records
+        if not os.path.exists(file_path):
+            return []
+        
+        try:
+            # 反向读取文件，避免加载整个大文件
+            records = []
+            buffer_size = 8192  # 8KB buffer
+            
+            with open(file_path, 'rb') as f:
+                # 移动到文件末尾
+                f.seek(0, 2)
+                file_size = f.tell()
+                
+                # 从末尾开始读取
+                position = file_size
+                lines = []
+                
+                while position > 0 and len(records) < limit * 10:  # 读取足够的行
+                    # 读取一个buffer
+                    chunk_size = min(buffer_size, position)
+                    position -= chunk_size
+                    f.seek(position)
+                    chunk = f.read(chunk_size).decode('utf-8', errors='ignore')
+                    
+                    # 分割成行
+                    chunk_lines = chunk.split('\n')
+                    lines = chunk_lines + lines
+                
+                # 解析最后的N行（倒序）
+                for line in reversed(lines):
+                    if not line.strip():
+                        continue
+                    
+                    try:
+                        record = json.loads(line)
+                        
+                        # 只要level类型的记录
+                        if record.get('type') != 'level':
+                            continue
+                        
+                        # 如果指定了symbol，只返回该币种
+                        if symbol:
+                            data = record.get('data', {})
+                            if data.get('symbol') != symbol:
+                                continue
+                        
+                        records.append(record)
+                        
+                        # 达到limit就停止
+                        if len(records) >= limit:
+                            break
+                            
+                    except json.JSONDecodeError:
+                        continue
+            
+            # 返回最新的记录（已经是倒序，需要再反转）
+            return list(reversed(records))
+            
+        except Exception as e:
+            print(f"❌ 反向读取文件失败 ({date_str}): {e}")
+            # 回退到原始方法
+            records = self.read_date_records(date_str, record_type='level')
+            if symbol:
+                records = [r for r in records if r.get('data', {}).get('symbol') == symbol]
+            return records[-limit:] if len(records) > limit else records
     
     def get_latest_snapshot(self, date_str: str = None) -> Optional[Dict]:
         """
-        获取最新的快照数据
+        获取最新的快照数据（优化版：反向读取文件）
         
         Args:
             date_str: 日期字符串（默认今天）
@@ -202,9 +266,61 @@ class SupportResistanceDailyManager:
         if date_str is None:
             date_str = self.get_current_date()
         
-        records = self.read_date_records(date_str, record_type='snapshot')
+        file_path = self.get_file_path(date_str)
         
-        return records[-1] if records else None
+        if not os.path.exists(file_path):
+            return None
+        
+        try:
+            # 反向读取文件，找到第一个snapshot
+            buffer_size = 8192  # 8KB buffer
+            
+            with open(file_path, 'rb') as f:
+                # 移动到文件末尾
+                f.seek(0, 2)
+                file_size = f.tell()
+                
+                # 从末尾开始读取
+                position = file_size
+                lines = []
+                
+                while position > 0:
+                    # 读取一个buffer
+                    chunk_size = min(buffer_size, position)
+                    position -= chunk_size
+                    f.seek(position)
+                    chunk = f.read(chunk_size).decode('utf-8', errors='ignore')
+                    
+                    # 分割成行
+                    chunk_lines = chunk.split('\n')
+                    lines = chunk_lines + lines
+                    
+                    # 从最新的行开始检查
+                    for line in reversed(lines):
+                        if not line.strip():
+                            continue
+                        
+                        try:
+                            record = json.loads(line)
+                            
+                            # 找到snapshot就返回
+                            if record.get('type') == 'snapshot':
+                                return record
+                                
+                        except json.JSONDecodeError:
+                            continue
+                    
+                    # 如果已经检查了足够多的行还没找到，停止
+                    if len(lines) > 1000:
+                        break
+            
+            return None
+            
+        except Exception as e:
+            print(f"❌ 反向读取快照失败 ({date_str}): {e}")
+            # 回退到原始方法
+            records = self.read_date_records(date_str, record_type='snapshot')
+            return records[-1] if records else None
     
     def get_symbol_latest(self, symbol: str, date_str: str = None) -> Optional[Dict]:
         """
