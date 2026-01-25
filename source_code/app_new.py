@@ -6090,13 +6090,29 @@ def escape_signal_history_page():
     response.headers['Expires'] = '0'
     return response
 
+# 添加缓存机制
+_escape_signal_cache = {
+    'data': None,
+    'timestamp': 0,
+    'ttl': 60  # 缓存60秒
+}
+
 @app.route('/api/escape-signal-stats/keypoints')
 def api_escape_signal_stats_keypoints():
-    """获取逃顶信号关键点数据（用于图表快速渲染）- 后端智能采样"""
+    """获取逃顶信号关键点数据（用于图表快速渲染）- 后端智能采样 + 缓存"""
+    import time
+    
     try:
         import sys
         sys.path.insert(0, '/home/user/webapp')
         from escape_signal_jsonl_manager import EscapeSignalJSONLManager
+        
+        # 检查缓存
+        current_time = time.time()
+        if (_escape_signal_cache['data'] is not None and 
+            current_time - _escape_signal_cache['timestamp'] < _escape_signal_cache['ttl']):
+            # 缓存命中，直接返回
+            return jsonify(_escape_signal_cache['data'])
         
         manager = EscapeSignalJSONLManager()
         
@@ -6194,7 +6210,7 @@ def api_escape_signal_stats_keypoints():
         max_signal_24h = max((r.get('signal_24h_count', 0) or 0) for r in filtered_records)
         max_signal_2h = max((r.get('signal_2h_count', 0) or 0) for r in filtered_records)
         
-        return jsonify({
+        result = {
             'success': True,
             'keypoints': keypoints_data,
             'total_records': total_count,
@@ -6203,7 +6219,13 @@ def api_escape_signal_stats_keypoints():
             'max_signal_24h': max_signal_24h,
             'max_signal_2h': max_signal_2h,
             'data_range': f'{filtered_records[0].get("stat_time")} ~ {filtered_records[-1].get("stat_time")}'
-        })
+        }
+        
+        # 更新缓存
+        _escape_signal_cache['data'] = result
+        _escape_signal_cache['timestamp'] = current_time
+        
+        return jsonify(result)
         
     except Exception as e:
         import traceback
