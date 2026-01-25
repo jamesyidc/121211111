@@ -736,6 +736,19 @@
             
             // 保存初始配置供后续使用
             window.initialChartOption = option;
+            
+            // 🔍 调试：在页面上显示配置状态
+            const debugDiv = document.createElement('div');
+            debugDiv.id = 'debug-info';
+            debugDiv.style.cssText = 'position:fixed;top:10px;right:10px;background:rgba(0,0,0,0.8);color:#0f0;padding:10px;font-size:12px;z-index:9999;max-width:300px;border-radius:8px;';
+            debugDiv.innerHTML = `
+                <div style="color:#0f0;font-weight:bold;">🔍 初始化调试</div>
+                <div>✅ ECharts: ${typeof echarts}</div>
+                <div>✅ chart实例: ${typeof chart}</div>
+                <div>✅ initialChartOption: ${typeof window.initialChartOption}</div>
+                <div>✅ series数量: ${option.series ? option.series.length : 0}</div>
+            `;
+            document.body.appendChild(debugDiv);
         }
         
         // 加载数据 - 优化版本：图表加载关键点，表格加载完整数据
@@ -1283,6 +1296,19 @@
                         });
                         
                         chart.setOption(fullOption, true);  // true = notMerge，完全替换配置
+                        
+                        // 🔍 调试：更新调试信息
+                        const debugDiv = document.getElementById('debug-info');
+                        if (debugDiv) {
+                            debugDiv.innerHTML += `
+                                <div style="margin-top:10px;color:#ff0;font-weight:bold;">🎨 setOption调试</div>
+                                <div>✅ times长度: ${times ? times.length : 0}</div>
+                                <div>✅ signal24h长度: ${signal24h ? signal24h.length : 0}</div>
+                                <div>✅ signal2h长度: ${signal2h ? signal2h.length : 0}</div>
+                                <div>✅ coinChangeData长度: ${coinChangeData ? coinChangeData.length : 0}</div>
+                                <div>✅ fullOption.series: ${fullOption.series ? fullOption.series.length : 0}</div>
+                            `;
+                        }
                         
                         console.log('📊 图表setOption完成，开始resize');
                         const chartDom = document.getElementById('trendChart');
