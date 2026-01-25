@@ -1011,10 +1011,43 @@
                 const signal24h = [];
                 const signal2h = [];
                 
-                sampledData.forEach(d => {
+                // 🔥 收集极端标记点
+                const extremeHighMarks = [];  // 极端上涨标记（rise_strength_level > 0）
+                const extremeLowMarks = [];   // 极端暴跌标记（decline_strength_level > 0）
+                
+                sampledData.forEach((d, index) => {
                     times.push(d.stat_time);
                     signal24h.push(d.signal_24h_count || 0);
                     signal2h.push(d.signal_2h_count || 0);
+                    
+                    // 收集上涨标记
+                    if (d.rise_strength_level && d.rise_strength_level > 0) {
+                        extremeHighMarks.push({
+                            name: '上涨',
+                            coord: [index, d.signal_24h_count],
+                            value: d.rise_strength_level,
+                            symbol: 'pin',
+                            symbolSize: 40,
+                            itemStyle: { color: '#10b981' }
+                        });
+                    }
+                    
+                    // 收集暴跌标记
+                    if (d.decline_strength_level && d.decline_strength_level > 0) {
+                        extremeLowMarks.push({
+                            name: '暴跌',
+                            coord: [index, d.signal_24h_count],
+                            value: d.decline_strength_level,
+                            symbol: 'pin',
+                            symbolSize: 40,
+                            itemStyle: { color: '#ef4444' }
+                        });
+                    }
+                });
+                
+                console.log('🎯 极端标记统计:', {
+                    上涨标记: extremeHighMarks.length,
+                    暴跌标记: extremeLowMarks.length
                 });
                 
                 // 更新统计卡片
@@ -1048,7 +1081,16 @@
                             lineStyle: { color: '#ef4444', width: 2 },
                             itemStyle: { color: '#ef4444' },
                             showSymbol: false,
-                            areaStyle: { color: 'rgba(239, 68, 68, 0.2)' }
+                            areaStyle: { color: 'rgba(239, 68, 68, 0.2)' },
+                            markPoint: {
+                                data: [...extremeHighMarks, ...extremeLowMarks],
+                                label: {
+                                    show: true,
+                                    formatter: '{b}',
+                                    fontSize: 10,
+                                    color: '#fff'
+                                }
+                            }
                         },
                         {
                             name: '2小时信号数',
