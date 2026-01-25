@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 支撑压力线全局趋势采集器
-功能：每15分钟采集一次关键统计数据，用于生成全局趋势图（一个月）
-数据点：每天 96 个点 (24h * 4次/h)
-一个月：约 2,880 个数据点
+功能：每1分钟采集一次关键统计数据，用于生成全局趋势图（一个月）
+数据点：每天 1,440 个点 (24h * 60次/h)
+一个月：约 43,200 个数据点
 """
 
 import os
@@ -173,36 +173,27 @@ def collect_trend_point():
 def main():
     """主函数"""
     log("🎯 支撑压力线全局趋势采集器启动")
-    log(f"⏰ 采集间隔: 15分钟")
+    log(f"⏰ 采集间隔: 1分钟")
     log(f"📁 数据存储: {TREND_DATA_DIR}")
-    log(f"📊 数据密度: 每天96个点，一个月约2,880个点")
+    log(f"📊 数据密度: 每天1,440个点，一个月约43,200个点")
     
     while True:
         try:
             beijing_now = datetime.now(BEIJING_TZ)
-            current_minute = beijing_now.minute
             current_second = beijing_now.second
             
-            # 每15分钟采集一次：0, 15, 30, 45
-            if current_minute % 15 == 0 and current_second < 30:
+            # 每1分钟采集一次
+            if current_second < 10:
                 log(f"⏰ 到达采集时间点: {beijing_now.strftime('%H:%M')}")
                 collect_trend_point()
                 # 等待60秒，避免重复采集
                 time.sleep(60)
             else:
-                # 计算到下一个15分钟的等待时间
-                next_minute = ((current_minute // 15) + 1) * 15
-                if next_minute >= 60:
-                    next_minute = 0
-                    wait_minutes = 60 - current_minute
-                else:
-                    wait_minutes = next_minute - current_minute
-                
-                wait_seconds = wait_minutes * 60 - current_second
+                # 等待到下一分钟
+                wait_seconds = 60 - current_second
                 next_time = beijing_now + timedelta(seconds=wait_seconds)
-                
-                log(f"⏳ 下次采集时间: {next_time.strftime('%Y-%m-%d %H:%M')}, 等待 {wait_minutes} 分钟...")
-                time.sleep(min(60, wait_seconds))
+                log(f"⏳ 下次采集时间: {next_time.strftime('%Y-%m-%d %H:%M')}, 等待 {wait_seconds} 秒...")
+                time.sleep(wait_seconds)
             
         except KeyboardInterrupt:
             log("⚠️ 收到停止信号，正在退出...")

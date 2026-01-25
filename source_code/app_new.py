@@ -8046,7 +8046,7 @@ def api_support_resistance_escape_max_stats():
 
 @app.route('/api/support-resistance/trend')
 def api_support_resistance_trend():
-    """获取全局趋势数据（一个月，每15分钟一个点）"""
+    """获取全局趋势数据（一个月，每1分钟一个点）"""
     try:
         import os
         import json
@@ -8106,8 +8106,8 @@ def api_support_resistance_trend():
             'count': len(trend_data),
             'days': days,
             'data_source': 'JSONL Trend Data',
-            'interval': '15 minutes',
-            'description': '每15分钟采集一次，每天96个点'
+            'interval': '1 minute',
+            'description': '每1分钟采集一次，每天1,440个点'
         })
         
     except Exception as e:
