@@ -561,6 +561,15 @@
         // 初始化图表
         function initChart() {
             console.log('🎨 开始初始化趋势图表...');
+            
+            // 检查ECharts是否加载
+            if (typeof echarts === 'undefined') {
+                console.error('❌ ECharts库未加载！请检查CDN连接');
+                document.getElementById('trendChart').innerHTML = '<div style="text-align:center;padding:50px;color:red;font-size:18px;">❌ 图表库加载失败，请刷新页面重试</div>';
+                return;
+            }
+            console.log('✅ ECharts库已加载');
+            
             const chartDom = document.getElementById('trendChart');
             if (!chartDom) {
                 console.error('❌ 找不到图表容器 #trendChart');
@@ -573,14 +582,30 @@
                 display: window.getComputedStyle(chartDom).display
             });
             
+            // 检查容器尺寸
+            if (chartDom.offsetWidth === 0 || chartDom.offsetHeight === 0) {
+                console.error('❌ 图表容器尺寸为0！', {
+                    width: chartDom.offsetWidth,
+                    height: chartDom.offsetHeight
+                });
+                chartDom.innerHTML = '<div style="text-align:center;padding:50px;color:red;">❌ 图表容器尺寸异常</div>';
+                return;
+            }
+            
             // 销毁旧图表（如果存在）
             if (chart) {
                 chart.dispose();
             }
             
             // 创建新图表
-            chart = echarts.init(chartDom);
-            console.log('✅ 图表实例创建成功');
+            try {
+                chart = echarts.init(chartDom);
+                console.log('✅ 图表实例创建成功');
+            } catch (e) {
+                console.error('❌ 图表初始化失败:', e);
+                chartDom.innerHTML = '<div style="text-align:center;padding:50px;color:red;">❌ 图表初始化失败: ' + e.message + '</div>';
+                return;
+            }
             
             // 设置初始配置
             const option = {

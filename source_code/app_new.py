@@ -6081,6 +6081,16 @@ def support_resistance_page():
     response.headers['Expires'] = '0'
     return response
 
+@app.route('/test-chart')
+def test_chart():
+    """图表测试页面"""
+    with open('/home/user/webapp/test_chart_simple.html', 'r', encoding='utf-8') as f:
+        content = f.read()
+    response = make_response(content)
+    response.headers['Content-Type'] = 'text/html; charset=utf-8'
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    return response
+
 @app.route('/force-refresh')
 def force_refresh_page():
     """强制刷新页面 - 清除所有浏览器缓存"""
