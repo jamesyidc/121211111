@@ -728,7 +728,11 @@
                 ]
             };
             
-            chart.setOption(option);
+            // 🔥 不在这里setOption，等数据加载完成后再设置
+            // chart.setOption(option);
+            
+            // 保存初始配置供后续使用
+            window.initialChartOption = option;
         }
         
         // 加载数据 - 优化版本：图表加载关键点，表格加载完整数据
@@ -1199,17 +1203,40 @@
                             console.log('⚠️ 未获取到27币数据');
                         }
                         
-                        chart.setOption({
-                            xAxis: { data: times },
+                        // 🔥 使用完整的配置对象（包含所有基础配置）
+                        const fullOption = Object.assign({}, window.initialChartOption, {
+                            xAxis: { 
+                                type: 'category',
+                                data: times,
+                                boundaryGap: false,
+                                axisLabel: { 
+                                    rotate: 45,
+                                    interval: 'auto',
+                                    fontSize: 10,
+                                    color: '#666'
+                                },
+                                axisLine: { lineStyle: { color: '#ddd' } }
+                            },
                             legend: {
                                 data: coinChangeData.some(v => v !== null) ? 
                                     ['24小时信号数', '2小时信号数', '27币涨跌幅总和'] : 
-                                    ['24小时信号数', '2小时信号数']
+                                    ['24小时信号数', '2小时信号数'],
+                                textStyle: { color: '#000', fontSize: 12 },
+                                top: 10,
+                                left: 'center'
                             },
                             series: [
                                 { 
                                     name: '24小时信号数',
+                                    type: 'line',
+                                    yAxisIndex: 0,
                                     data: signal24h,
+                                    smooth: true,
+                                    sampling: 'lttb',
+                                    lineStyle: { color: '#ef4444', width: 2 },
+                                    itemStyle: { color: '#ef4444' },
+                                    showSymbol: false,
+                                    areaStyle: { color: 'rgba(239, 68, 68, 0.2)' },
                                     markPoint: {
                                         symbol: 'pin',
                                         symbolSize: 60,
@@ -1218,7 +1245,15 @@
                                 },
                                 { 
                                     name: '2小时信号数',
+                                    type: 'line',
+                                    yAxisIndex: 0,
                                     data: signal2h,
+                                    smooth: true,
+                                    sampling: 'lttb',
+                                    lineStyle: { color: '#f59e0b', width: 2 },
+                                    itemStyle: { color: '#f59e0b' },
+                                    showSymbol: false,
+                                    areaStyle: { color: 'rgba(245, 158, 11, 0.2)' },
                                     markPoint: {
                                         symbol: 'pin',
                                         symbolSize: 50,
@@ -1243,6 +1278,8 @@
                                 }
                             ]
                         });
+                        
+                        chart.setOption(fullOption, true);  // true = notMerge，完全替换配置
                         
                         console.log('📊 图表setOption完成，开始resize');
                         const chartDom = document.getElementById('trendChart');
