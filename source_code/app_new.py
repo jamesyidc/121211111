@@ -6100,6 +6100,17 @@ def test_simple():
     response.headers['Expires'] = '0'
     return response
 
+@app.route('/test-inline')
+def test_inline():
+    """内联测试页面 - 完全不依赖CDN"""
+    response = make_response(render_template('test_inline.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    response.headers.pop('ETag', None)
+    response.headers.pop('Last-Modified', None)
+    return response
+
 @app.route('/clear-cache')
 def clear_cache_redirect():
     """清除缓存并跳转 - 终极方案"""
@@ -6122,10 +6133,17 @@ def force_refresh_page():
 @app.route('/escape-signal-history-v2')  # v2路由，绕过CDN缓存
 def escape_signal_history_page():
     """逃顶信号系统统计 - 历史数据明细页面"""
+    import time
     response = make_response(render_template('escape_signal_history.html'))
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    # 🔥 强制禁用所有缓存
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0, no-transform'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
+    # 🔥 禁用ETag防止304响应
+    response.headers['ETag'] = str(time.time())  # 每次都不同
+    response.headers['Last-Modified'] = ''
+    # 🔥 添加版本标识
+    response.headers['X-Version'] = 'v3.0-final-' + str(int(time.time()))
     return response
 
 # 添加缓存机制
