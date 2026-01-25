@@ -65,10 +65,10 @@ def get_latest_data() -> List[Dict]:
                 'position_s1_r2': position_48h,  # 48小时位置
                 'position_s1_r2_upper': position_48h,
                 'position_s1_r1': position_7d,
-                'alert_scenario_1': position_7d <= 5,  # 7天低位警报
-                'alert_scenario_2': position_7d >= 95,  # 7天高位警报
-                'alert_scenario_3': position_48h >= 95,  # 48h高位警报
-                'alert_scenario_4': position_7d >= 95,  # 7天高位警报（与scenario_2相同逻辑）
+                'alert_scenario_1': position_7d <= 10,  # 情况1: 7天低位（接近支撑2）
+                'alert_scenario_2': position_7d <= 10,  # 情况2: 7天低位（接近支撑1）
+                'alert_scenario_3': position_48h <= 10,  # 情况3: 48h低位（接近压力2）
+                'alert_scenario_4': position_48h >= 90,  # 情况4: 48h高位（接近压力1）
                 'record_time': data.get('record_time_beijing') or data.get('record_time')
             })
         
