@@ -6081,6 +6081,15 @@ def support_resistance_page():
     response.headers['Expires'] = '0'
     return response
 
+@app.route('/force-refresh')
+def force_refresh_page():
+    """强制刷新页面 - 清除所有浏览器缓存"""
+    response = make_response(render_template('force_refresh.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
 @app.route('/escape-signal-history')
 @app.route('/escape-signal-history-v2')  # v2路由，绕过CDN缓存
 def escape_signal_history_page():
