@@ -6248,7 +6248,7 @@ def api_escape_signal_stats():
         manager = EscapeSignalJSONLManager()
         
         # 获取请求参数
-        limit = request.args.get('limit', type=int, default=None)  # None表示不限制
+        limit = request.args.get('limit', type=int, default=1000)  # 默认限制1000条
         
         # 获取统计信息
         stats_info = manager.get_statistics()

@@ -1212,7 +1212,7 @@
                         
                         // 🔥 异步加载完整数据用于表格（不阻塞图表渲染）
                         console.log('🔄 开始异步加载完整数据（用于表格）...');
-                        fetch('/api/escape-signal-stats?limit=10000&v=' + Date.now())
+                        fetch('/api/escape-signal-stats?limit=1000&v=' + Date.now())
                             .then(r => r.json())
                             .then(fullResult => {
                                 if (!fullResult.success || !fullResult.history_data) {
