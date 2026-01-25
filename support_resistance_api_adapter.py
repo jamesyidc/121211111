@@ -184,12 +184,21 @@ class SupportResistanceAPIAdapter:
         }
         """
         try:
-            # 如果指定日期，读取特定日期的数据；否则读取今天的数据
+            # 如果指定日期，读取特定日期的数据
             if date:
                 date_str = date.replace('-', '')  # YYYY-MM-DD -> YYYYMMDD
-                snapshots = self.manager.get_snapshots_by_date(date_str, limit=limit)
+                all_records = self.manager.read_date_records(date_str, record_type='snapshot')
+                snapshots = all_records[-limit:] if (limit and len(all_records) > limit) else all_records
+            elif limit is None:
+                # limit=None表示获取所有历史数据（跨所有日期）
+                all_snapshots = []
+                available_dates = self.manager.get_available_dates()
+                for date_str in available_dates:
+                    date_snapshots = self.manager.read_date_records(date_str, record_type='snapshot')
+                    all_snapshots.extend(date_snapshots)
+                snapshots = all_snapshots
             else:
-                # 获取今天最新的快照
+                # 获取今天最新的快照（指定limit）
                 snapshots = self.manager.get_latest_snapshot()
                 if snapshots:
                     snapshots = [snapshots]  # 转换为列表
