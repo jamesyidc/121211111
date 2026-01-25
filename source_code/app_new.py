@@ -6135,7 +6135,11 @@ def _preheat_escape_signal_cache():
         start = time.time()
         
         manager = EscapeSignalJSONLManager()
-        all_records = manager.get_all_stats()
+        # 读取从2026-01-03到现在的所有数据
+        from datetime import datetime
+        start_date = '2026-01-03'
+        end_date = datetime.now().strftime('%Y-%m-%d')
+        all_records = manager.get_stats_range(start_date, end_date)
         
         # 筛选数据并计算关键点
         from datetime import datetime
@@ -6145,9 +6149,41 @@ def _preheat_escape_signal_cache():
         if filtered_records:
             filtered_records.sort(key=lambda x: x['stat_time'])
             
-            # 计算关键点（同API逻辑）
+            # 🎯 智能采样策略：
+            # 1. 最近3天：全部数据（1分钟粒度）
+            # 2. 历史数据：15分钟一个点
+            from datetime import datetime, timedelta
+            now = datetime.now()
+            three_days_ago = now - timedelta(days=3)
+            
+            recent_data = []  # 最近3天
+            historical_data = []  # 历史数据
+            
+            for record in filtered_records:
+                record_time = datetime.strptime(record['stat_time'], '%Y-%m-%d %H:%M:%S')
+                if record_time >= three_days_ago:
+                    recent_data.append(record)
+                else:
+                    historical_data.append(record)
+            
+            # 对历史数据降采样：每15分钟取一个点
+            sampled_historical = []
+            if historical_data:
+                for i in range(0, len(historical_data), 15):  # 每15分钟
+                    sampled_historical.append(historical_data[i])
+            
+            # 合并数据：采样后的历史数据 + 全部最近3天数据
+            sampled_records = sampled_historical + recent_data
+            sampled_records.sort(key=lambda x: x['stat_time'])
+            
+            print(f"📊 数据采样统计:")
+            print(f"  - 历史数据: {len(historical_data)} → {len(sampled_historical)} (15分钟/点)")
+            print(f"  - 最近3天: {len(recent_data)} (全量)")
+            print(f"  - 总计: {len(filtered_records)} → {len(sampled_records)}")
+            
+            # 使用采样后的数据计算
             import numpy as np
-            signal_24h_counts = [r.get('signal_24h_count', 0) for r in filtered_records]
+            signal_24h_counts = [r.get('signal_24h_count', 0) for r in sampled_records]
             positive_signals = [s for s in signal_24h_counts if s > 0]
             
             if positive_signals:
@@ -6176,23 +6212,27 @@ def _preheat_escape_signal_cache():
                             keypoint_indices.add(local_max_idx)
                 
                 keypoint_indices.add(0)
-                keypoint_indices.add(len(filtered_records) - 1)
+                keypoint_indices.add(len(sampled_records) - 1)
                 
                 keypoint_indices = sorted(list(keypoint_indices))
-                target_points = 2000
                 
-                if len(keypoint_indices) < target_points:
-                    total_indices = len(filtered_records)
-                    step = total_indices // (target_points - len(keypoint_indices))
-                    if step > 0:
-                        for i in range(0, total_indices, step):
-                            keypoint_indices.append(i)
-                        keypoint_indices = sorted(list(set(keypoint_indices)))[:target_points]
-                
+                # 不再填充到2000个点，直接使用采样后的数据
                 keypoints_data = []
                 for idx in keypoint_indices:
-                    record = filtered_records[idx]
-                    keypoints_data.append({
+                    if idx < len(sampled_records):
+                        record = sampled_records[idx]
+                        keypoints_data.append({
+                            'stat_time': record['stat_time'],
+                            'signal_24h_count': record.get('signal_24h_count', 0),
+                            'signal_2h_count': record.get('signal_2h_count', 0),
+                            'decline_strength_level': record.get('decline_strength_level', 0),
+                            'rise_strength_level': record.get('rise_strength_level', 0)
+                        })
+                
+                # 添加采样后的所有数据点（已经过15分钟降采样）
+                all_sampled_points = []
+                for record in sampled_records:
+                    all_sampled_points.append({
                         'stat_time': record['stat_time'],
                         'signal_24h_count': record.get('signal_24h_count', 0),
                         'signal_2h_count': record.get('signal_2h_count', 0),
@@ -6201,24 +6241,24 @@ def _preheat_escape_signal_cache():
                     })
                 
                 max_signal_24h = max(signal_24h_counts)
-                max_signal_2h = max([r.get('signal_2h_count', 0) for r in filtered_records])
+                max_signal_2h = max([r.get('signal_2h_count', 0) for r in sampled_records])
                 
                 cache_data = {
                     'success': True,
-                    'keypoints': keypoints_data,
+                    'keypoints': all_sampled_points,  # 使用采样后的全部数据
                     'total_records': len(filtered_records),
-                    'keypoint_count': len(keypoints_data),
-                    'compression_rate': f'{len(keypoints_data) / len(filtered_records) * 100:.1f}%',
+                    'keypoint_count': len(all_sampled_points),
+                    'compression_rate': f'{len(all_sampled_points) / len(filtered_records) * 100:.1f}%',
                     'max_signal_24h': max_signal_24h,
                     'max_signal_2h': max_signal_2h,
-                    'data_range': f"{filtered_records[0]['stat_time']} ~ {filtered_records[-1]['stat_time']}"
+                    'data_range': f"{sampled_records[0]['stat_time']} ~ {sampled_records[-1]['stat_time']}"
                 }
                 
                 _escape_signal_cache['data'] = cache_data
                 _escape_signal_cache['timestamp'] = time.time()
                 
                 elapsed = time.time() - start
-                print(f"✅ 缓存预热完成！耗时 {elapsed:.2f}秒, 关键点数量: {len(keypoints_data)}")
+                print(f"✅ 缓存预热完成！耗时 {elapsed:.2f}秒, 数据点数量: {len(all_sampled_points)}")
             else:
                 print("⚠️  没有正数信号，跳过缓存预热")
         else:
