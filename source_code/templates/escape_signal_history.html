@@ -1022,9 +1022,9 @@
                 });
                 
                 // 🔍 查找48小时内的最高值（24h信号数 > 50）
-                // 数据密度：3608个点 / 23天 ≈ 157个点/天 ≈ 6.5个点/小时
-                // 48小时窗口 = 48 * 6.5 ≈ 312个点
-                const window48h = 312;  // 48小时窗口
+                // 数据密度：2000个点 / 543.7小时 ≈ 3.68个点/小时
+                // 48小时窗口 = 48 * 3.68 ≈ 176个点
+                const window48h = 176;  // 48小时窗口
                 for (let i = 0; i < sampledData.length; i += window48h) {
                     let maxIndex = i;
                     let maxValue = sampledData[i].signal_24h_count || 0;
@@ -1063,9 +1063,9 @@
                 }
                 
                 // 🔍 查找2小时内的最高值（2h信号数 > 10）
-                // 数据密度：6.5个点/小时
-                // 2小时窗口 = 2 * 6.5 ≈ 13个点
-                const window2h = 13;  // 2小时窗口
+                // 数据密度：3.68个点/小时
+                // 2小时窗口 = 2 * 3.68 ≈ 7个点
+                const window2h = 7;  // 2小时窗口
                 for (let i = 0; i < sampledData.length; i += window2h) {
                     let maxIndex = i;
                     let maxValue = sampledData[i].signal_2h_count || 0;
