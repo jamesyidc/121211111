@@ -6123,6 +6123,116 @@ _escape_signal_cache = {
     'ttl': 60  # 缓存60秒
 }
 
+# 启动时预热缓存
+def _preheat_escape_signal_cache():
+    """启动时预加载逃顶信号数据到缓存"""
+    import time
+    import sys
+    sys.path.insert(0, '/home/user/webapp')
+    try:
+        from escape_signal_jsonl_manager import EscapeSignalJSONLManager
+        print("🔥 开始预热逃顶信号缓存...")
+        start = time.time()
+        
+        manager = EscapeSignalJSONLManager()
+        all_records = manager.get_all_stats()
+        
+        # 筛选数据并计算关键点
+        from datetime import datetime
+        cutoff_date = datetime(2026, 1, 3, 0, 0, 0)
+        filtered_records = [r for r in all_records if datetime.strptime(r['stat_time'], '%Y-%m-%d %H:%M:%S') >= cutoff_date]
+        
+        if filtered_records:
+            filtered_records.sort(key=lambda x: x['stat_time'])
+            
+            # 计算关键点（同API逻辑）
+            import numpy as np
+            signal_24h_counts = [r.get('signal_24h_count', 0) for r in filtered_records]
+            positive_signals = [s for s in signal_24h_counts if s > 0]
+            
+            if positive_signals:
+                p999 = np.percentile(positive_signals, 99.9)
+                p95 = np.percentile(positive_signals, 95)
+                
+                keypoint_indices = set()
+                for i, val in enumerate(signal_24h_counts):
+                    if val >= p999:
+                        keypoint_indices.add(i)
+                
+                global_max_idx = signal_24h_counts.index(max(signal_24h_counts))
+                keypoint_indices.add(global_max_idx)
+                
+                if positive_signals:
+                    global_min_idx = signal_24h_counts.index(min(positive_signals))
+                    keypoint_indices.add(global_min_idx)
+                
+                window_size = 360
+                for i in range(0, len(signal_24h_counts), window_size):
+                    window = signal_24h_counts[i:i+window_size]
+                    if window:
+                        local_max = max(window)
+                        if local_max >= p95:
+                            local_max_idx = i + window.index(local_max)
+                            keypoint_indices.add(local_max_idx)
+                
+                keypoint_indices.add(0)
+                keypoint_indices.add(len(filtered_records) - 1)
+                
+                keypoint_indices = sorted(list(keypoint_indices))
+                target_points = 2000
+                
+                if len(keypoint_indices) < target_points:
+                    total_indices = len(filtered_records)
+                    step = total_indices // (target_points - len(keypoint_indices))
+                    if step > 0:
+                        for i in range(0, total_indices, step):
+                            keypoint_indices.append(i)
+                        keypoint_indices = sorted(list(set(keypoint_indices)))[:target_points]
+                
+                keypoints_data = []
+                for idx in keypoint_indices:
+                    record = filtered_records[idx]
+                    keypoints_data.append({
+                        'stat_time': record['stat_time'],
+                        'signal_24h_count': record.get('signal_24h_count', 0),
+                        'signal_2h_count': record.get('signal_2h_count', 0),
+                        'decline_strength_level': record.get('decline_strength_level', 0),
+                        'rise_strength_level': record.get('rise_strength_level', 0)
+                    })
+                
+                max_signal_24h = max(signal_24h_counts)
+                max_signal_2h = max([r.get('signal_2h_count', 0) for r in filtered_records])
+                
+                cache_data = {
+                    'success': True,
+                    'keypoints': keypoints_data,
+                    'total_records': len(filtered_records),
+                    'keypoint_count': len(keypoints_data),
+                    'compression_rate': f'{len(keypoints_data) / len(filtered_records) * 100:.1f}%',
+                    'max_signal_24h': max_signal_24h,
+                    'max_signal_2h': max_signal_2h,
+                    'data_range': f"{filtered_records[0]['stat_time']} ~ {filtered_records[-1]['stat_time']}"
+                }
+                
+                _escape_signal_cache['data'] = cache_data
+                _escape_signal_cache['timestamp'] = time.time()
+                
+                elapsed = time.time() - start
+                print(f"✅ 缓存预热完成！耗时 {elapsed:.2f}秒, 关键点数量: {len(keypoints_data)}")
+            else:
+                print("⚠️  没有正数信号，跳过缓存预热")
+        else:
+            print("⚠️  没有数据，跳过缓存预热")
+            
+    except Exception as e:
+        print(f"❌ 缓存预热失败: {e}")
+        import traceback
+        traceback.print_exc()
+
+# Flask启动时执行预热
+_preheat_escape_signal_cache()
+
+
 @app.route('/api/escape-signal-stats/keypoints')
 def api_escape_signal_stats_keypoints():
     """获取逃顶信号关键点数据（用于图表快速渲染）- 后端智能采样 + 缓存"""
