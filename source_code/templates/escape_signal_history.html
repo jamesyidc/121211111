@@ -772,6 +772,123 @@
             document.body.appendChild(debugDiv);
         }
         
+        // 🔥 立即渲染图表（只用关键点数据）
+        function renderChartWithData(keypointsResult, startTime) {
+            try {
+                const sampledData = keypointsResult.keypoints;
+                console.log('✅ 开始渲染图表:', sampledData.length, '个点');
+                
+                // 更新统计卡片
+                const totalRecordsEl = document.getElementById('totalRecords');
+                const max24hEl = document.getElementById('max24h');
+                const max2hEl = document.getElementById('max2h');
+                const sample24hEl = document.getElementById('sample24h');
+                const lastUpdateTimeEl = document.getElementById('lastUpdateTime');
+                
+                if (totalRecordsEl) totalRecordsEl.textContent = (keypointsResult.total_records || keypointsResult.keypoint_count).toLocaleString();
+                if (max24hEl) max24hEl.textContent = keypointsResult.max_signal_24h || 0;
+                if (max2hEl) max2hEl.textContent = '—';  // 快速模式可能没有这个数据
+                if (sample24hEl) sample24hEl.textContent = keypointsResult.keypoint_count;
+                
+                // 更新最后更新时间
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                if (lastUpdateTimeEl) lastUpdateTimeEl.textContent = timeStr;
+                
+                // 准备图表数据
+                const times = sampledData.map(d => d.stat_time.substring(5, 16)); // MM-DD HH:MM
+                const signal24h = sampledData.map(d => d.signal_24h_count);
+                const signal2h = sampledData.map(d => d.signal_2h_count);
+                
+                // 🔥 立即绘制图表（简化版，无标记点）
+                if (!window.chart) {
+                    console.error('❌ 图表实例不存在！');
+                    return;
+                }
+                
+                const fullOption = {
+                    backgroundColor: '#ffffff',
+                    tooltip: {
+                        trigger: 'axis',
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        borderColor: 'rgba(0,0,0,0.2)',
+                        textStyle: { color: '#fff' }
+                    },
+                    legend: {
+                        data: ['24小时信号数', '2小时信号数'],
+                        top: 10
+                    },
+                    grid: {
+                        left: '3%',
+                        right: '4%',
+                        bottom: '15%',
+                        containLabel: true
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: times,
+                        axisLabel: {
+                            rotate: 45,
+                            fontSize: 10
+                        }
+                    },
+                    yAxis: [
+                        {
+                            type: 'value',
+                            name: '信号数量',
+                            position: 'left'
+                        }
+                    ],
+                    series: [
+                        {
+                            name: '24小时信号数',
+                            type: 'line',
+                            data: signal24h,
+                            smooth: true,
+                            sampling: 'lttb',
+                            itemStyle: { color: '#ef4444' },
+                            areaStyle: {
+                                color: {
+                                    type: 'linear',
+                                    x: 0, y: 0, x2: 0, y2: 1,
+                                    colorStops: [
+                                        { offset: 0, color: 'rgba(239, 68, 68, 0.3)' },
+                                        { offset: 1, color: 'rgba(239, 68, 68, 0.05)' }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            name: '2小时信号数',
+                            type: 'line',
+                            data: signal2h,
+                            smooth: true,
+                            sampling: 'lttb',
+                            itemStyle: { color: '#f59e0b' }
+                        }
+                    ]
+                };
+                
+                window.chart.setOption(fullOption, true);
+                window.chart.resize();
+                
+                const loadTime = ((performance.now() - startTime) / 1000).toFixed(2);
+                updateStatus(`✅ 图表渲染完成！耗时: ${loadTime}秒`, true);
+                console.log('✅ 图表渲染完成！耗时:', loadTime, '秒');
+                
+            } catch (error) {
+                console.error('❌ 图表渲染失败:', error);
+                updateStatus('❌ 图表渲染失败: ' + error.message, true, true);
+            }
+        }
+        
+        // 🔥 异步加载补充数据（不阻塞图表）
+        function loadSupplementaryData(keypointsResult) {
+            console.log('🔄 开始加载补充数据（异步）...');
+            // 这里可以后续添加空单盈利、27币数据等的加载
+            // 暂时先跳过，让图表快速显示
+        }
+        
         // 加载数据 - 优化版本：图表加载关键点，表格加载完整数据
         function loadData() {
             // 🔥 带超时的fetch函数
@@ -886,34 +1003,30 @@
                 }
                 console.log('✅ 关键点数据验证通过，共', keypointsResult.keypoints.length, '个点');
                 
-                updateStatus('📡 步骤2.1/5: 准备请求空单盈利数据...', false);
-                // 步骤2: 加载空单盈利数据
-                return fetch('/api/anchor-profit/latest')
-                    .then(r => {
-                        updateStatus('✅ 步骤2.2/5: 空单盈利API响应成功，解析JSON...', false);
-                        return r.json();
-                    })
-                    .then(profitResult => {
-                        updateStatus('✅ 步骤2.3/5: 空单盈利数据解析完成', false);
-                        return { keypointsResult, profitResult };
-                    });
+                // 🔥 立即渲染图表！不等待其他数据
+                updateStatus('🎨 步骤2/5: 开始渲染图表...', false);
+                renderChartWithData(keypointsResult, startTime);
+                
+                // 🔥 异步加载其他数据（不阻塞图表显示）
+                updateStatus('📡 步骤3/5: 后台加载补充数据...', false);
+                loadSupplementaryData(keypointsResult);
+                
+                return keypointsResult;
             })
-            .then(({ keypointsResult, profitResult }) => {
-                updateStatus('✅ 步骤2.4/5: 空单数据处理完成', false);
-                updateStatus('📡 步骤3.1/5: 准备请求27币历史数据...', false);
-                // 步骤3: 加载27币数据
-                return fetch('/api/coin-price-tracker/history?all=true&t=' + Date.now())
-                    .then(r => {
-                        updateStatus('✅ 步骤3.2/5: 27币API响应成功，解析JSON...', false);
-                        return r.json();
-                    })
-                    .then(coinResult => {
-                        updateStatus('✅ 步骤3.3/5: 27币数据解析完成', false);
-                        return { keypointsResult, profitResult, coinResult };
-                    });
+            .catch(error => {
+                console.error('❌ 数据加载失败:', error);
+                const errorMsg = error.message || error.toString();
+                updateStatus('❌ 错误: ' + errorMsg, false, true);
+                
+                // 显示友好的错误提示
+                alert('❌ 数据加载失败\n\n' +
+                      '错误: ' + errorMsg + '\n\n' +
+                      '请尝试：\n' +
+                      '1. 刷新页面重试\n' +
+                      '2. 检查网络连接\n' +
+                      '3. 稍后再试');
             })
-            .then(({ keypointsResult, profitResult, coinResult }) => {
-                updateStatus('✅ 步骤3.4/5: 所有数据获取成功', false);
+            .finally(() => {
                 updateStatus('🎨 步骤4.1/5: 开始处理关键点数据...', false);
                 const loadTime = ((performance.now() - startTime) / 1000).toFixed(2);
                 console.log(`⚡ 关键点数据加载完成，耗时: ${loadTime}秒`);
