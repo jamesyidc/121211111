@@ -7518,21 +7518,16 @@ def api_support_resistance_snapshots():
         date_filter = request.args.get('date', None)
         limit = int(request.args.get('limit', 100))
         
-        # 获取快照数据
-        # all=true时返回所有历史数据（从2025-12-25开始的完整数据，约21638条）
-        # 性能测试：读取21638条记录仅需0.05秒，可接受
-        result = adapter.get_snapshots(limit=None if all_data else limit)
+        # 如果指定了日期，直接获取该日期的所有数据
+        if date_filter:
+            result = adapter.get_snapshots(date=date_filter, limit=None)
+        else:
+            # 获取快照数据
+            # all=true时返回所有历史数据（从2025-12-25开始的完整数据，约30000条）
+            result = adapter.get_snapshots(limit=None if all_data else limit)
         
         if not result['success']:
             return jsonify(result)
-        
-        # 如果有日期过滤
-        if date_filter:
-            result['data'] = [
-                s for s in result['data'] 
-                if s.get('snapshot_time', '').startswith(date_filter)
-            ]
-            result['count'] = len(result['data'])
         
         return jsonify(result)
         
