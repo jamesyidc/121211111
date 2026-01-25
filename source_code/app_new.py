@@ -6081,15 +6081,6 @@ def support_resistance_page():
     response.headers['Expires'] = '0'
     return response
 
-@app.route('/support-resistance-v2')
-def support_resistance_page_v2():
-    """支撑压力线系统页面 v2.0 - 完全基于JSONL按日期存储"""
-    response = make_response(render_template('support_resistance_new.html'))
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
-    return response
-
 @app.route('/escape-signal-history')
 def escape_signal_history_page():
     """逃顶信号系统统计 - 历史数据明细页面"""
