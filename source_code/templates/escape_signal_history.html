@@ -1022,17 +1022,51 @@
                 document.getElementById('max24h').textContent = keypointsResult.max_signal_24h || 0;
                 document.getElementById('max2h').textContent = Math.max(...signal2h);
                 
-                // 渲染图表
+                // 渲染图表 - 使用完整配置
                 const fullOption = Object.assign({}, window.initialChartOption, {
-                    xAxis: { data: times },
+                    xAxis: {
+                        type: 'category',
+                        boundaryGap: false,
+                        data: times,
+                        axisLine: { lineStyle: { color: 'rgba(0,0,0,0.3)' } },
+                        axisLabel: { color: '#000', rotate: 45, fontSize: 10 }
+                    },
                     series: [
-                        { name: '24小时信号数', data: signal24h, type: 'line', smooth: true },
-                        { name: '2小时信号数', data: signal2h, type: 'line', smooth: true, yAxisIndex: 0 }
+                        {
+                            name: '24小时信号数',
+                            type: 'line',
+                            yAxisIndex: 0,
+                            data: signal24h,
+                            smooth: true,
+                            sampling: 'lttb',
+                            lineStyle: { color: '#ef4444', width: 2 },
+                            itemStyle: { color: '#ef4444' },
+                            showSymbol: false,
+                            areaStyle: { color: 'rgba(239, 68, 68, 0.2)' }
+                        },
+                        {
+                            name: '2小时信号数',
+                            type: 'line',
+                            yAxisIndex: 0,
+                            data: signal2h,
+                            smooth: true,
+                            sampling: 'lttb',
+                            lineStyle: { color: '#f59e0b', width: 2 },
+                            itemStyle: { color: '#f59e0b' },
+                            showSymbol: false,
+                            areaStyle: { color: 'rgba(245, 158, 11, 0.2)' }
+                        }
                     ]
                 });
                 
+                console.log('🎨 准备渲染图表，数据点数:', times.length);
+                console.log('🎨 24h信号数范围:', Math.min(...signal24h), '~', Math.max(...signal24h));
+                console.log('🎨 2h信号数范围:', Math.min(...signal2h), '~', Math.max(...signal2h));
+                
                 chart.setOption(fullOption, true);
                 chart.resize();
+                
+                console.log('✅ 图表setOption完成');
                 
                 updateStatus('✅ 图表渲染完成！', true);
                 isLoading = false;
