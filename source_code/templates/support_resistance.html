@@ -2911,27 +2911,24 @@
                         // 检查信号变化（保留原有逻辑）
                         checkSignalChange(data);
                         
-                        // 反转数据：让时间从左到右（早→晚）
-                        const reversedData = data.slice().reverse();
-                        const reversedSignalMarkPoints = signalMarkPoints.slice().reverse();
-                        
-                        // 提取时间和数据（使用反转后的数据）
-                        const times = reversedData.map(d => {
+                        // 数据已经按时间正序排列（早→晚），直接使用
+                        // 提取时间和数据
+                        const times = data.map(d => {
                             const parts = d.snapshot_time.split(' ');
                             const date = parts[0].substring(5); // MM-DD
                             const time = parts[1].substring(0, 5); // HH:MM
                             return `${date} ${time}`;
                         });
-                        const scenario1 = reversedData.map(d => d.scenario_1_count || 0);
-                        const scenario2 = reversedData.map(d => d.scenario_2_count || 0);
-                        const scenario3 = reversedData.map(d => d.scenario_3_count || 0);
-                        const scenario4 = reversedData.map(d => d.scenario_4_count || 0);
+                        const scenario1 = data.map(d => d.scenario_1_count || 0);
+                        const scenario2 = data.map(d => d.scenario_2_count || 0);
+                        const scenario3 = data.map(d => d.scenario_3_count || 0);
+                        const scenario4 = data.map(d => d.scenario_4_count || 0);
                         
-                        // 处理信号标记点：调整索引位置（因为数据已反转），但保留time字段
-                        const adjustedSignalMarkPoints = reversedSignalMarkPoints.map((signal, idx) => {
-                            // signal.index 是原始数据中的索引，需要转换为反转后的索引
+                        // 处理信号标记点：使用原始索引
+                        const adjustedSignalMarkPoints = signalMarkPoints.map((signal, idx) => {
+                            // 使用原始索引（数据已经是正序）
                             const originalIndex = signal.index || 0;
-                            const newIndex = data.length - 1 - originalIndex;
+                            const newIndex = originalIndex;
                             
                             return {
                                 ...signal,  // 保留所有原始字段，包括 time
