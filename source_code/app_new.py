@@ -8041,6 +8041,82 @@ def api_support_resistance_escape_max_stats():
         })
 
 # =====================================================
+# 支撑压力线全局趋势 API
+# =====================================================
+
+@app.route('/api/support-resistance/trend')
+def api_support_resistance_trend():
+    """获取全局趋势数据（一个月，每15分钟一个点）"""
+    try:
+        import os
+        import json
+        from datetime import datetime, timedelta
+        
+        # 获取参数
+        days = request.args.get('days', 30, type=int)  # 默认30天
+        month = request.args.get('month', None)  # 可选：指定月份 YYYYMM
+        
+        trend_dir = '/home/user/webapp/data/support_resistance_trend'
+        
+        if month:
+            # 指定月份
+            trend_file = os.path.join(trend_dir, f'support_resistance_trend_{month}.jsonl')
+            files_to_read = [trend_file] if os.path.exists(trend_file) else []
+        else:
+            # 读取最近N天的数据（可能跨月）
+            now = datetime.now()
+            months_to_check = set()
+            for i in range(days + 1):
+                date = now - timedelta(days=i)
+                months_to_check.add(date.strftime('%Y%m'))
+            
+            files_to_read = []
+            for m in sorted(months_to_check):
+                trend_file = os.path.join(trend_dir, f'support_resistance_trend_{m}.jsonl')
+                if os.path.exists(trend_file):
+                    files_to_read.append(trend_file)
+        
+        # 读取数据
+        trend_data = []
+        cutoff_time = datetime.now() - timedelta(days=days) if not month else None
+        
+        for file_path in files_to_read:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if line.strip():
+                        try:
+                            point = json.loads(line)
+                            
+                            # 如果指定了天数，过滤时间范围
+                            if cutoff_time:
+                                point_time = datetime.fromisoformat(point['timestamp'].replace('+08:00', ''))
+                                if point_time < cutoff_time:
+                                    continue
+                            
+                            trend_data.append(point)
+                        except:
+                            continue
+        
+        # 按时间排序
+        trend_data.sort(key=lambda x: x['timestamp'])
+        
+        return jsonify({
+            'success': True,
+            'data': trend_data,
+            'count': len(trend_data),
+            'days': days,
+            'data_source': 'JSONL Trend Data',
+            'interval': '15 minutes',
+            'description': '每15分钟采集一次，每天96个点'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+# =====================================================
 # OKEx K线指标系统 API路由
 # =====================================================
 
