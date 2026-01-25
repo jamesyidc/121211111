@@ -9,16 +9,28 @@
     <title>逃顶信号系统统计 - 历史数据明细 v2.3-20260125-optimized</title>
     <script>
         // 🔥 强制版本检查和缓存清除
-        const CURRENT_VERSION = '2.2-20260122';
+        const CURRENT_VERSION = '2.3-20260125-optimized';
+        const EXPECTED_LIMIT = 1000;  // 期望的数据条数
+        
         const storedVersion = localStorage.getItem('escape_signal_history_version');
+        
+        // 如果检测到旧版本，立即强制刷新（只刷新一次）
         if (storedVersion !== CURRENT_VERSION) {
-            console.log('🔄 检测到新版本，清除缓存...');
+            console.log('🔄 检测到新版本，清除缓存...', {旧版本: storedVersion, 新版本: CURRENT_VERSION});
             localStorage.setItem('escape_signal_history_version', CURRENT_VERSION);
-            // 强制刷新页面，绕过缓存
-            if (storedVersion) {  // 只有在有旧版本时才刷新
-                location.reload(true);
+            
+            // 如果URL中没有强制刷新标记，添加标记并刷新
+            const urlParams = new URLSearchParams(window.location.search);
+            if (!urlParams.has('_refresh')) {
+                console.log('⚡ 强制刷新页面绕过所有缓存...');
+                const newUrl = window.location.pathname + '?_refresh=' + Date.now();
+                window.location.replace(newUrl);
             }
         }
+        
+        // 全局标记，用于验证是否使用了新代码
+        window.ESCAPE_SIGNAL_VERSION = CURRENT_VERSION;
+        window.ESCAPE_SIGNAL_LIMIT = EXPECTED_LIMIT;
     </script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <style>
