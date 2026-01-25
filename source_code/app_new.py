@@ -6163,12 +6163,17 @@ def api_escape_signal_stats_keypoints():
         sys.path.insert(0, '/home/user/webapp')
         from escape_signal_jsonl_manager import EscapeSignalJSONLManager
         
-        # 检查缓存
-        current_time = time.time()
-        if (_escape_signal_cache['data'] is not None and 
-            current_time - _escape_signal_cache['timestamp'] < _escape_signal_cache['ttl']):
-            # 缓存命中，直接返回
-            return jsonify(_escape_signal_cache['data'])
+        # 🔥 支持快速模式：只返回最新N个点
+        fast_mode = request.args.get('fast', type=str, default='false').lower() == 'true'
+        fast_limit = request.args.get('limit', type=int, default=100)
+        
+        # 检查缓存（只有非快速模式才使用缓存）
+        if not fast_mode:
+            current_time = time.time()
+            if (_escape_signal_cache['data'] is not None and 
+                current_time - _escape_signal_cache['timestamp'] < _escape_signal_cache['ttl']):
+                # 缓存命中，直接返回
+                return jsonify(_escape_signal_cache['data'])
         
         manager = EscapeSignalJSONLManager()
         
@@ -6182,6 +6187,29 @@ def api_escape_signal_stats_keypoints():
         
         if not filtered_records:
             return jsonify({'success': False, 'message': 'No data available'})
+        
+        # 🔥 快速模式：只返回最新N个点
+        if fast_mode:
+            latest_records = filtered_records[-fast_limit:]
+            result = {
+                'success': True,
+                'fast_mode': True,
+                'keypoint_count': len(latest_records),
+                'total_records': len(filtered_records),
+                'data_range': f"{latest_records[0].get('stat_time', '')} ~ {latest_records[-1].get('stat_time', '')}",
+                'keypoints': [
+                    {
+                        'stat_time': r.get('stat_time', ''),
+                        'signal_24h_count': r.get('signal_24h_count', 0),
+                        'signal_2h_count': r.get('signal_2h_count', 0),
+                        'rise_strength_level': r.get('rise_strength_level', 0),
+                        'decline_strength_level': r.get('decline_strength_level', 0)
+                    }
+                    for r in latest_records
+                ],
+                'max_signal_24h': max(r.get('signal_24h_count', 0) for r in latest_records)
+            }
+            return jsonify(result)
         
         total_count = len(filtered_records)
         
