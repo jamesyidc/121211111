@@ -9108,12 +9108,6 @@ def api_symbol_extremes(symbol):
         }), 500
 
 
-@app.route('/test-chart')
-def test_chart():
-    """测试K线图渲染"""
-    with open('test_chart_render.html', 'r', encoding='utf-8') as f:
-        return f.read()
-
 # ==================== 新版本路由 - 强制刷新 ====================
 
 @app.route('/symbol/<symbol>/v6')
