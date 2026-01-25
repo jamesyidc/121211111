@@ -801,43 +801,60 @@
             // 步骤1: 加载关键点数据（快速渲染图表）
             fetchWithTimeout('/api/escape-signal-stats/keypoints?v=' + Date.now(), 30000)
             .then(r => {
-                updateStatus('✅ 步骤1/5: 关键点数据响应成功，正在解析...', false);
+                updateStatus('✅ 步骤1.1/5: HTTP响应成功，开始解析JSON...', false);
                 return r.json();
             })
             .then(keypointsResult => {
+                updateStatus('✅ 步骤1.2/5: JSON解析完成，开始验证数据...', false);
+                
                 // 🔥 立即验证数据
                 console.log('📊 关键点数据原始响应:', keypointsResult);
+                
+                updateStatus('🔍 步骤1.3/5: 检查响应对象类型...', false);
                 if (!keypointsResult || typeof keypointsResult !== 'object') {
                     throw new Error('关键点数据格式错误：不是对象');
                 }
+                
+                updateStatus('🔍 步骤1.4/5: 检查success字段...', false);
                 if (!keypointsResult.success) {
                     throw new Error('关键点API返回失败: ' + (keypointsResult.error || keypointsResult.message || '未知错误'));
                 }
+                
+                updateStatus('🔍 步骤1.5/5: 检查keypoints数组...', false);
                 if (!keypointsResult.keypoints || !Array.isArray(keypointsResult.keypoints)) {
                     throw new Error('关键点数据无效：keypoints不是数组');
                 }
                 console.log('✅ 关键点数据验证通过，共', keypointsResult.keypoints.length, '个点');
                 
-                updateStatus('📡 步骤2/5: 正在请求空单盈利数据...', false);
+                updateStatus('📡 步骤2.1/5: 准备请求空单盈利数据...', false);
                 // 步骤2: 加载空单盈利数据
-                return fetch('/api/anchor-profit/latest').then(r => r.json())
+                return fetch('/api/anchor-profit/latest')
+                    .then(r => {
+                        updateStatus('✅ 步骤2.2/5: 空单盈利API响应成功，解析JSON...', false);
+                        return r.json();
+                    })
                     .then(profitResult => {
+                        updateStatus('✅ 步骤2.3/5: 空单盈利数据解析完成', false);
                         return { keypointsResult, profitResult };
                     });
             })
             .then(({ keypointsResult, profitResult }) => {
-                updateStatus('✅ 步骤2/5: 空单盈利数据获取成功', false);
-                updateStatus('📡 步骤3/5: 正在请求27币历史数据...', false);
+                updateStatus('✅ 步骤2.4/5: 空单数据处理完成', false);
+                updateStatus('📡 步骤3.1/5: 准备请求27币历史数据...', false);
                 // 步骤3: 加载27币数据
                 return fetch('/api/coin-price-tracker/history?all=true&t=' + Date.now())
-                    .then(r => r.json())
+                    .then(r => {
+                        updateStatus('✅ 步骤3.2/5: 27币API响应成功，解析JSON...', false);
+                        return r.json();
+                    })
                     .then(coinResult => {
+                        updateStatus('✅ 步骤3.3/5: 27币数据解析完成', false);
                         return { keypointsResult, profitResult, coinResult };
                     });
             })
             .then(({ keypointsResult, profitResult, coinResult }) => {
-                updateStatus('✅ 步骤3/5: 27币数据获取成功', false);
-                updateStatus('🎨 步骤4/5: 正在处理数据并准备图表...', false);
+                updateStatus('✅ 步骤3.4/5: 所有数据获取成功', false);
+                updateStatus('🎨 步骤4.1/5: 开始处理关键点数据...', false);
                 const loadTime = ((performance.now() - startTime) / 1000).toFixed(2);
                 console.log(`⚡ 关键点数据加载完成，耗时: ${loadTime}秒`);
                 console.log('📊 关键点数据:', keypointsResult);
