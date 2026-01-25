@@ -647,7 +647,7 @@
                     }
                 },
                 legend: {
-                    data: ['24小时信号数', '2小时信号数', '27币涨跌幅总和'],
+                    data: ['24小时信号数', '2小时信号数'],
                     textStyle: { color: '#000', fontSize: 12 },
                     top: 10,
                     left: 'center'
@@ -1022,8 +1022,14 @@
                 document.getElementById('max24h').textContent = keypointsResult.max_signal_24h || 0;
                 document.getElementById('max2h').textContent = Math.max(...signal2h);
                 
-                // 渲染图表 - 使用完整配置
+                // 渲染图表 - 使用完整配置（暂不包含27币数据）
                 const fullOption = Object.assign({}, window.initialChartOption, {
+                    legend: {
+                        data: ['24小时信号数', '2小时信号数'],
+                        textStyle: { color: '#000', fontSize: 12 },
+                        top: 10,
+                        left: 'center'
+                    },
                     xAxis: {
                         type: 'category',
                         boundaryGap: false,
