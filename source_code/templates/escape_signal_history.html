@@ -805,6 +805,19 @@
                 return r.json();
             })
             .then(keypointsResult => {
+                // 🔥 立即验证数据
+                console.log('📊 关键点数据原始响应:', keypointsResult);
+                if (!keypointsResult || typeof keypointsResult !== 'object') {
+                    throw new Error('关键点数据格式错误：不是对象');
+                }
+                if (!keypointsResult.success) {
+                    throw new Error('关键点API返回失败: ' + (keypointsResult.error || keypointsResult.message || '未知错误'));
+                }
+                if (!keypointsResult.keypoints || !Array.isArray(keypointsResult.keypoints)) {
+                    throw new Error('关键点数据无效：keypoints不是数组');
+                }
+                console.log('✅ 关键点数据验证通过，共', keypointsResult.keypoints.length, '个点');
+                
                 updateStatus('📡 步骤2/5: 正在请求空单盈利数据...', false);
                 // 步骤2: 加载空单盈利数据
                 return fetch('/api/anchor-profit/latest').then(r => r.json())
