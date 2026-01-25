@@ -6236,6 +6236,72 @@ def api_escape_signal_stats_keypoints():
             'traceback': traceback.format_exc()
         }), 500
 
+@app.route('/api/escape-signal-stats/incremental')
+def api_escape_signal_stats_incremental():
+    """增量更新API - 只返回最新的N条数据（默认10条）"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp')
+        from escape_signal_jsonl_manager import EscapeSignalJSONLManager
+        
+        manager = EscapeSignalJSONLManager()
+        
+        # 获取参数
+        limit = request.args.get('limit', type=int, default=10)  # 默认只返回最新10条
+        since_time = request.args.get('since', type=str, default=None)  # 可选：从某个时间点之后的数据
+        
+        # 读取所有记录（正序）
+        all_records = manager.read_records(reverse=False)
+        
+        # 过滤出1月3日之后的数据
+        since_date = '2026-01-03 00:00:00'
+        filtered_records = [r for r in all_records if r.get('stat_time', '') >= since_date]
+        
+        # 如果指定了since_time，只返回该时间之后的数据
+        if since_time:
+            filtered_records = [r for r in filtered_records if r.get('stat_time', '') > since_time]
+        
+        # 按时间倒序排序，取最新的limit条
+        filtered_records = sorted(filtered_records, key=lambda x: x.get('stat_time', ''), reverse=True)[:limit]
+        
+        # 再按时间正序排序（方便前端追加）
+        filtered_records = sorted(filtered_records, key=lambda x: x.get('stat_time', ''))
+        
+        if not filtered_records:
+            return jsonify({
+                'success': True,
+                'data': [],
+                'count': 0,
+                'message': 'No new data'
+            })
+        
+        # 构建返回数据
+        incremental_data = [
+            {
+                'stat_time': r.get('stat_time'),
+                'signal_24h_count': r.get('signal_24h_count', 0),
+                'signal_2h_count': r.get('signal_2h_count', 0),
+                'decline_strength_level': r.get('decline_strength_level', 0),
+                'rise_strength_level': r.get('rise_strength_level', 0)
+            }
+            for r in filtered_records
+        ]
+        
+        return jsonify({
+            'success': True,
+            'data': incremental_data,
+            'count': len(incremental_data),
+            'latest_time': filtered_records[-1].get('stat_time') if filtered_records else None
+        })
+    
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
 @app.route('/api/escape-signal-stats')
 def api_escape_signal_stats():
     """获取逃顶信号统计数据（从JSONL读取）- 优化版本"""

@@ -792,6 +792,18 @@
                         const signal24h = sampledData.map(d => d.signal_24h_count);
                         const signal2h = sampledData.map(d => d.signal_2h_count);
                         
+                        // 保存图表数据供增量更新使用
+                        currentChartData = {
+                            times: [...times],  // 复制数组
+                            signal24h: [...signal24h],
+                            signal2h: [...signal2h]
+                        };
+                        
+                        // 保存最后更新时间（用于增量更新）
+                        if (sampledData.length > 0) {
+                            lastUpdateTime = sampledData[sampledData.length - 1].stat_time;
+                        }
+                        
                         // 计算每个自然日的2h最高点（仅标记>50的）
                         const dailyPeaks = {};
                         sampledData.forEach((d, index) => {
@@ -1311,13 +1323,108 @@
                 });
         }
         
+        // 🔄 增量更新函数（只获取最新数据，追加到图表和表格）
+        let lastUpdateTime = null;  // 记录上次更新的最后时间
+        let currentChartData = null;  // 保存当前图表数据
+        
+        function incrementalUpdate() {
+            if (isLoading) {
+                console.log('⚠️ 数据正在加载中，跳过本次增量更新');
+                return;
+            }
+            
+            console.log('🔄 开始增量更新...');
+            
+            // 构建请求URL
+            let url = '/api/escape-signal-stats/incremental?limit=100';  // 获取最新100条
+            if (lastUpdateTime) {
+                url += '&since=' + encodeURIComponent(lastUpdateTime);
+            }
+            
+            fetch(url)
+            .then(r => r.json())
+            .then(result => {
+                if (!result.success || !result.data || result.data.length === 0) {
+                    console.log('ℹ️ 无新数据需要更新');
+                    return;
+                }
+                
+                console.log(`✅ 获取到 ${result.count} 条新数据，最新时间: ${result.latest_time}`);
+                
+                // 更新lastUpdateTime
+                lastUpdateTime = result.latest_time;
+                
+                // 追加数据到图表
+                if (chart && currentChartData) {
+                    const newTimes = result.data.map(d => d.stat_time.substring(5, 16));
+                    const newSignal24h = result.data.map(d => d.signal_24h_count);
+                    const newSignal2h = result.data.map(d => d.signal_2h_count);
+                    
+                    // 追加到现有数据
+                    currentChartData.times = currentChartData.times.concat(newTimes);
+                    currentChartData.signal24h = currentChartData.signal24h.concat(newSignal24h);
+                    currentChartData.signal2h = currentChartData.signal2h.concat(newSignal2h);
+                    
+                    // 更新图表（只更新series数据，不重新渲染整个图表）
+                    chart.setOption({
+                        xAxis: {
+                            data: currentChartData.times
+                        },
+                        series: [
+                            { data: currentChartData.signal24h },
+                            { data: currentChartData.signal2h }
+                        ]
+                    }, false, false);  // notMerge=false, lazyUpdate=false
+                    
+                    console.log('📊 图表数据已更新');
+                }
+                
+                // 追加数据到表格（只追加新行，不重新渲染整个表格）
+                const tableBody = document.getElementById('dataTableBody');
+                if (tableBody && result.data.length > 0) {
+                    // 新数据按时间倒序插入到表格开头
+                    const newRows = result.data.reverse().map(record => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${record.stat_time || '-'}</td>
+                            <td style="color: ${record.signal_24h_count >= 200 ? '#ff4444' : '#333'}; font-weight: ${record.signal_24h_count >= 200 ? 'bold' : 'normal'};">
+                                ${record.signal_24h_count || 0}
+                            </td>
+                            <td style="color: ${record.signal_2h_count >= 50 ? '#ff4444' : '#333'}; font-weight: ${record.signal_2h_count >= 50 ? 'bold' : 'normal'};">
+                                ${record.signal_2h_count || 0}
+                            </td>
+                            <td>${record.decline_strength_level || 0}</td>
+                            <td>${record.rise_strength_level || 0}</td>
+                        `;
+                        return row;
+                    });
+                    
+                    // 插入到表格开头
+                    newRows.forEach(row => {
+                        tableBody.insertBefore(row, tableBody.firstChild);
+                    });
+                    
+                    // 限制表格总行数（保持1000行）
+                    while (tableBody.children.length > 1000) {
+                        tableBody.removeChild(tableBody.lastChild);
+                    }
+                    
+                    console.log(`📋 表格已追加 ${result.count} 行新数据`);
+                }
+                
+            })
+            .catch(err => {
+                console.error('❌ 增量更新失败:', err);
+            });
+        }
+        
         // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', function() {
             initChart();
             loadData();
             
-            // 每30秒自动刷新
-            setInterval(loadData, 30000);
+            // 每30秒执行增量更新（而不是全量重新加载）
+            setInterval(incrementalUpdate, 30000);
             
             // 监听窗口resize事件
             window.addEventListener('resize', function() {
