@@ -6091,6 +6091,15 @@ def test_chart():
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     return response
 
+@app.route('/clear-cache')
+def clear_cache_redirect():
+    """清除缓存并跳转 - 终极方案"""
+    response = make_response(render_template('clear_cache_redirect.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
 @app.route('/force-refresh')
 def force_refresh_page():
     """强制刷新页面 - 清除所有浏览器缓存"""
