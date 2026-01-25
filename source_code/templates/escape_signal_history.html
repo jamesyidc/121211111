@@ -6,31 +6,19 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>逃顶信号系统统计 - 历史数据明细 v2.3-20260125-optimized</title>
+    <title>逃顶信号系统统计 - 历史数据明细 v2.2-20260122</title>
     <script>
         // 🔥 强制版本检查和缓存清除
-        const CURRENT_VERSION = '2.3-20260125-optimized';
-        const EXPECTED_LIMIT = 1000;  // 期望的数据条数
-        
+        const CURRENT_VERSION = '2.2-20260122';
         const storedVersion = localStorage.getItem('escape_signal_history_version');
-        
-        // 如果检测到旧版本，立即强制刷新（只刷新一次）
         if (storedVersion !== CURRENT_VERSION) {
-            console.log('🔄 检测到新版本，清除缓存...', {旧版本: storedVersion, 新版本: CURRENT_VERSION});
+            console.log('🔄 检测到新版本，清除缓存...');
             localStorage.setItem('escape_signal_history_version', CURRENT_VERSION);
-            
-            // 如果URL中没有强制刷新标记，添加标记并刷新
-            const urlParams = new URLSearchParams(window.location.search);
-            if (!urlParams.has('_refresh')) {
-                console.log('⚡ 强制刷新页面绕过所有缓存...');
-                const newUrl = window.location.pathname + '?_refresh=' + Date.now();
-                window.location.replace(newUrl);
+            // 强制刷新页面，绕过缓存
+            if (storedVersion) {  // 只有在有旧版本时才刷新
+                location.reload(true);
             }
         }
-        
-        // 全局标记，用于验证是否使用了新代码
-        window.ESCAPE_SIGNAL_VERSION = CURRENT_VERSION;
-        window.ESCAPE_SIGNAL_LIMIT = EXPECTED_LIMIT;
     </script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <style>
@@ -387,7 +375,7 @@
         </div>
         
         <div class="header">
-            <h1>📊 逃顶信号系统统计 - 历史数据明细 <span style="font-size: 14px; color: #10b981; font-weight: normal;">(v2.3-20260125)</span></h1>
+            <h1>📊 逃顶信号系统统计 - 历史数据明细 <span style="font-size: 14px; color: #10b981; font-weight: normal;">(v2.2-20260122)</span></h1>
             <div style="margin-top: 15px; display: flex; align-items: center; justify-content: center; gap: 15px;">
                 <span style="color: #666; font-size: 14px;">📅 最后更新: <span id="lastUpdateTime" style="color: #10b981; font-weight: 600;">--</span></span>
                 <button onclick="loadData(); this.blur();" style="padding: 8px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.3s;">🔄 立即刷新</button>
@@ -734,29 +722,9 @@
             fetch('/api/escape-signal-stats/keypoints?v=' + Date.now())
             .then(r => r.json())
             .then(keypointsResult => {
-                const loadTime = ((performance.now() - startTime) / 1000).toFixed(2);
-                console.log(`⚡ 关键点数据加载完成，耗时: ${loadTime}秒`);
-                console.log('📊 关键点数据:', keypointsResult);
-                
-                if (!keypointsResult.success) {
-                    throw new Error('获取关键点数据失败: ' + (keypointsResult.error || ''));
-                }
-                
-                // 更新统计卡片
-                const totalRecordsEl = document.getElementById('totalRecords');
-                const max24hEl = document.getElementById('max24h');
-                const max2hEl = document.getElementById('max2h');
-                const sample24hEl = document.getElementById('sample24h');
-                
-                if (totalRecordsEl) totalRecordsEl.textContent = keypointsResult.total_records.toLocaleString();
-                if (max24hEl) max24hEl.textContent = keypointsResult.max_signal_24h;
-                if (max2hEl) max2hEl.textContent = keypointsResult.max_signal_2h;
-                if (sample24hEl) sample24hEl.textContent = keypointsResult.keypoint_count;
-                
                 // 步骤2: 加载空单盈利数据
                 return fetch('/api/anchor-profit/latest').then(r => r.json())
                     .then(profitResult => {
-                        console.log('💰 空单盈利数据:', profitResult);
                         return { keypointsResult, profitResult };
                     });
             })
@@ -765,17 +733,55 @@
                 return fetch('/api/coin-price-tracker/history?all=true&t=' + Date.now())
                     .then(r => r.json())
                     .then(coinResult => {
-                        console.log('💵 27币数据:', coinResult);
                         return { keypointsResult, profitResult, coinResult };
                     });
             })
             .then(({ keypointsResult, profitResult, coinResult }) => {
+                const loadTime = ((performance.now() - startTime) / 1000).toFixed(2);
+                console.log(`⚡ 关键点数据加载完成，耗时: ${loadTime}秒`);
+                console.log('📊 关键点数据:', keypointsResult);
+                console.log('💰 空单盈利数据:', profitResult);
+                console.log('💵 27币数据:', coinResult);
+                
+                if (!keypointsResult.success) {
+                    throw new Error('获取关键点数据失败: ' + (keypointsResult.error || ''));
+                }
+                
+                const profitData = profitResult.data || [];
+                
+                // 更新统计卡片（使用关键点API返回的统计信息）
+                const totalRecordsEl = document.getElementById('totalRecords');
+                const max24hEl = document.getElementById('max24h');
+                const max2hEl = document.getElementById('max2h');
+                const sample24hEl = document.getElementById('sample24h');
+                const median24hEl = document.getElementById('median24h');
+                const lastUpdateTimeEl = document.getElementById('lastUpdateTime');
+                
+                if (totalRecordsEl) totalRecordsEl.textContent = keypointsResult.total_records.toLocaleString();
+                if (max24hEl) max24hEl.textContent = keypointsResult.max_signal_24h;
+                if (max2hEl) max2hEl.textContent = keypointsResult.max_signal_2h;
+                if (sample24hEl) sample24hEl.textContent = keypointsResult.keypoint_count;
+                if (median24hEl) median24hEl.textContent = '-';  // 暂时不计算中位数
+                
+                console.log('📊 统计卡片更新:', {
+                    totalRecords: keypointsResult.total_records,
+                    max24h: keypointsResult.max_signal_24h,
+                    max2h: keypointsResult.max_signal_2h,
+                    sample24h: keypointsResult.keypoint_count,
+                    元素存在: {
+                        totalRecords: !!totalRecordsEl,
+                        max24h: !!max24hEl,
+                        max2h: !!max2hEl,
+                        sample24h: !!sample24hEl
+                    }
+                });
+                
+                // 更新最后更新时间
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                if (lastUpdateTimeEl) lastUpdateTimeEl.textContent = timeStr;
                 
                 console.log(`📊 数据规模: 原始=${keypointsResult.total_records.toLocaleString()}, 渲染=${keypointsResult.keypoint_count}, 压缩率=${keypointsResult.compression_rate}`);
-                        
-                        // 🔥 提取空单盈利数据
-                        const profitData = profitResult?.success ? profitResult.data : [];
-                        console.log('💰 空单盈利数据已提取:', profitData.length, '条');
                         
                         // 🔥 使用后端计算的关键点数据（已优化）
                         const sampledData = keypointsResult.keypoints;

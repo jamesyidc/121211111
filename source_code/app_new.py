@@ -6082,36 +6082,11 @@ def support_resistance_page():
     return response
 
 @app.route('/escape-signal-history')
-@app.route('/escape-signal-history-v2')  # 新路由，绕过CDN缓存
+@app.route('/escape-signal-history-v2')  # v2路由，绕过CDN缓存
 def escape_signal_history_page():
     """逃顶信号系统统计 - 历史数据明细页面"""
-    import time
-    import hashlib
-    
     response = make_response(render_template('escape_signal_history.html'))
-    
-    # 强制禁用所有缓存
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
-    
-    # 添加时间戳ETag强制破坏缓存
-    timestamp = str(time.time())
-    etag = hashlib.md5(timestamp.encode()).hexdigest()
-    response.headers['ETag'] = f'"{etag}"'
-    response.headers['Last-Modified'] = time.strftime('%a, %d %b %Y %H:%M:%S GMT', time.gmtime())
-    
-    # 防止CDN缓存
-    response.headers['Vary'] = 'Accept-Encoding, User-Agent'
-    response.headers['X-Accel-Expires'] = '0'
-    
-    return response
-
-@app.route('/cache-diagnostic')
-def cache_diagnostic():
-    """缓存诊断页面"""
-    response = make_response(render_template('cache_diagnostic.html'))
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
     return response
@@ -6122,156 +6097,6 @@ _escape_signal_cache = {
     'timestamp': 0,
     'ttl': 60  # 缓存60秒
 }
-
-# 启动时预热缓存
-def _preheat_escape_signal_cache():
-    """启动时预加载逃顶信号数据到缓存"""
-    import time
-    import sys
-    sys.path.insert(0, '/home/user/webapp')
-    try:
-        from escape_signal_jsonl_manager import EscapeSignalJSONLManager
-        print("🔥 开始预热逃顶信号缓存...")
-        start = time.time()
-        
-        manager = EscapeSignalJSONLManager()
-        # 读取从2026-01-03到现在的所有数据
-        from datetime import datetime
-        start_date = '2026-01-03'
-        end_date = datetime.now().strftime('%Y-%m-%d')
-        all_records = manager.get_stats_range(start_date, end_date)
-        
-        # 筛选数据并计算关键点
-        from datetime import datetime
-        cutoff_date = datetime(2026, 1, 3, 0, 0, 0)
-        filtered_records = [r for r in all_records if datetime.strptime(r['stat_time'], '%Y-%m-%d %H:%M:%S') >= cutoff_date]
-        
-        if filtered_records:
-            filtered_records.sort(key=lambda x: x['stat_time'])
-            
-            # 🎯 智能采样策略：
-            # 1. 最近3天：全部数据（1分钟粒度）
-            # 2. 历史数据：15分钟一个点
-            from datetime import datetime, timedelta
-            now = datetime.now()
-            three_days_ago = now - timedelta(days=3)
-            
-            recent_data = []  # 最近3天
-            historical_data = []  # 历史数据
-            
-            for record in filtered_records:
-                record_time = datetime.strptime(record['stat_time'], '%Y-%m-%d %H:%M:%S')
-                if record_time >= three_days_ago:
-                    recent_data.append(record)
-                else:
-                    historical_data.append(record)
-            
-            # 对历史数据降采样：每15分钟取一个点
-            sampled_historical = []
-            if historical_data:
-                for i in range(0, len(historical_data), 15):  # 每15分钟
-                    sampled_historical.append(historical_data[i])
-            
-            # 合并数据：采样后的历史数据 + 全部最近3天数据
-            sampled_records = sampled_historical + recent_data
-            sampled_records.sort(key=lambda x: x['stat_time'])
-            
-            print(f"📊 数据采样统计:")
-            print(f"  - 历史数据: {len(historical_data)} → {len(sampled_historical)} (15分钟/点)")
-            print(f"  - 最近3天: {len(recent_data)} (全量)")
-            print(f"  - 总计: {len(filtered_records)} → {len(sampled_records)}")
-            
-            # 使用采样后的数据计算
-            import numpy as np
-            signal_24h_counts = [r.get('signal_24h_count', 0) for r in sampled_records]
-            positive_signals = [s for s in signal_24h_counts if s > 0]
-            
-            if positive_signals:
-                p999 = np.percentile(positive_signals, 99.9)
-                p95 = np.percentile(positive_signals, 95)
-                
-                keypoint_indices = set()
-                for i, val in enumerate(signal_24h_counts):
-                    if val >= p999:
-                        keypoint_indices.add(i)
-                
-                global_max_idx = signal_24h_counts.index(max(signal_24h_counts))
-                keypoint_indices.add(global_max_idx)
-                
-                if positive_signals:
-                    global_min_idx = signal_24h_counts.index(min(positive_signals))
-                    keypoint_indices.add(global_min_idx)
-                
-                window_size = 360
-                for i in range(0, len(signal_24h_counts), window_size):
-                    window = signal_24h_counts[i:i+window_size]
-                    if window:
-                        local_max = max(window)
-                        if local_max >= p95:
-                            local_max_idx = i + window.index(local_max)
-                            keypoint_indices.add(local_max_idx)
-                
-                keypoint_indices.add(0)
-                keypoint_indices.add(len(sampled_records) - 1)
-                
-                keypoint_indices = sorted(list(keypoint_indices))
-                
-                # 不再填充到2000个点，直接使用采样后的数据
-                keypoints_data = []
-                for idx in keypoint_indices:
-                    if idx < len(sampled_records):
-                        record = sampled_records[idx]
-                        keypoints_data.append({
-                            'stat_time': record['stat_time'],
-                            'signal_24h_count': record.get('signal_24h_count', 0),
-                            'signal_2h_count': record.get('signal_2h_count', 0),
-                            'decline_strength_level': record.get('decline_strength_level', 0),
-                            'rise_strength_level': record.get('rise_strength_level', 0)
-                        })
-                
-                # 添加采样后的所有数据点（已经过15分钟降采样）
-                all_sampled_points = []
-                for record in sampled_records:
-                    all_sampled_points.append({
-                        'stat_time': record['stat_time'],
-                        'signal_24h_count': record.get('signal_24h_count', 0),
-                        'signal_2h_count': record.get('signal_2h_count', 0),
-                        'decline_strength_level': record.get('decline_strength_level', 0),
-                        'rise_strength_level': record.get('rise_strength_level', 0)
-                    })
-                
-                max_signal_24h = max(signal_24h_counts)
-                max_signal_2h = max([r.get('signal_2h_count', 0) for r in sampled_records])
-                
-                cache_data = {
-                    'success': True,
-                    'keypoints': all_sampled_points,  # 使用采样后的全部数据
-                    'total_records': len(filtered_records),
-                    'keypoint_count': len(all_sampled_points),
-                    'compression_rate': f'{len(all_sampled_points) / len(filtered_records) * 100:.1f}%',
-                    'max_signal_24h': max_signal_24h,
-                    'max_signal_2h': max_signal_2h,
-                    'data_range': f"{sampled_records[0]['stat_time']} ~ {sampled_records[-1]['stat_time']}"
-                }
-                
-                _escape_signal_cache['data'] = cache_data
-                _escape_signal_cache['timestamp'] = time.time()
-                
-                elapsed = time.time() - start
-                print(f"✅ 缓存预热完成！耗时 {elapsed:.2f}秒, 数据点数量: {len(all_sampled_points)}")
-            else:
-                print("⚠️  没有正数信号，跳过缓存预热")
-        else:
-            print("⚠️  没有数据，跳过缓存预热")
-            
-    except Exception as e:
-        print(f"❌ 缓存预热失败: {e}")
-        import traceback
-        traceback.print_exc()
-
-# Flask启动时执行预热
-_preheat_escape_signal_cache()
-
 
 @app.route('/api/escape-signal-stats/keypoints')
 def api_escape_signal_stats_keypoints():
@@ -17817,4 +17642,86 @@ def reset_coin_change_baseline():
 
 # ==================== Flask App 启动入口 ====================
 if __name__ == '__main__':
+    # 🔥 启动时预热逃顶信号缓存（智能采样：历史15分钟/点，最近3天全量）
+    print('🔥 开始预热逃顶信号缓存...')
+    import time
+    from datetime import datetime, timedelta
+    start_time = time.time()
+    
+    try:
+        sys.path.insert(0, '/home/user/webapp')
+        from escape_signal_jsonl_manager import EscapeSignalJSONLManager
+        
+        manager = EscapeSignalJSONLManager()
+        today = datetime.now().strftime('%Y-%m-%d')
+        three_days_ago = (datetime.now() - timedelta(days=3)).strftime('%Y-%m-%d')
+        
+        # 获取所有数据（从2026-01-03开始）
+        all_data = manager.get_stats_range(start_date='2026-01-03', end_date=today)
+        
+        if not all_data:
+            print('⚠️ 未获取到任何数据，跳过缓存预热')
+        else:
+            # 分离历史数据与最近3天数据
+            historical_data = []
+            recent_data = []
+            three_days_ago_dt = datetime.now() - timedelta(days=3)
+            
+            for record in all_data:
+                try:
+                    stat_time = datetime.fromisoformat(record['stat_time'].replace('Z', '+00:00').replace('+00:00', ''))
+                    if stat_time < three_days_ago_dt:
+                        historical_data.append(record)
+                    else:
+                        recent_data.append(record)
+                except:
+                    pass
+            
+            # 历史数据按15分钟采样
+            sampled_historical = []
+            if historical_data:
+                historical_data.sort(key=lambda x: x['stat_time'])
+                last_sampled_time = None
+                
+                for record in historical_data:
+                    try:
+                        current_time = datetime.fromisoformat(record['stat_time'].replace('Z', '+00:00').replace('+00:00', ''))
+                        
+                        if last_sampled_time is None or (current_time - last_sampled_time).total_seconds() >= 900:  # 15分钟
+                            sampled_historical.append(record)
+                            last_sampled_time = current_time
+                    except:
+                        pass
+            
+            # 合并数据
+            keypoints_data = sampled_historical + recent_data
+            
+            print(f'📊 数据采样统计:')
+            print(f'历史数据: {len(historical_data)} → {len(sampled_historical)} (15分钟/点)')
+            print(f'最近3天: {len(recent_data)} (全量)')
+            print(f'总计: {len(all_data)} → {len(keypoints_data)}')
+            
+            # 计算统计信息
+            max_signal_24h = max((r.get('signal_24h_count', 0) for r in keypoints_data), default=0)
+            max_signal_2h = max((r.get('signal_2h_count', 0) for r in keypoints_data), default=0)
+            
+            # 缓存结果
+            _escape_signal_cache['data'] = {
+                'success': True,
+                'keypoints': keypoints_data,
+                'keypoint_count': len(keypoints_data),
+                'total_records': len(all_data),
+                'max_signal_24h': max_signal_24h,
+                'max_signal_2h': max_signal_2h,
+                'compression_rate': f"{len(keypoints_data) / len(all_data) * 100:.1f}%" if all_data else "0%",
+                'data_range': f"{all_data[0]['stat_time']} ~ {all_data[-1]['stat_time']}" if all_data else "无数据"
+            }
+            _escape_signal_cache['timestamp'] = time.time()
+            
+            elapsed = time.time() - start_time
+            print(f'✅ 缓存预热完成！耗时: {elapsed:.2f}秒, 数据点数量: {len(keypoints_data)}')
+    
+    except Exception as e:
+        print(f'⚠️ 缓存预热失败: {e}')
+    
     app.run(host='0.0.0.0', port=5000, debug=False)
