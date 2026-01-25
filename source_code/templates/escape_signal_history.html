@@ -960,8 +960,8 @@
             isLoading = true;
             const startTime = performance.now();
             
-            // 🔥 添加120秒倒计时显示
-            let timeLeft = 120;
+            // 🔥 添加15秒倒计时显示
+            let timeLeft = 15;
             const countdownInterval = setInterval(() => {
                 timeLeft--;
                 if (timeLeft <= 0) {
@@ -974,9 +974,9 @@
                 }
             }, 1000);
             
-            // 🔥 第一步：先用快速模式加载最新100个点（秒级响应）
-            updateStatus('📡 步骤1/5: 正在快速加载最新数据... (最长等待30秒)', false);
-            fetchWithTimeout('/api/escape-signal-stats/keypoints?fast=true&limit=100&v=' + Date.now(), 30000)
+            // 🔥 第一步：先用快速模式加载最新50个点（极速响应）
+            updateStatus('📡 步骤1/5: 正在快速加载最新数据... (最长等待15秒)', false);
+            fetchWithTimeout('/api/escape-signal-stats/keypoints?fast=true&limit=50&v=' + Date.now(), 15000)
             .then(r => {
                 updateStatus('✅ 步骤1.1/5: HTTP响应成功，开始解析JSON...', false);
                 return r.json();
@@ -1003,20 +1003,49 @@
                 }
                 console.log('✅ 关键点数据验证通过，共', keypointsResult.keypoints.length, '个点');
                 
-                // 🔥 立即渲染图表！不等待其他数据
+                // 🔥 立即渲染图表！
                 updateStatus('🎨 步骤2/5: 开始渲染图表...', false);
-                renderChartWithData(keypointsResult, startTime);
                 
-                // 🔥 异步加载其他数据（不阻塞图表显示）
-                updateStatus('📡 步骤3/5: 后台加载补充数据...', false);
-                loadSupplementaryData(keypointsResult);
+                const sampledData = keypointsResult.keypoints;
+                const times = [];
+                const signal24h = [];
+                const signal2h = [];
                 
-                return keypointsResult;
+                sampledData.forEach(d => {
+                    times.push(d.stat_time);
+                    signal24h.push(d.signal_24h_count || 0);
+                    signal2h.push(d.signal_2h_count || 0);
+                });
+                
+                // 更新统计卡片
+                document.getElementById('totalRecords').textContent = keypointsResult.total_records || sampledData.length;
+                document.getElementById('max24h').textContent = keypointsResult.max_signal_24h || 0;
+                document.getElementById('max2h').textContent = Math.max(...signal2h);
+                
+                // 渲染图表
+                const fullOption = Object.assign({}, window.initialChartOption, {
+                    xAxis: { data: times },
+                    series: [
+                        { name: '24小时信号数', data: signal24h, type: 'line', smooth: true },
+                        { name: '2小时信号数', data: signal2h, type: 'line', smooth: true, yAxisIndex: 0 }
+                    ]
+                });
+                
+                chart.setOption(fullOption, true);
+                chart.resize();
+                
+                updateStatus('✅ 图表渲染完成！', true);
+                isLoading = false;
+                clearInterval(countdownInterval);
+                
+                console.log('✅ 页面加载完成！耗时:', ((performance.now() - startTime) / 1000).toFixed(2), '秒');
             })
             .catch(error => {
                 console.error('❌ 数据加载失败:', error);
                 const errorMsg = error.message || error.toString();
                 updateStatus('❌ 错误: ' + errorMsg, false, true);
+                isLoading = false;
+                clearInterval(countdownInterval);
                 
                 // 显示友好的错误提示
                 alert('❌ 数据加载失败\n\n' +
@@ -1025,669 +1054,7 @@
                       '1. 刷新页面重试\n' +
                       '2. 检查网络连接\n' +
                       '3. 稍后再试');
-            })
-            .finally(() => {
-                updateStatus('🎨 步骤4.1/5: 开始处理关键点数据...', false);
-                const loadTime = ((performance.now() - startTime) / 1000).toFixed(2);
-                console.log(`⚡ 关键点数据加载完成，耗时: ${loadTime}秒`);
-                console.log('📊 关键点数据:', keypointsResult);
-                console.log('💰 空单盈利数据:', profitResult);
-                console.log('💵 27币数据:', coinResult);
-                
-                if (!keypointsResult.success) {
-                    throw new Error('获取关键点数据失败: ' + (keypointsResult.error || ''));
-                }
-                
-                const profitData = profitResult.data || [];
-                
-                // 更新统计卡片（使用关键点API返回的统计信息）
-                const totalRecordsEl = document.getElementById('totalRecords');
-                const max24hEl = document.getElementById('max24h');
-                const max2hEl = document.getElementById('max2h');
-                const sample24hEl = document.getElementById('sample24h');
-                const median24hEl = document.getElementById('median24h');
-                const lastUpdateTimeEl = document.getElementById('lastUpdateTime');
-                
-                if (totalRecordsEl) totalRecordsEl.textContent = keypointsResult.total_records.toLocaleString();
-                if (max24hEl) max24hEl.textContent = keypointsResult.max_signal_24h;
-                if (max2hEl) max2hEl.textContent = keypointsResult.max_signal_2h;
-                if (sample24hEl) sample24hEl.textContent = keypointsResult.keypoint_count;
-                if (median24hEl) median24hEl.textContent = '-';  // 暂时不计算中位数
-                
-                console.log('📊 统计卡片更新:', {
-                    totalRecords: keypointsResult.total_records,
-                    max24h: keypointsResult.max_signal_24h,
-                    max2h: keypointsResult.max_signal_2h,
-                    sample24h: keypointsResult.keypoint_count,
-                    元素存在: {
-                        totalRecords: !!totalRecordsEl,
-                        max24h: !!max24hEl,
-                        max2h: !!max2hEl,
-                        sample24h: !!sample24hEl
-                    }
-                });
-                
-                // 更新最后更新时间
-                const now = new Date();
-                const timeStr = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                if (lastUpdateTimeEl) lastUpdateTimeEl.textContent = timeStr;
-                
-                console.log(`📊 数据规模: 原始=${keypointsResult.total_records.toLocaleString()}, 渲染=${keypointsResult.keypoint_count}, 压缩率=${keypointsResult.compression_rate}`);
-                        
-                        // 🔥 使用后端计算的关键点数据（已优化）
-                        const sampledData = keypointsResult.keypoints;
-                        console.log('✅ 关键点数据已加载:', sampledData.length, '个点');
-                        
-                        // 🎨 准备图表数据（使用后端计算的关键点）
-                        const times = sampledData.map(d => d.stat_time.substring(5, 16)); // MM-DD HH:MM
-                        const signal24h = sampledData.map(d => d.signal_24h_count);
-                        const signal2h = sampledData.map(d => d.signal_2h_count);
-                        
-                        // 保存图表数据供增量更新使用
-                        currentChartData = {
-                            times: [...times],  // 复制数组
-                            signal24h: [...signal24h],
-                            signal2h: [...signal2h]
-                        };
-                        
-                        // 保存最后更新时间（用于增量更新）
-                        if (sampledData.length > 0) {
-                            lastUpdateTime = sampledData[sampledData.length - 1].stat_time;
-                        }
-                        
-                        // 计算每个自然日的2h最高点（仅标记>50的）
-                        const dailyPeaks = {};
-                        sampledData.forEach((d, index) => {
-                            const date = d.stat_time.substring(0, 10); // YYYY-MM-DD
-                            const value = d.signal_2h_count;
-                            
-                            if (value > 50) {
-                                if (!dailyPeaks[date] || value > dailyPeaks[date].value) {
-                                    dailyPeaks[date] = {
-                                        index: index,
-                                        value: value,
-                                        time: d.stat_time
-                                    };
-                                }
-                            }
-                        });
-                        
-                        // 计算24小时信号的48小时窗口最大值（仅标记>200的）
-                        const window48hPeaks = [];
-                        // 智能采样后，窗口大小基于采样后的数据点数
-                        const windowSize = Math.max(50, Math.floor(sampledData.length / (keypointsResult.total_records / (48 * 60))));
-                        
-                        for (let i = 0; i < sampledData.length; i++) {
-                            // 找到当前位置前后48小时内的最大值
-                            const startIndex = Math.max(0, Math.floor(i - windowSize / 2));
-                            const endIndex = Math.min(sampledData.length - 1, Math.floor(i + windowSize / 2));
-                            
-                            let maxValue = 0;
-                            let maxIndex = i;
-                            
-                            for (let j = Math.floor(startIndex); j <= Math.floor(endIndex); j++) {
-                                if (!sampledData[j]) continue; // 安全检查
-                                const value = sampledData[j].signal_24h_count;
-                                if (value > maxValue) {
-                                    maxValue = value;
-                                    maxIndex = j;
-                                }
-                            }
-                            
-                            // 如果当前点是窗口内的最大值，且大于200，则标记
-                            if (maxIndex === i && maxValue > 200) {
-                                // 检查是否已经在附近标记过（避免重复标记）
-                                const isDuplicate = window48hPeaks.some(p => Math.abs(p.index - i) < windowSize / 4);
-                                if (!isDuplicate) {
-                                    window48hPeaks.push({
-                                        index: i,
-                                        value: maxValue,
-                                        time: sampledData[i].stat_time
-                                    });
-                                }
-                            }
-                        }
-                        
-                        // 构建2h信号标记点数据（红色小标记）
-                        const markPointData2h = Object.values(dailyPeaks).map(peak => ({
-                            coord: [peak.index, peak.value],
-                            value: peak.value,
-                            symbol: 'pin',
-                            symbolSize: 60,
-                            symbolOffset: [0, '-50%'],
-                            itemStyle: {
-                                color: '#ef4444',
-                                borderColor: '#fff',
-                                borderWidth: 2
-                            },
-                            label: {
-                                show: true,
-                                formatter: function(params) {
-                                    return '🔥 ' + params.value;
-                                },
-                                position: 'inside',
-                                color: '#fff',
-                                fontSize: 11,
-                                fontWeight: 'bold',
-                                offset: [0, 10]
-                            }
-                        }));
-                        
-                        // 构建24h信号48小时峰值标记点数据（紫色大标记）
-                        const markPointData24h = window48hPeaks.map(peak => ({
-                            coord: [peak.index, peak.value],
-                            value: peak.value,
-                            symbol: 'pin',
-                            symbolSize: 70,
-                            symbolOffset: [0, '-50%'],
-                            itemStyle: {
-                                color: '#8b5cf6',
-                                borderColor: '#fff',
-                                borderWidth: 2
-                            },
-                            label: {
-                                show: true,
-                                formatter: function(params) {
-                                    return '⭐ ' + params.value;
-                                },
-                                position: 'inside',
-                                color: '#fff',
-                                fontSize: 12,
-                                fontWeight: 'bold',
-                                offset: [0, 12]
-                            }
-                        }));
-                        
-                        // 🆕 添加空单盈利≥120%和空单亏损的标记（每小时只标记一次）
-                        const shortProfitMarks = [];  // 空单盈利≥120%标记（绿色）
-                        const shortLossMarks = [];    // 空单亏损标记（红色）
-                        
-                        // 创建时间戳映射表（逃顶信号数据的时间 -> 索引）
-                        const timeToIndexMap = {};
-                        sampledData.forEach((d, index) => {
-                            const timestamp = new Date(d.stat_time).getTime();
-                            timeToIndexMap[timestamp] = index;
-                        });
-                        
-                        // 追踪上次标记的小时（避免重复标记）
-                        let lastShortProfitHour = null;
-                        let lastShortLossHour = null;
-                        
-                        // 遍历空单盈利数据，添加标记
-                        profitData.forEach(pd => {
-                            const pdTime = new Date(pd.datetime);
-                            const pdHour = pdTime.getFullYear() + '-' + 
-                                         String(pdTime.getMonth() + 1).padStart(2, '0') + '-' + 
-                                         String(pdTime.getDate()).padStart(2, '0') + ' ' +
-                                         String(pdTime.getHours()).padStart(2, '0');
-                            
-                            const stats = pd.stats?.short || {};
-                            const shortProfit120 = stats.gte_120 || 0;
-                            const shortLoss = stats.loss || 0;
-                            
-                            // 空单盈利≥120% 且 数量≥3，每小时只标记一次
-                            if (shortProfit120 >= 3 && pdHour !== lastShortProfitHour) {
-                                // 找到最接近的逃顶信号数据点
-                                const pdTimestamp = pdTime.getTime();
-                                let closestIndex = -1;
-                                let minDiff = Infinity;
-                                
-                                sampledData.forEach((d, index) => {
-                                    const diff = Math.abs(new Date(d.stat_time).getTime() - pdTimestamp);
-                                    if (diff < minDiff) {
-                                        minDiff = diff;
-                                        // 使用索引映射找到采样后的索引
-                                        if (window._indexMapping && window._indexMapping.has(index)) {
-                                            closestIndex = window._indexMapping.get(index);
-                                        } else {
-                                            // 如果没有精确映射，使用最接近的采样点
-                                            closestIndex = index;
-                                        }
-                                    }
-                                });
-                                
-                                if (closestIndex >= 0 && minDiff < 3600000) { // 1小时内
-                                    const chartData = signal24h[closestIndex] || signal2h[closestIndex] || 0;
-                                    shortProfitMarks.push({
-                                        coord: [closestIndex, chartData],
-                                        value: shortProfit120,
-                                        itemStyle: {
-                                            color: '#10b981',
-                                            borderColor: '#fff',
-                                            borderWidth: 2
-                                        },
-                                        label: {
-                                            show: true,
-                                            formatter: '🟢 ' + shortProfit120,
-                                            position: 'bottom',
-                                            color: '#10b981',
-                                            fontSize: 13,
-                                            fontWeight: 'bold'
-                                        }
-                                    });
-                                    lastShortProfitHour = pdHour;
-                                }
-                            }
-                            
-                            // 空单亏损 且 数量≥3，每小时只标记一次
-                            if (shortLoss >= 3 && pdHour !== lastShortLossHour) {
-                                // 找到最接近的逃顶信号数据点
-                                const pdTimestamp = pdTime.getTime();
-                                let closestIndex = -1;
-                                let minDiff = Infinity;
-                                
-                                sampledData.forEach((d, index) => {
-                                    const diff = Math.abs(new Date(d.stat_time).getTime() - pdTimestamp);
-                                    if (diff < minDiff) {
-                                        minDiff = diff;
-                                        // 使用索引映射找到采样后的索引
-                                        if (window._indexMapping && window._indexMapping.has(index)) {
-                                            closestIndex = window._indexMapping.get(index);
-                                        } else {
-                                            // 如果没有精确映射，使用最接近的采样点
-                                            closestIndex = index;
-                                        }
-                                    }
-                                });
-                                
-                                if (closestIndex >= 0 && minDiff < 3600000) { // 1小时内
-                                    const chartData = signal24h[closestIndex] || signal2h[closestIndex] || 0;
-                                    shortLossMarks.push({
-                                        coord: [closestIndex, chartData],
-                                        value: shortLoss,
-                                        itemStyle: {
-                                            color: '#ef4444',
-                                            borderColor: '#fff',
-                                            borderWidth: 2
-                                        },
-                                        label: {
-                                            show: true,
-                                            formatter: '🔴 ' + shortLoss,
-                                            position: 'bottom',
-                                            color: '#ef4444',
-                                            fontSize: 13,
-                                            fontWeight: 'bold'
-                                        }
-                                    });
-                                    lastShortLossHour = pdHour;
-                                }
-                            }
-                        });
-                        
-                        console.log('🟢 空单盈利≥120%标记:', shortProfitMarks.length, '个');
-                        console.log('🔴 空单亏损标记:', shortLossMarks.length, '个');
-                        
-                        console.log('📍 每日2h最高点标记:', markPointData2h.length, '个');
-                        console.log('⭐ 24h信号48小时峰值标记:', markPointData24h.length, '个');
-                        
-                        // 极端市场标记数组
-                        let extremeHighMarks = [];
-                        let extremeLowMarks = [];
-                        
-                        // 处理27币数据 - 对齐到逃顶信号时间轴
-                        let coinChangeData = [];  // 用于图表（采样后的数据）
-                        let coinChangeDataFull = []; // 用于表格（完整数据）
-                        
-                        if (coinResult && coinResult.success && coinResult.data && coinResult.data.length > 0) {
-                            // 创建27币数据的时间映射
-                            const coinDataMap = new Map();
-                            coinResult.data.forEach(record => {
-                                const timestamp = new Date(record.collect_time).getTime();
-                                let totalSum = record.total_change;
-                                if (totalSum === null || totalSum === undefined) {
-                                    totalSum = 0;
-                                    const changes = record.day_changes || record.coins || {};
-                                    Object.values(changes).forEach(coin => {
-                                        totalSum += (coin.change_pct || 0);
-                                    });
-                                }
-                                coinDataMap.set(timestamp, totalSum);
-                            });
-                            
-                            // 对每个采样后的逃顶信号时间点，找最近的27币数据（用于图表）
-                            sampledData.forEach((d, index) => {
-                                const targetTime = new Date(d.stat_time).getTime();
-                                let closestValue = null;
-                                let minDiff = Infinity;
-                                
-                                for (const [timestamp, value] of coinDataMap) {
-                                    const diff = Math.abs(timestamp - targetTime);
-                                    if (diff < 30 * 60 * 1000 && diff < minDiff) {
-                                        minDiff = diff;
-                                        closestValue = value;
-                                    }
-                                }
-                                
-                                // 调试：输出前5个和后5个对齐结果
-                                if (index < 5 || index >= sampledData.length - 5) {
-                                    console.log(`图表对齐 #${index}: ${d.stat_time} -> ${closestValue?.toFixed(2)}% (diff: ${(minDiff/60000).toFixed(1)}分钟)`);
-                                }
-                                
-                                coinChangeData.push(closestValue !== null ? closestValue.toFixed(2) : null);
-                            });
-                            
-                            // 对所有原始数据点，找最近的27币数据（用于表格）
-                            sampledData.forEach((d, index) => {
-                                const targetTime = new Date(d.stat_time).getTime();
-                                let closestValue = null;
-                                let minDiff = Infinity;
-                                
-                                for (const [timestamp, value] of coinDataMap) {
-                                    const diff = Math.abs(timestamp - targetTime);
-                                    if (diff < 30 * 60 * 1000 && diff < minDiff) {
-                                        minDiff = diff;
-                                        closestValue = value;
-                                    }
-                                }
-                                
-                                coinChangeDataFull.push(closestValue !== null ? closestValue.toFixed(2) : null);
-                            });
-                            
-                            console.log('💵 27币数据对齐完成，共', coinChangeData.length, '个点，有效数据', coinChangeData.filter(v => v !== null).length, '个');
-                            console.log('💵 27币数据示例 (前10个):', coinChangeData.slice(0, 10));
-                            console.log('💵 27币数据范围:', 
-                                'min=' + Math.min(...coinChangeData.filter(v => v !== null)).toFixed(2) + '%,', 
-                                'max=' + Math.max(...coinChangeData.filter(v => v !== null)).toFixed(2) + '%');
-                            
-                            // 检测极端市场情况（>=100% 或 <=-80%），1小时内只标记一次
-                            let lastExtremeHighHour = null;
-                            let lastExtremeLowHour = null;
-                            
-                            coinChangeData.forEach((value, index) => {
-                                if (value === null) return;
-                                
-                                const numValue = parseFloat(value);
-                                const record = sampledData[index];
-                                const statTime = new Date(record.stat_time);
-                                const hourKey = `${statTime.getFullYear()}-${statTime.getMonth()+1}-${statTime.getDate()}-${statTime.getHours()}`;
-                                
-                                // 检测极端上涨 (>=100%)
-                                if (numValue >= 100.0 && hourKey !== lastExtremeHighHour) {
-                                    extremeHighMarks.push({
-                                        coord: [index, numValue],
-                                        value: numValue.toFixed(2),
-                                        symbol: 'pin',
-                                        symbolSize: 80,
-                                        symbolOffset: [0, '-50%'],
-                                        itemStyle: {
-                                            color: '#ff0000',
-                                            borderColor: '#fff',
-                                            borderWidth: 3
-                                        },
-                                        label: {
-                                            show: true,
-                                            position: 'inside',
-                                            formatter: '💥 ' + numValue.toFixed(1) + '%',
-                                            color: '#fff',
-                                            fontSize: 12,
-                                            fontWeight: 'bold',
-                                            offset: [0, 12]
-                                        }
-                                    });
-                                    lastExtremeHighHour = hourKey;
-                                }
-                                
-                                // 检测极端暴跌 (<=-80%)
-                                if (numValue <= -80.0 && hourKey !== lastExtremeLowHour) {
-                                    extremeLowMarks.push({
-                                        coord: [index, numValue],
-                                        value: numValue.toFixed(2),
-                                        symbol: 'pin',
-                                        symbolSize: 80,
-                                        symbolOffset: [0, '-50%'],
-                                        itemStyle: {
-                                            color: '#000000',
-                                            borderColor: '#fff',
-                                            borderWidth: 3
-                                        },
-                                        label: {
-                                            show: true,
-                                            position: 'inside',
-                                            formatter: '💀 ' + numValue.toFixed(1) + '%',
-                                            color: '#fff',
-                                            fontSize: 12,
-                                            fontWeight: 'bold',
-                                            offset: [0, 12]
-                                        }
-                                    });
-                                    lastExtremeLowHour = hourKey;
-                                }
-                            });
-                            
-                            console.log('💥 极端上涨标记 (>=100%):', extremeHighMarks.length, '个');
-                            console.log('💀 极端暴跌标记 (<=-80%):', extremeLowMarks.length, '个');
-                            
-                            // 更新当天极值统计卡片
-                            updateTodayExtremeStats(extremeHighMarks, extremeLowMarks, coinChangeData, sampledData);
-                        } else {
-                            // 如果没有27币数据，填充null
-                            coinChangeData = new Array(times.length).fill(null);
-                            console.log('⚠️ 未获取到27币数据');
-                        }
-                        
-                        // 🔥 使用完整的配置对象（包含所有基础配置）
-                        const fullOption = Object.assign({}, window.initialChartOption, {
-                            xAxis: { 
-                                type: 'category',
-                                data: times,
-                                boundaryGap: false,
-                                axisLabel: { 
-                                    rotate: 45,
-                                    interval: 'auto',
-                                    fontSize: 10,
-                                    color: '#666'
-                                },
-                                axisLine: { lineStyle: { color: '#ddd' } }
-                            },
-                            legend: {
-                                data: coinChangeData.some(v => v !== null) ? 
-                                    ['24小时信号数', '2小时信号数', '27币涨跌幅总和'] : 
-                                    ['24小时信号数', '2小时信号数'],
-                                textStyle: { color: '#000', fontSize: 12 },
-                                top: 10,
-                                left: 'center'
-                            },
-                            series: [
-                                { 
-                                    name: '24小时信号数',
-                                    type: 'line',
-                                    yAxisIndex: 0,
-                                    data: signal24h,
-                                    smooth: true,
-                                    sampling: 'lttb',
-                                    lineStyle: { color: '#ef4444', width: 2 },
-                                    itemStyle: { color: '#ef4444' },
-                                    showSymbol: false,
-                                    areaStyle: { color: 'rgba(239, 68, 68, 0.2)' },
-                                    markPoint: {
-                                        symbol: 'pin',
-                                        symbolSize: 60,
-                                        data: [...markPointData24h, ...shortProfitMarks, ...shortLossMarks]
-                                    }
-                                },
-                                { 
-                                    name: '2小时信号数',
-                                    type: 'line',
-                                    yAxisIndex: 0,
-                                    data: signal2h,
-                                    smooth: true,
-                                    sampling: 'lttb',
-                                    lineStyle: { color: '#f59e0b', width: 2 },
-                                    itemStyle: { color: '#f59e0b' },
-                                    showSymbol: false,
-                                    areaStyle: { color: 'rgba(245, 158, 11, 0.2)' },
-                                    markPoint: {
-                                        symbol: 'pin',
-                                        symbolSize: 50,
-                                        data: markPointData2h
-                                    }
-                                },
-                                {
-                                    name: '27币涨跌幅总和',
-                                    type: 'line',
-                                    yAxisIndex: 1,
-                                    data: coinChangeData,
-                                    smooth: true,
-                                    lineStyle: { color: '#667eea', width: 3 },
-                                    itemStyle: { color: '#667eea' },
-                                    symbol: 'circle',
-                                    symbolSize: 6,
-                                    markPoint: {
-                                        symbol: 'pin',
-                                        symbolSize: 80,
-                                        data: [...extremeHighMarks, ...extremeLowMarks]
-                                    }
-                                }
-                            ]
-                        });
-                        
-                        // 🔍 setOption前验证数据
-                        console.log('🔍 准备调用setOption，数据验证:');
-                        console.log('- times:', times ? times.length : 0, '个');
-                        console.log('- signal24h:', signal24h ? signal24h.length : 0, '个');
-                        console.log('- signal2h:', signal2h ? signal2h.length : 0, '个');
-                        console.log('- coinChangeData:', coinChangeData ? coinChangeData.length : 0, '个');
-                        console.log('- fullOption.series:', fullOption.series ? fullOption.series.length : 0, '个');
-                        console.log('- chart实例:', typeof chart, chart ? 'exists' : 'null');
-                        
-                        // 🔥 用try-catch包裹setOption
-                        try {
-                            chart.setOption(fullOption, true);  // true = notMerge，完全替换配置
-                            console.log('✅ setOption执行成功');
-                            updateStatus('✅ 步骤5/5: 图表渲染完成！', true);
-                        } catch (error) {
-                            console.error('❌ setOption执行失败:', error);
-                            updateStatus('❌ 错误: 图表渲染失败 - ' + error.message, false, true);
-                            alert('图表渲染失败: ' + error.message);
-                        }
-                        
-                        // 🔍 调试：更新调试信息
-                        const debugDiv = document.getElementById('debug-info');
-                        if (debugDiv) {
-                            debugDiv.innerHTML += `
-                                <div style="margin-top:10px;color:#ff0;font-weight:bold;">🎨 setOption调试</div>
-                                <div>✅ times长度: ${times ? times.length : 0}</div>
-                                <div>✅ signal24h长度: ${signal24h ? signal24h.length : 0}</div>
-                                <div>✅ signal2h长度: ${signal2h ? signal2h.length : 0}</div>
-                                <div>✅ coinChangeData长度: ${coinChangeData ? coinChangeData.length : 0}</div>
-                                <div>✅ fullOption.series: ${fullOption.series ? fullOption.series.length : 0}</div>
-                            `;
-                        }
-                        
-                        console.log('📊 图表setOption完成，开始resize');
-                        const chartDom = document.getElementById('trendChart');
-                        console.log('📏 图表容器尺寸:', {
-                            width: chartDom.offsetWidth,
-                            height: chartDom.offsetHeight,
-                            display: window.getComputedStyle(chartDom).display
-                        });
-                        setTimeout(() => {
-                            if (chart) {
-                                chart.resize();
-                                console.log('✅ 图表resize完成');
-                            }
-                        }, 100);
-                        
-                        // 🔥 异步加载完整数据用于表格（不阻塞图表渲染）
-                        console.log('🔄 开始异步加载完整数据（用于表格）...');
-                        fetch('/api/escape-signal-stats?limit=1000&v=' + Date.now())
-                            .then(r => r.json())
-                            .then(fullResult => {
-                                if (!fullResult.success || !fullResult.history_data) {
-                                    console.warn('⚠️ 完整数据加载失败');
-                                    return;
-                                }
-                                
-                                const historyDataReversed = fullResult.history_data;  // 已经是倒序（最新在前）
-                                fullHistoryData = historyDataReversed;  // 保存到全局变量
-                                console.log('✅ 完整数据加载完成:', historyDataReversed.length, '条记录');
-                                
-                                // 渲染表格
-                                const tbody = document.getElementById('tableBody');
-                                tbody.innerHTML = '';
-                                
-                                console.log('🔢 开始渲染表格，记录数:', historyDataReversed.length);
-                                
-                                // 倒序渲染表格（最新的在前，最早的在后）
-                                for (let i = 0; i < Math.min(historyDataReversed.length, 1000); i++) {  // 先只渲染前1000条
-                                    const record = historyDataReversed[i];
-                                    const row = document.createElement('tr');
-                                    
-                                    // 判断状态
-                                    let status = '正常';
-                                    let statusClass = 'status-normal';
-                                    
-                                    if (record.signal_24h_count > 600) {
-                                        status = '极端逃顶';
-                                        statusClass = 'status-danger';
-                                    } else if (record.signal_24h_count > 400) {
-                                        status = '上涨预警';
-                                        statusClass = 'status-rising';
-                                    }
-                                    
-                                    row.innerHTML = `
-                                        <td>${record.stat_time}</td>
-                                        <td>${record.signal_24h_count}</td>
-                                        <td>${record.signal_2h_count}</td>
-                                        <td>-</td>
-                                        <td>${record.decline_strength_level || '-'}</td>
-                                        <td>${record.rise_strength_level || '-'}</td>
-                                        <td class="${statusClass}">${status}</td>
-                                    `;
-                                    tbody.appendChild(row);
-                                }
-                        
-                        console.log('✅ 表格渲染完成，共 ' + historyDataReversed.length + ' 行（倒序显示）');
-                        
-                        // 📊 更新表格数据范围显示
-                        if (historyDataReversed.length > 0) {
-                            const firstRecord = historyDataReversed[0];  // 最新的
-                            const lastIdx = Math.min(historyDataReversed.length - 1, 999);
-                            const lastRecord = historyDataReversed[lastIdx];  // 最旧的（显示范围内）
-                            const infoEl = document.getElementById('tableDataInfo');
-                            if (infoEl) {
-                                infoEl.textContent = `(显示 ${Math.min(1000, historyDataReversed.length)} 条，最新: ${firstRecord.stat_time})`;
-                            }
-                        }
-                        
-                        // 🔥 强制隐藏loading，显示表格
-                        const loadingEl = document.getElementById('loading');
-                        const tableEl = document.getElementById('dataTable');
-                        if (loadingEl) {
-                            loadingEl.style.display = 'none';
-                            loadingEl.style.visibility = 'hidden';
-                        }
-                        if (tableEl) {
-                            tableEl.style.display = 'table';
-                            tableEl.style.visibility = 'visible';
-                        }
-                        console.log('📋 表格已显示');
-                            })
-                            .catch(error => {
-                                console.error('❌ 表格数据加载错误:', error);
-                                document.getElementById('loading').textContent = '表格数据加载错误: ' + error;
-                            });
-                })
-                .catch(error => {
-                    console.error('❌ 请求错误:', error);
-                    const errorMsg = error.message || error.toString();
-                    updateStatus('❌ 错误: ' + errorMsg + ' (点击"立即刷新"重试)', false, true);
-                    document.getElementById('loading').textContent = '数据加载错误，请点击"立即刷新"重试';
-                    
-                    // 显示详细错误信息
-                    alert('❌ 数据加载失败\n\n' +
-                          '错误: ' + errorMsg + '\n\n' +
-                          '可能原因:\n' +
-                          '1. 网络连接超时\n' +
-                          '2. 浏览器阻止了请求\n' +
-                          '3. API服务暂时不可用\n\n' +
-                          '请点击页面上的"立即刷新"按钮重试');
-                })
-                .finally(() => {
-                    clearInterval(countdownInterval);  // 清除倒计时
-                    isLoading = false;  // 加载完成，解锁
-                    console.log('🔓 数据加载完成，已解锁');
-                });
+            });
         }
         
         // 🔄 增量更新函数（只获取最新数据，追加到图表和表格）

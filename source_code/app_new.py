@@ -6209,6 +6209,7 @@ def api_escape_signal_stats_keypoints():
                 ],
                 'max_signal_24h': max(r.get('signal_24h_count', 0) for r in latest_records)
             }
+            # Flask会自动处理JSON响应
             return jsonify(result)
         
         total_count = len(filtered_records)
