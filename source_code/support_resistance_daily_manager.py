@@ -172,15 +172,15 @@ class SupportResistanceDailyManager:
     
     def get_latest_levels(self, date_str: str = None, limit: int = 27, symbol: str = None) -> List[Dict]:
         """
-        获取最新的支撑阻力位数据（优化版：反向读取文件）
+        获取最新的支撑阻力位数据（每个币种的最新记录）
         
         Args:
             date_str: 日期字符串（默认今天）
-            limit: 返回记录数量
+            limit: 返回记录数量（实际返回每个币种的最新记录）
             symbol: 可选，只获取指定币种
         
         Returns:
-            List[Dict]: level记录列表（最新的N条）
+            List[Dict]: level记录列表（每个币种的最新记录）
         """
         if date_str is None:
             date_str = self.get_current_date()
@@ -191,67 +191,45 @@ class SupportResistanceDailyManager:
             return []
         
         try:
-            # 反向读取文件，避免加载整个大文件
-            records = []
-            buffer_size = 8192  # 8KB buffer
+            # 读取所有level记录
+            all_records = self.read_date_records(date_str, record_type='level')
             
-            with open(file_path, 'rb') as f:
-                # 移动到文件末尾
-                f.seek(0, 2)
-                file_size = f.tell()
+            # 获取每个币种的最新记录（倒序遍历，第一个就是最新的）
+            symbol_records = {}
+            for record in reversed(all_records):
+                data = record.get('data', {})
+                sym = data.get('symbol', '')
                 
-                # 从末尾开始读取
-                position = file_size
-                lines = []
+                if not sym:
+                    continue
                 
-                while position > 0 and len(records) < limit * 10:  # 读取足够的行
-                    # 读取一个buffer
-                    chunk_size = min(buffer_size, position)
-                    position -= chunk_size
-                    f.seek(position)
-                    chunk = f.read(chunk_size).decode('utf-8', errors='ignore')
+                # 如果指定了symbol，只处理该币种
+                if symbol and sym != symbol:
+                    continue
+                
+                # 如果这个币种还没有记录，保存它
+                if sym not in symbol_records:
+                    symbol_records[sym] = record
                     
-                    # 分割成行
-                    chunk_lines = chunk.split('\n')
-                    lines = chunk_lines + lines
-                
-                # 解析最后的N行（倒序）
-                for line in reversed(lines):
-                    if not line.strip():
-                        continue
-                    
-                    try:
-                        record = json.loads(line)
-                        
-                        # 只要level类型的记录
-                        if record.get('type') != 'level':
-                            continue
-                        
-                        # 如果指定了symbol，只返回该币种
-                        if symbol:
-                            data = record.get('data', {})
-                            if data.get('symbol') != symbol:
-                                continue
-                        
-                        records.append(record)
-                        
-                        # 达到limit就停止
-                        if len(records) >= limit:
-                            break
-                            
-                    except json.JSONDecodeError:
-                        continue
+                    # 如果已找到足够的币种，可以停止
+                    if not symbol and len(symbol_records) >= limit:
+                        break
+                    if symbol:
+                        break
             
-            # 返回最新的记录（已经是倒序，需要再反转）
-            return list(reversed(records))
+            # 返回所有币种的最新记录
+            results = list(symbol_records.values())
+            
+            # 按symbol排序
+            results.sort(key=lambda x: x.get('data', {}).get('symbol', ''))
+            
+            return results
             
         except Exception as e:
-            print(f"❌ 反向读取文件失败 ({date_str}): {e}")
-            # 回退到原始方法
-            records = self.read_date_records(date_str, record_type='level')
-            if symbol:
-                records = [r for r in records if r.get('data', {}).get('symbol') == symbol]
-            return records[-limit:] if len(records) > limit else records
+            print(f"❌ 读取文件失败 ({date_str}): {e}")
+            import traceback
+            traceback.print_exc()
+            return []
     
     def get_latest_snapshot(self, date_str: str = None) -> Optional[Dict]:
         """
