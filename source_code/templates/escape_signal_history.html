@@ -960,8 +960,8 @@
             isLoading = true;
             const startTime = performance.now();
             
-            // 🔥 添加15秒倒计时显示
-            let timeLeft = 15;
+            // 🔥 添加20秒倒计时显示
+            let timeLeft = 20;
             const countdownInterval = setInterval(() => {
                 timeLeft--;
                 if (timeLeft <= 0) {
@@ -974,9 +974,9 @@
                 }
             }, 1000);
             
-            // 🔥 第一步：先用快速模式加载最新50个点（极速响应）
-            updateStatus('📡 步骤1/5: 正在快速加载最新数据... (最长等待15秒)', false);
-            fetchWithTimeout('/api/escape-signal-stats/keypoints?fast=true&limit=50&v=' + Date.now(), 15000)
+            // 🔥 第一步：快速加载200个关键点（智能采样，有波动，数据量小）
+            updateStatus('📡 步骤1/5: 正在快速加载关键点数据... (最长等待20秒)', false);
+            fetchWithTimeout('/api/escape-signal-stats/keypoints?limit=200&v=' + Date.now(), 20000)
             .then(r => {
                 updateStatus('✅ 步骤1.1/5: HTTP响应成功，开始解析JSON...', false);
                 return r.json();

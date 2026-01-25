@@ -6277,7 +6277,11 @@ def api_escape_signal_stats_keypoints():
             return sorted(list(keypoints))
         
         # 提取关键点索引
-        keypoint_indices = extract_keypoints(filtered_records, target_points=2000)
+        # 支持limit参数控制返回的关键点数量
+        target_points = request.args.get('limit', type=int, default=2000)
+        target_points = min(target_points, 2000)  # 最多2000个
+        target_points = max(target_points, 50)    # 最少50个
+        keypoint_indices = extract_keypoints(filtered_records, target_points=target_points)
         
         # 构建关键点数据
         keypoints_data = [
