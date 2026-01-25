@@ -7359,7 +7359,8 @@ def api_support_resistance_latest():
         # 获取最新时间（用于显示"最后更新"）
         update_time = None
         for level in latest_levels:
-            time_str = level.get('record_time_beijing') or level.get('record_time')
+            data = level.get('data', level)  # 提取data字段
+            time_str = data.get('record_time_beijing') or data.get('record_time')
             if time_str:
                 update_time = time_str
                 break
@@ -7370,7 +7371,10 @@ def api_support_resistance_latest():
         scenario_2_coins = []
         
         for level in latest_levels:
-            symbol = level.get('symbol', '')
+            # 提取data字段（新JSONL格式）
+            data = level.get('data', level)  # 兼容新旧格式
+            
+            symbol = data.get('symbol', '')
             
             # 转换为 OKX 格式（BTCUSDT -> BTC-USDT-SWAP）
             if symbol.endswith('USDT'):
@@ -7378,19 +7382,19 @@ def api_support_resistance_latest():
             else:
                 okx_symbol = symbol
             
-            current_price = level.get('current_price', 0)
-            support_1 = level.get('support_line_1', 0)
-            support_2 = level.get('support_line_2', 0)
-            resistance_1 = level.get('resistance_line_1', 0)
-            resistance_2 = level.get('resistance_line_2', 0)
-            position_7d = level.get('position_7d', 0)
-            position_48h = level.get('position_48h', 0)
+            current_price = data.get('current_price', 0)
+            support_1 = data.get('support_line_1', 0)
+            support_2 = data.get('support_line_2', 0)
+            resistance_1 = data.get('resistance_line_1', 0)
+            resistance_2 = data.get('resistance_line_2', 0)
+            position_7d = data.get('position_7d', 0)
+            position_48h = data.get('position_48h', 0)
             
             # 判断告警场景
-            alert_7d_low = level.get('alert_7d_low', 0) or (1 if position_7d <= 10 else 0)
-            alert_7d_high = level.get('alert_7d_high', 0) or (1 if position_7d >= 90 else 0)
-            alert_48h_low = level.get('alert_48h_low', 0) or (1 if position_48h <= 10 else 0)
-            alert_48h_high = level.get('alert_48h_high', 0) or (1 if position_48h >= 90 else 0)
+            alert_7d_low = data.get('alert_7d_low', 0) or (1 if position_7d <= 10 else 0)
+            alert_7d_high = data.get('alert_7d_high', 0) or (1 if position_7d >= 90 else 0)
+            alert_48h_low = data.get('alert_48h_low', 0) or (1 if position_48h <= 10 else 0)
+            alert_48h_high = data.get('alert_48h_high', 0) or (1 if position_48h >= 90 else 0)
             
             coin_info = {
                 'symbol': okx_symbol,
@@ -7401,10 +7405,10 @@ def api_support_resistance_latest():
                 'resistance_line_1': resistance_1,
                 'resistance_line_2': resistance_2,
                 # 天数和小时数
-                'support_1_days': level.get('support_1_days', 0),
-                'support_2_hours': level.get('support_2_hours', 0),
-                'resistance_1_days': level.get('resistance_1_days', 0),
-                'resistance_2_hours': level.get('resistance_2_hours', 0),
+                'support_1_days': data.get('support_1_days', 0),
+                'support_2_hours': data.get('support_2_hours', 0),
+                'resistance_1_days': data.get('resistance_1_days', 0),
+                'resistance_2_hours': data.get('resistance_2_hours', 0),
                 # 位置字段
                 'position_7d': position_7d,
                 'position_48h': position_48h,
