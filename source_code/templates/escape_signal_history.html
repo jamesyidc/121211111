@@ -1012,42 +1012,76 @@
                 const signal2h = [];
                 
                 // 🔥 收集极端标记点
-                const extremeHighMarks = [];  // 极端上涨标记（rise_strength_level > 0）
-                const extremeLowMarks = [];   // 极端暴跌标记（decline_strength_level > 0）
+                const extremeHighMarks = [];  // 48小时内最高值标记（24h信号数 > 50）
+                const extremeLowMarks = [];   // 2小时内最高值标记（2h信号数 > 10）
                 
                 sampledData.forEach((d, index) => {
                     times.push(d.stat_time);
                     signal24h.push(d.signal_24h_count || 0);
                     signal2h.push(d.signal_2h_count || 0);
+                });
+                
+                // 🔍 查找48小时内的最高值（24h信号数 > 50）
+                // 使用滑动窗口算法：每96个点（48小时 * 2个点/小时）找一个峰值
+                const window48h = 96;  // 48小时窗口
+                for (let i = 0; i < sampledData.length; i += window48h) {
+                    let maxIndex = i;
+                    let maxValue = sampledData[i].signal_24h_count || 0;
                     
-                    // 收集上涨标记
-                    if (d.rise_strength_level && d.rise_strength_level > 0) {
+                    // 在当前窗口内找最大值
+                    for (let j = i; j < Math.min(i + window48h, sampledData.length); j++) {
+                        const value = sampledData[j].signal_24h_count || 0;
+                        if (value > maxValue) {
+                            maxValue = value;
+                            maxIndex = j;
+                        }
+                    }
+                    
+                    // 只有当最大值 > 50 时才添加标记
+                    if (maxValue > 50) {
                         extremeHighMarks.push({
-                            name: '上涨',
-                            coord: [index, d.signal_24h_count],
-                            value: d.rise_strength_level,
+                            name: '48h高点',
+                            coord: [maxIndex, maxValue],
+                            value: maxValue,
                             symbol: 'pin',
                             symbolSize: 40,
                             itemStyle: { color: '#10b981' }
                         });
                     }
+                }
+                
+                // 🔍 查找2小时内的最高值（2h信号数 > 10）
+                // 使用滑动窗口算法：每4个点（2小时 * 2个点/小时）找一个峰值
+                const window2h = 4;  // 2小时窗口
+                for (let i = 0; i < sampledData.length; i += window2h) {
+                    let maxIndex = i;
+                    let maxValue = sampledData[i].signal_2h_count || 0;
                     
-                    // 收集暴跌标记
-                    if (d.decline_strength_level && d.decline_strength_level > 0) {
+                    // 在当前窗口内找最大值
+                    for (let j = i; j < Math.min(i + window2h, sampledData.length); j++) {
+                        const value = sampledData[j].signal_2h_count || 0;
+                        if (value > maxValue) {
+                            maxValue = value;
+                            maxIndex = j;
+                        }
+                    }
+                    
+                    // 只有当最大值 > 10 时才添加标记
+                    if (maxValue > 10) {
                         extremeLowMarks.push({
-                            name: '暴跌',
-                            coord: [index, d.signal_24h_count],
-                            value: d.decline_strength_level,
+                            name: '2h高点',
+                            coord: [maxIndex, sampledData[maxIndex].signal_24h_count],  // Y轴用24h信号数
+                            value: maxValue,
                             symbol: 'pin',
                             symbolSize: 40,
                             itemStyle: { color: '#ef4444' }
                         });
                     }
-                });
+                }
                 
-                console.log('🎯 极端标记统计:', {
-                    上涨标记: extremeHighMarks.length,
-                    暴跌标记: extremeLowMarks.length
+                console.log('🎯 标记统计:', {
+                    '48h高点标记(24h信号>50)': extremeHighMarks.length,
+                    '2h高点标记(2h信号>10)': extremeLowMarks.length
                 });
                 
                 // 更新统计卡片
