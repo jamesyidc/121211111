@@ -8046,7 +8046,7 @@ def api_support_resistance_escape_max_stats():
 
 @app.route('/api/support-resistance/trend')
 def api_support_resistance_trend():
-    """获取全局趋势数据（一个月，每1分钟一个点）"""
+    """获取全局趋势数据（支持分层加载：全局15分钟采样，放大后1分钟完整数据）"""
     try:
         import os
         import json
@@ -8055,6 +8055,9 @@ def api_support_resistance_trend():
         # 获取参数
         days = request.args.get('days', 30, type=int)  # 默认30天
         month = request.args.get('month', None)  # 可选：指定月份 YYYYMM
+        sample = request.args.get('sample', 15, type=int)  # 采样间隔（分钟），默认15分钟
+        start_time = request.args.get('start', None)  # 可选：开始时间（放大查看时使用）
+        end_time = request.args.get('end', None)  # 可选：结束时间（放大查看时使用）
         
         trend_dir = '/home/user/webapp/data/support_resistance_trend'
         
@@ -8080,6 +8083,10 @@ def api_support_resistance_trend():
         trend_data = []
         cutoff_time = datetime.now() - timedelta(days=days) if not month else None
         
+        # 时间范围过滤（放大查看时使用）
+        filter_start = datetime.fromisoformat(start_time.replace('+08:00', '')) if start_time else None
+        filter_end = datetime.fromisoformat(end_time.replace('+08:00', '')) if end_time else None
+        
         for file_path in files_to_read:
             with open(file_path, 'r', encoding='utf-8') as f:
                 for line in f:
@@ -8087,11 +8094,18 @@ def api_support_resistance_trend():
                         try:
                             point = json.loads(line)
                             
-                            # 如果指定了天数，过滤时间范围
-                            if cutoff_time:
-                                point_time = datetime.fromisoformat(point['timestamp'].replace('+08:00', ''))
-                                if point_time < cutoff_time:
-                                    continue
+                            # 时间过滤
+                            point_time = datetime.fromisoformat(point['timestamp'].replace('+08:00', ''))
+                            
+                            # 过滤天数范围
+                            if cutoff_time and point_time < cutoff_time:
+                                continue
+                            
+                            # 过滤放大时间范围
+                            if filter_start and point_time < filter_start:
+                                continue
+                            if filter_end and point_time > filter_end:
+                                continue
                             
                             trend_data.append(point)
                         except:
@@ -8100,14 +8114,41 @@ def api_support_resistance_trend():
         # 按时间排序
         trend_data.sort(key=lambda x: x['timestamp'])
         
+        # 数据采样（全局视图时降采样，放大后返回完整数据）
+        sampled_data = trend_data
+        actual_interval = '1 minute'
+        
+        if sample > 1 and not (start_time and end_time):
+            # 全局视图：进行采样（每N分钟取一个点）
+            sampled_data = []
+            for i, point in enumerate(trend_data):
+                try:
+                    point_time = datetime.fromisoformat(point['timestamp'].replace('+08:00', ''))
+                    # 每N分钟取一个点：分钟数能被N整除
+                    if point_time.minute % sample == 0:
+                        sampled_data.append(point)
+                except:
+                    continue
+            actual_interval = f'{sample} minutes'
+        else:
+            # 放大视图或sample=1：返回完整数据
+            actual_interval = '1 minute'
+        
         return jsonify({
             'success': True,
-            'data': trend_data,
-            'count': len(trend_data),
+            'data': sampled_data,
+            'count': len(sampled_data),
+            'total_count': len(trend_data),
             'days': days,
+            'sample': sample,
             'data_source': 'JSONL Trend Data',
-            'interval': '1 minute',
-            'description': '每1分钟采集一次，每天1,440个点'
+            'interval': actual_interval,
+            'description': f'采集频率1分钟，返回间隔{actual_interval}',
+            'is_sampled': len(sampled_data) < len(trend_data),
+            'zoom_range': {
+                'start': start_time,
+                'end': end_time
+            } if (start_time and end_time) else None
         })
         
     except Exception as e:
