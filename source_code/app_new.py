@@ -3,6 +3,7 @@
 加密货币数据分析系统 - 完全仿照参考页面风格
 """
 from flask import Flask, render_template_string, render_template, request, jsonify, send_from_directory, send_file, make_response, redirect
+from flask_compress import Compress
 import sqlite3
 from datetime import datetime, timedelta
 import json
@@ -13,6 +14,8 @@ import time
 import traceback
 
 app = Flask(__name__)
+# 启用gzip压缩 - 减少74KB到约15-20KB
+Compress(app)
 
 # 导入JSONL管理器
 from gdrive_jsonl_manager import GDriveJSONLManager
@@ -6130,6 +6133,16 @@ def force_refresh_page():
     return response
 
 @app.route('/escape-signal-history')
+@app.route('/clear-cache-guide')
+def clear_cache_guide():
+    """清除缓存引导页面"""
+    import time
+    response = make_response(render_template('clear_cache.html', timestamp=int(time.time())))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
 @app.route('/escape-signal-history-v2')  # v2路由，绕过CDN缓存
 def escape_signal_history_page():
     """逃顶信号系统统计 - 历史数据明细页面"""
