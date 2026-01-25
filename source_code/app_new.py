@@ -6084,10 +6084,26 @@ def support_resistance_page():
 @app.route('/escape-signal-history')
 def escape_signal_history_page():
     """逃顶信号系统统计 - 历史数据明细页面"""
+    import time
+    import hashlib
+    
     response = make_response(render_template('escape_signal_history.html'))
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    
+    # 强制禁用所有缓存
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
+    
+    # 添加时间戳ETag强制破坏缓存
+    timestamp = str(time.time())
+    etag = hashlib.md5(timestamp.encode()).hexdigest()
+    response.headers['ETag'] = f'"{etag}"'
+    response.headers['Last-Modified'] = time.strftime('%a, %d %b %Y %H:%M:%S GMT', time.gmtime())
+    
+    # 防止CDN缓存
+    response.headers['Vary'] = 'Accept-Encoding, User-Agent'
+    response.headers['X-Accel-Expires'] = '0'
+    
     return response
 
 # 添加缓存机制
