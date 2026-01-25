@@ -6091,6 +6091,15 @@ def test_chart():
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     return response
 
+@app.route('/test-simple')
+def test_simple():
+    """极简测试页面 - 最小化图表显示测试"""
+    response = make_response(render_template('test_simple.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
 @app.route('/clear-cache')
 def clear_cache_redirect():
     """清除缓存并跳转 - 终极方案"""
@@ -6439,15 +6448,6 @@ def api_escape_signal_stats():
 def escape_signal_simple_page():
     """逃顶信号简洁版页面"""
     response = make_response(render_template('escape_signal_simple.html'))
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
-    return response
-
-@app.route('/test-simple')
-def test_simple_page():
-    """最简测试页面"""
-    response = make_response(render_template('test_simple.html'))
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
@@ -10625,11 +10625,6 @@ def api_query_batch_import():
             'success': False,
             'error': str(e)
         })
-
-@app.route('/test-simple')
-def test_simple():
-    """简单测试页面 - 验证window.onload和ECharts基础功能"""
-    return render_template('test_simple.html')
 
 @app.route('/api/chart-config')
 def chart_config():
