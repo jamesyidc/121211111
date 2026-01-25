@@ -1041,12 +1041,23 @@
                     // 只有当最大值 > 50 时才添加标记
                     if (maxValue > 50) {
                         extremeHighMarks.push({
-                            name: '48h高点',
+                            name: '24h: ' + maxValue,  // 显示24h信号数
                             coord: [maxIndex, maxValue],
                             value: maxValue,
                             symbol: 'pin',
-                            symbolSize: 40,
-                            itemStyle: { color: '#10b981' }
+                            symbolSize: 50,  // 略微增大
+                            itemStyle: { color: '#10b981' },
+                            label: {
+                                show: true,  // 显示文本
+                                formatter: '{c}',  // 显示数值
+                                position: 'top',  // 文本位置在上方
+                                color: '#fff',  // 白色文本
+                                fontSize: 12,
+                                fontWeight: 'bold',
+                                backgroundColor: '#10b981',  // 绿色背景
+                                borderRadius: 4,
+                                padding: [2, 6]
+                            }
                         });
                     }
                 }
@@ -1071,12 +1082,23 @@
                     // 只有当最大值 > 10 时才添加标记
                     if (maxValue > 10) {
                         extremeLowMarks.push({
-                            name: '2h高点',
+                            name: '2h: ' + maxValue,  // 显示2h信号数
                             coord: [maxIndex, sampledData[maxIndex].signal_24h_count],  // Y轴用24h信号数
-                            value: maxValue,
+                            value: maxValue,  // 但显示的2h数值
                             symbol: 'pin',
-                            symbolSize: 40,
-                            itemStyle: { color: '#ef4444' }
+                            symbolSize: 50,  // 略微增大
+                            itemStyle: { color: '#ef4444' },
+                            label: {
+                                show: true,  // 显示文本
+                                formatter: '{c}',  // 显示数值
+                                position: 'top',  // 文本位置在上方
+                                color: '#fff',  // 白色文本
+                                fontSize: 12,
+                                fontWeight: 'bold',
+                                backgroundColor: '#ef4444',  // 红色背景
+                                borderRadius: 4,
+                                padding: [2, 6]
+                            }
                         });
                     }
                 }
@@ -1119,13 +1141,8 @@
                             showSymbol: false,
                             areaStyle: { color: 'rgba(239, 68, 68, 0.2)' },
                             markPoint: {
-                                data: [...extremeHighMarks, ...extremeLowMarks],
-                                label: {
-                                    show: true,
-                                    formatter: '{b}',
-                                    fontSize: 10,
-                                    color: '#fff'
-                                }
+                                data: [...extremeHighMarks, ...extremeLowMarks]
+                                // 不设置全局label，让每个标记点使用自己的label配置
                             }
                         },
                         {
