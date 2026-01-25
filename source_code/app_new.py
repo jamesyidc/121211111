@@ -6082,6 +6082,7 @@ def support_resistance_page():
     return response
 
 @app.route('/escape-signal-history')
+@app.route('/escape-signal-history-v2')  # 新路由，绕过CDN缓存
 def escape_signal_history_page():
     """逃顶信号系统统计 - 历史数据明细页面"""
     import time
