@@ -773,6 +773,10 @@
                 
                 console.log(`📊 数据规模: 原始=${keypointsResult.total_records.toLocaleString()}, 渲染=${keypointsResult.keypoint_count}, 压缩率=${keypointsResult.compression_rate}`);
                         
+                        // 🔥 提取空单盈利数据
+                        const profitData = profitResult?.success ? profitResult.data : [];
+                        console.log('💰 空单盈利数据已提取:', profitData.length, '条');
+                        
                         // 🔥 使用后端计算的关键点数据（已优化）
                         const sampledData = keypointsResult.keypoints;
                         console.log('✅ 关键点数据已加载:', sampledData.length, '个点');
