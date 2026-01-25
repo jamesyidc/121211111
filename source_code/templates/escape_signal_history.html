@@ -486,7 +486,7 @@
                         <th>状态</th>
                     </tr>
                 </thead>
-                <tbody id="tableBody"></tbody>
+                <tbody id="dataTableBody"></tbody>
             </table>
         </div>
     </div>
@@ -889,6 +889,82 @@
             // 暂时先跳过，让图表快速显示
         }
         
+        // 📊 填充历史极值统计明细表格
+        function fillHistoryTable(data) {
+            const tableBody = document.getElementById('dataTableBody');
+            const loadingDiv = document.getElementById('loading');
+            const dataTable = document.getElementById('dataTable');
+            
+            if (!tableBody || !data || data.length === 0) {
+                console.warn('⚠️ 表格数据为空或元素未找到');
+                return;
+            }
+            
+            // 清空表格
+            tableBody.innerHTML = '';
+            
+            // 只显示前500条（性能考虑）
+            const displayData = data.slice(0, 500);
+            
+            displayData.forEach(record => {
+                const row = document.createElement('tr');
+                
+                // 记录时间
+                const timeCell = document.createElement('td');
+                timeCell.textContent = record.stat_time || '-';
+                row.appendChild(timeCell);
+                
+                // 24小时信号数
+                const signal24hCell = document.createElement('td');
+                signal24hCell.textContent = record.signal_24h_count || 0;
+                signal24hCell.style.fontWeight = 'bold';
+                signal24hCell.style.color = record.signal_24h_count > 50 ? '#ef4444' : '#666';
+                row.appendChild(signal24hCell);
+                
+                // 2小时信号数
+                const signal2hCell = document.createElement('td');
+                signal2hCell.textContent = record.signal_2h_count || 0;
+                signal2hCell.style.fontWeight = 'bold';
+                signal2hCell.style.color = record.signal_2h_count > 10 ? '#f59e0b' : '#666';
+                row.appendChild(signal2hCell);
+                
+                // 27币涨跌幅总和（暂时显示为 N/A）
+                const coinChangeCell = document.createElement('td');
+                coinChangeCell.textContent = 'N/A';
+                coinChangeCell.style.color = '#999';
+                row.appendChild(coinChangeCell);
+                
+                // 下跌强度
+                const declineCell = document.createElement('td');
+                declineCell.textContent = record.decline_strength_level || 0;
+                row.appendChild(declineCell);
+                
+                // 上涨强度
+                const riseCell = document.createElement('td');
+                riseCell.textContent = record.rise_strength_level || 0;
+                row.appendChild(riseCell);
+                
+                // 状态
+                const statusCell = document.createElement('td');
+                if (record.signal_24h_count > 50) {
+                    statusCell.innerHTML = '<span style=\"color: #ef4444; font-weight: bold;\">⚠️ 高信号</span>';
+                } else if (record.signal_2h_count > 10) {
+                    statusCell.innerHTML = '<span style=\"color: #f59e0b; font-weight: bold;\">⚡ 活跃</span>';
+                } else {
+                    statusCell.innerHTML = '<span style=\"color: #10b981;\">✅ 正常</span>';
+                }
+                row.appendChild(statusCell);
+                
+                tableBody.appendChild(row);
+            });
+            
+            // 隐藏loading，显示表格
+            if (loadingDiv) loadingDiv.style.display = 'none';
+            if (dataTable) dataTable.style.display = 'table';
+            
+            console.log('✅ 表格已填充', displayData.length, '条记录');
+        }
+        
         // 加载数据 - 优化版本：图表加载关键点，表格加载完整数据
         function loadData() {
             // 🔥 带超时的fetch函数
@@ -1049,7 +1125,9 @@
                             itemStyle: { color: '#10b981' },
                             label: {
                                 show: true,  // 显示文本
-                                formatter: '{c}',  // 显示数值
+                                formatter: function(params) {
+                                    return params.value;  // 显示value字段
+                                },
                                 position: 'top',  // 文本位置在上方
                                 color: '#fff',  // 白色文本
                                 fontSize: 12,
@@ -1090,7 +1168,9 @@
                             itemStyle: { color: '#ef4444' },
                             label: {
                                 show: true,  // 显示文本
-                                formatter: '{c}',  // 显示数值
+                                formatter: function(params) {
+                                    return params.value;  // 显示value字段（2h信号数）
+                                },
                                 position: 'top',  // 文本位置在上方
                                 color: '#fff',  // 白色文本
                                 fontSize: 12,
@@ -1168,6 +1248,9 @@
                 chart.resize();
                 
                 console.log('✅ 图表setOption完成');
+                
+                // 🔥 填充历史极值统计明细表格
+                fillHistoryTable(sampledData);
                 
                 updateStatus('✅ 图表渲染完成！', true);
                 isLoading = false;
