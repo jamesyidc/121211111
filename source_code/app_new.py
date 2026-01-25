@@ -6107,6 +6107,15 @@ def escape_signal_history_page():
     
     return response
 
+@app.route('/cache-diagnostic')
+def cache_diagnostic():
+    """缓存诊断页面"""
+    response = make_response(render_template('cache_diagnostic.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
 # 添加缓存机制
 _escape_signal_cache = {
     'data': None,
