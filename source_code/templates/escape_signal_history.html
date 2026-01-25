@@ -1306,7 +1306,23 @@
                             ]
                         });
                         
-                        chart.setOption(fullOption, true);  // true = notMerge，完全替换配置
+                        // 🔍 setOption前验证数据
+                        console.log('🔍 准备调用setOption，数据验证:');
+                        console.log('- times:', times ? times.length : 0, '个');
+                        console.log('- signal24h:', signal24h ? signal24h.length : 0, '个');
+                        console.log('- signal2h:', signal2h ? signal2h.length : 0, '个');
+                        console.log('- coinChangeData:', coinChangeData ? coinChangeData.length : 0, '个');
+                        console.log('- fullOption.series:', fullOption.series ? fullOption.series.length : 0, '个');
+                        console.log('- chart实例:', typeof chart, chart ? 'exists' : 'null');
+                        
+                        // 🔥 用try-catch包裹setOption
+                        try {
+                            chart.setOption(fullOption, true);  // true = notMerge，完全替换配置
+                            console.log('✅ setOption执行成功');
+                        } catch (error) {
+                            console.error('❌ setOption执行失败:', error);
+                            alert('图表渲染失败: ' + error.message);
+                        }
                         
                         // 🔍 调试：更新调试信息
                         const debugDiv = document.getElementById('debug-info');
