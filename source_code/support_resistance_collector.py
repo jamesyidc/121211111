@@ -436,43 +436,28 @@ def main():
     log(f"⏰ 采集间隔: 30秒")
     log(f"📁 数据存储: JSONL 按日期存储 (/home/user/webapp/data/support_resistance_daily/)")
     log(f"📈 数据来源: OKX API (1W K线 + 2D K线 + 实时价格)")
-    log(f"⏰ 采集规则: 每小时的 0分 和 30分 进行采集")
+    log(f"⏰ 采集规则: 每30秒采集一次")
     
     while True:
         try:
             # 获取当前北京时间
             beijing_now = datetime.now(BEIJING_TZ)
-            current_minute = beijing_now.minute
-            current_second = beijing_now.second
+            log(f"⏰ 开始采集: {beijing_now.strftime('%Y-%m-%d %H:%M:%S')}")
             
-            # 只在 0分 或 30分 采集
-            if current_minute in [0, 30] and current_second < 30:
-                log(f"⏰ 到达采集时间点: {beijing_now.strftime('%H:%M')}")
-                collect_all_symbols()
-                # 等待到下一分钟，避免重复采集
-                time.sleep(60)
-            else:
-                # 计算到下一个采集时间点的等待时间
-                if current_minute < 30:
-                    # 等待到 30分
-                    wait_minutes = 30 - current_minute
-                else:
-                    # 等待到下一个小时的 0分
-                    wait_minutes = 60 - current_minute
-                
-                wait_seconds = wait_minutes * 60 - current_second
-                next_time = beijing_now + timedelta(seconds=wait_seconds)
-                
-                log(f"⏳ 下次采集时间: {next_time.strftime('%Y-%m-%d %H:%M')}, 等待 {wait_minutes} 分钟 {60-current_second} 秒...")
-                time.sleep(min(60, wait_seconds))  # 每次最多等待60秒，方便中断
+            # 执行采集
+            collect_all_symbols()
+            
+            # 等待30秒后进行下一次采集
+            log(f"⏳ 等待30秒后进行下一次采集...")
+            time.sleep(30)
             
         except KeyboardInterrupt:
             log("⚠️ 收到停止信号，正在退出...")
             break
         except Exception as e:
             log(f"❌ 采集出错: {e}")
-            log("⏳ 等待60秒后重试...")
-            time.sleep(60)
+            log("⏳ 等待30秒后重试...")
+            time.sleep(30)
 
 if __name__ == '__main__':
     main()
