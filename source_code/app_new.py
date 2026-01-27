@@ -7519,10 +7519,21 @@ def api_support_resistance_latest():
         
         manager = SupportResistanceDailyManager()
         
-        # 获取所有币种的最新数据（今日）
+        # 尝试获取今天的数据
         latest_levels = manager.get_latest_levels()
         
-        # 如果按日期存储的数据为空，fallback到直接读取JSONL
+        # 如果今天没有数据，尝试最近7天的数据
+        if not latest_levels:
+            print("⚠️ 今天没有数据，尝试最近7天...")
+            from datetime import datetime, timedelta
+            for days_ago in range(1, 8):
+                past_date = (datetime.now() - timedelta(days=days_ago)).strftime('%Y%m%d')
+                latest_levels = manager.get_latest_levels(date_str=past_date)
+                if latest_levels:
+                    print(f"✅ 使用 {days_ago} 天前的数据 ({past_date})")
+                    break
+        
+        # 如果还是没有数据，fallback到直接读取JSONL
         if not latest_levels:
             print("⚠️ 按日期数据为空，fallback到JSONL文件")
             return api_support_resistance_latest_from_jsonl()

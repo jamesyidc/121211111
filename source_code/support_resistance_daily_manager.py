@@ -51,7 +51,7 @@ class SupportResistanceDailyManager:
         filename = f"support_resistance_{date_str}.jsonl"
         return self.data_dir / filename
     
-    def write_level_record(self, level_data: Dict) -> bool:
+    def write_level_record(self, level_data: Dict, date_str: str = None, time_str: str = None, timestamp: str = None) -> bool:
         """
         写入支撑阻力位数据记录
         
@@ -62,12 +62,18 @@ class SupportResistanceDailyManager:
                 - support_line_1/2: 支撑位
                 - resistance_line_1/2: 阻力位
                 - 其他计算字段
+            date_str: 可选，指定日期（YYYYMMDD），默认今天
+            time_str: 可选，指定时间（HH:MM:SS），默认当前
+            timestamp: 可选，指定时间戳（ISO格式），默认当前
         
         Returns:
             bool: 写入成功返回True
         """
         try:
-            date_str, time_str, timestamp = self.get_current_datetime_str()
+            # 如果没有指定日期时间，使用当前时间
+            if date_str is None or time_str is None or timestamp is None:
+                date_str, time_str, timestamp = self.get_current_datetime_str()
+            
             file_path = self.get_file_path(date_str)
             
             # 构建记录
