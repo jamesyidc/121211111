@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{symbol}} - SAR 持续时间段统计</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+            background: #1e2139;
+            color: #fff;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid rgba(59, 125, 255, 0.3);
+        }
+        
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        h1 {
+            font-size: 28px;
+            color: #00d4ff;
+        }
+        
+        .back-btn {
+            background: rgba(59, 125, 255, 0.2);
+            border: 1px solid rgba(59, 125, 255, 0.4);
+            color: #00d4ff;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        
+        .back-btn:hover {
+            background: rgba(59, 125, 255, 0.3);
+        }
+        
+        .status-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+            padding: 15px;
+            background: rgba(42, 45, 71, 0.6);
+            border-radius: 8px;
+        }
+        
+        .status-item {
+            text-align: center;
+        }
+        
+        .status-label {
+            font-size: 12px;
+            color: #8b92b8;
+            margin-bottom: 5px;
+        }
+        
+        .status-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #00d4ff;
+        }
+        
+        .data-table {
+            width: 100%;
+            background: rgba(42, 45, 71, 0.6);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .table-header {
+            display: grid;
+            grid-template-columns: 60px 80px 90px 100px 100px 100px 100px 110px 90px 100px 110px 90px 100px 110px 100px 110px;
+            gap: 8px;
+            padding: 15px;
+            background: rgba(59, 125, 255, 0.2);
+            font-weight: bold;
+            font-size: 12px;
+            color: #00d4ff;
+            border-bottom: 1px solid rgba(59, 125, 255, 0.3);
+        }
+        
+        .table-row {
+            display: grid;
+            grid-template-columns: 60px 80px 90px 100px 100px 100px 100px 110px 90px 100px 110px 90px 100px 110px 100px 110px;
+            gap: 8px;
+            padding: 12px 15px;
+            font-size: 12px;
+            border-bottom: 1px solid rgba(139, 146, 184, 0.1);
+            transition: background 0.2s;
+        }
+        
+        .table-row:hover {
+            background: rgba(59, 125, 255, 0.1);
+        }
+        
+        .table-cell {
+            color: #d0d4e8;
+        }
+        
+        .position-long {
+            color: #00ff00;
+            font-weight: bold;
+        }
+        
+        .position-short {
+            color: #ff4444;
+            font-weight: bold;
+        }
+        
+        .trend-increase {
+            color: #ff4444;
+        }
+        
+        .trend-decrease {
+            color: #00ff00;
+        }
+        
+        .bias-bullish {
+            color: #00ff00;
+            font-weight: bold;
+        }
+        
+        .bias-bearish {
+            color: #ff4444;
+            font-weight: bold;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 18px;
+            color: #8b92b8;
+        }
+        
+        .error {
+            text-align: center;
+            padding: 30px;
+            background: rgba(255, 68, 68, 0.1);
+            border: 1px solid rgba(255, 68, 68, 0.3);
+            border-radius: 8px;
+            color: #ff4444;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 id="pageTitle">加载中...</h1>
+            <div class="nav-buttons">
+                <a href="/" class="back-btn">← 返回首页</a>
+                <a href="/sar-slope" class="back-btn">← 返回列表</a>
+            </div>
+        </div>
+        
+        <div id="statusBar" class="status-bar" style="display: none;"></div>
+        
+        <div id="loading" class="loading">正在加载数据...</div>
+        <div id="error" class="error" style="display: none;"></div>
+        
+        <div id="dataTable" style="display: none;">
+            <div class="data-table">
+                <div class="table-header">
+                    <div>序列</div>
+                    <div>时间</div>
+                    <div>币价</div>
+                    <div>SAR值</div>
+                    <div>SAR差值</div>
+                    <div>变化率%</div>
+                    <div>1天变化%</div>
+                    <div>1天平均</div>
+                    <div>1天偏向</div>
+                    <div>3天变化%</div>
+                    <div>3天平均</div>
+                    <div>3天偏向</div>
+                    <div>7天变化%</div>
+                    <div>7天平均</div>
+                    <div>15天变化%</div>
+                    <div>15天平均</div>
+                </div>
+                <div id="tableBody"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const symbol = window.location.pathname.split('/').pop();
+        
+        async function loadData(retryCount = 0) {
+            try {
+                // 添加时间戳参数防止缓存（特别是外部代理缓存）
+                const cacheBuster = Date.now() + Math.random();
+                const url = `/api/sar-slope/current-cycle/${symbol}?_t=${cacheBuster}`;
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Cache-Control': 'no-cache',
+                        'Pragma': 'no-cache'
+                    }
+                });
+                
+                // 检查响应类型，如果不是JSON则抛出错误
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    // 如果返回的是HTML（500错误页面），尝试重试
+                    if (retryCount < 2) {
+                        console.warn(`返回非JSON响应，${2-retryCount}秒后重试 (${retryCount + 1}/3)...`);
+                        document.getElementById('loading').textContent = `加载中... (重试 ${retryCount + 1}/3)`;
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        return loadData(retryCount + 1);
+                    }
+                    throw new Error('服务器返回错误格式，请刷新页面重试');
+                }
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || '加载失败');
+                }
+                
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('pageTitle').textContent = `${symbol} - ${data.current_status.position_cn}完整周期 (${data.current_status.cycle_info})`;
+                
+                renderStatusBar(data);
+                renderDataTable(data);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                const errorMsg = error.message || 'The operation was aborted';
+                document.getElementById('error').textContent = '加载失败: ' + errorMsg + (retryCount > 0 ? ` (已重试${retryCount}次)` : '');
+                
+                // 添加重试按钮
+                const retryBtn = document.createElement('button');
+                retryBtn.textContent = '点击重试';
+                retryBtn.style.cssText = 'margin-top: 10px; padding: 8px 16px; background: #3b7dff; border: none; border-radius: 4px; color: white; cursor: pointer;';
+                retryBtn.onclick = () => {
+                    document.getElementById('error').style.display = 'none';
+                    document.getElementById('loading').style.display = 'block';
+                    document.getElementById('loading').textContent = '加载中...';
+                    loadData(0);
+                };
+                if (!document.getElementById('error').querySelector('button')) {
+                    document.getElementById('error').appendChild(retryBtn);
+                }
+            }
+        }
+        
+        function renderStatusBar(data) {
+            const statusBar = document.getElementById('statusBar');
+            const status = data.current_status;
+            const biasStats = data.bias_statistics;
+            
+            let html = `
+                <div class="status-item">
+                    <div class="status-label">当前状态</div>
+                    <div class="status-value ${status.position === 'long' ? 'position-long' : 'position-short'}">
+                        ${status.position_cn}
+                    </div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">当前序列</div>
+                    <div class="status-value">${status.current_sequence}</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">周期范围</div>
+                    <div class="status-value">${status.cycle_info}</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">序列总数</div>
+                    <div class="status-value">${data.total_sequences}</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">最后更新</div>
+                    <div class="status-value">${status.last_update}</div>
+                </div>
+            `;
+            
+            // 添加2小时偏向统计（如果有数据）
+            if (biasStats && biasStats.total_records > 0) {
+                html += `
+                    <div class="status-item" style="grid-column: 1 / -1; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; margin-top: 10px;">
+                        <div class="status-label">最近2小时偏向统计 (${biasStats.total_records}条数据)</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-label">偏多次数</div>
+                        <div class="status-value bias-bullish">${biasStats.bullish_count} (${biasStats.bullish_ratio}%)</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-label">偏空次数</div>
+                        <div class="status-value bias-bearish">${biasStats.bearish_count} (${biasStats.bearish_ratio}%)</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-label">中性次数</div>
+                        <div class="status-value">${biasStats.neutral_count}</div>
+                    </div>
+                `;
+            }
+            
+            statusBar.innerHTML = html;
+            statusBar.style.display = 'grid';
+        }
+        
+        function renderDataTable(data) {
+            const tableBody = document.getElementById('tableBody');
+            const sequences = data.sequences;
+            
+            let html = '';
+            
+            sequences.forEach(seq => {
+                const hasChange = seq.sequence_change_percent !== undefined;
+                // 使用每行数据自己的position，而不是全局的currentPosition
+                const rowPosition = seq.position;
+                const positionClass = rowPosition === 'long' ? 'position-long' : 'position-short';
+                const positionCn = rowPosition === 'long' ? '多头' : '空头';
+                
+                // 计算1天偏向（基于1天变化%的正负，且绝对值>30%才显示）
+                let bias1day = '-';
+                let bias1dayClass = '';
+                if (hasChange && seq.change_1day_percent !== undefined) {
+                    const abs1day = Math.abs(seq.change_1day_percent);
+                    if (abs1day > 30) {  // 只有偏离值大于30%才显示
+                        if (rowPosition === 'long') {
+                            bias1day = seq.change_1day_percent < 0 ? '偏多' : '偏空';
+                        } else {
+                            bias1day = seq.change_1day_percent < 0 ? '偏空' : '偏多';
+                        }
+                        bias1dayClass = bias1day === '偏多' ? 'bias-bullish' : 'bias-bearish';
+                    }
+                }
+                
+                // 计算3天偏向（基于3天变化%的正负，且绝对值>30%才显示）
+                let bias3day = '-';
+                let bias3dayClass = '';
+                if (hasChange && seq.change_3day_percent !== undefined) {
+                    const abs3day = Math.abs(seq.change_3day_percent);
+                    if (abs3day > 30) {  // 只有偏离值大于30%才显示
+                        if (rowPosition === 'long') {
+                            bias3day = seq.change_3day_percent < 0 ? '偏多' : '偏空';
+                        } else {
+                            bias3day = seq.change_3day_percent < 0 ? '偏空' : '偏多';
+                        }
+                        bias3dayClass = bias3day === '偏多' ? 'bias-bullish' : 'bias-bearish';
+                    }
+                }
+                
+                const sarDiffClass = hasChange && seq.sar_diff >= 0 ? 'trend-increase' : 'trend-decrease';
+                const changeClass = hasChange && seq.sequence_change_percent >= 0 ? 'trend-increase' : 'trend-decrease';
+                const change1Class = hasChange && seq.change_1day_percent >= 0 ? 'trend-increase' : 'trend-decrease';
+                const change3Class = hasChange && seq.change_3day_percent >= 0 ? 'trend-increase' : 'trend-decrease';
+                const change7Class = hasChange && seq.change_7day_percent >= 0 ? 'trend-increase' : 'trend-decrease';
+                const change15Class = hasChange && seq.change_15day_percent >= 0 ? 'trend-increase' : 'trend-decrease';
+                
+                html += `
+                    <div class="table-row">
+                        <div class="table-cell ${positionClass}">${positionCn}${seq.sequence.toString().padStart(2, '0')}</div>
+                        <div class="table-cell">${seq.time.substring(11, 16)}</div>
+                        <div class="table-cell">$${seq.price.toFixed(2)}</div>
+                        <div class="table-cell">${seq.sar.toFixed(4)}</div>
+                        <div class="table-cell ${hasChange ? sarDiffClass : ''}">${hasChange ? (seq.sar_diff >= 0 ? '+' : '') + seq.sar_diff.toFixed(4) : '-'}</div>
+                        <div class="table-cell ${hasChange ? changeClass : ''}">${hasChange ? seq.sequence_change_percent.toFixed(4) + '%' : '-'}</div>
+                        <div class="table-cell ${hasChange ? change1Class : ''}">${hasChange ? (seq.change_1day_percent >= 0 ? '+' : '') + seq.change_1day_percent.toFixed(2) + '%' : '-'}</div>
+                        <div class="table-cell">${hasChange ? seq.avg_1day.toFixed(6) + '%' : '-'}</div>
+                        <div class="table-cell ${bias1dayClass}">${bias1day}</div>
+                        <div class="table-cell ${hasChange ? change3Class : ''}">${hasChange ? (seq.change_3day_percent >= 0 ? '+' : '') + seq.change_3day_percent.toFixed(2) + '%' : '-'}</div>
+                        <div class="table-cell">${hasChange ? seq.avg_3day.toFixed(6) + '%' : '-'}</div>
+                        <div class="table-cell ${bias3dayClass}">${bias3day}</div>
+                        <div class="table-cell ${hasChange ? change7Class : ''}">${hasChange && seq.change_7day_percent !== undefined ? (seq.change_7day_percent >= 0 ? '+' : '') + seq.change_7day_percent.toFixed(2) + '%' : '-'}</div>
+                        <div class="table-cell">${hasChange && seq.avg_7day !== undefined ? seq.avg_7day.toFixed(6) + '%' : '-'}</div>
+                        <div class="table-cell ${hasChange ? change15Class : ''}">${hasChange && seq.change_15day_percent !== undefined ? (seq.change_15day_percent >= 0 ? '+' : '') + seq.change_15day_percent.toFixed(2) + '%' : '-'}</div>
+                        <div class="table-cell">${hasChange && seq.avg_15day !== undefined ? seq.avg_15day.toFixed(6) + '%' : '-'}</div>
+                    </div>
+                `;
+            });
+            
+            tableBody.innerHTML = html;
+            document.getElementById('dataTable').style.display = 'block';
+        }
+        
+        // 加载数据
+        loadData();
+        
+        // 每30秒自动刷新
+        setInterval(loadData, 30000);
+    </script>
+</body>
+</html>
