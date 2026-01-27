@@ -7522,11 +7522,10 @@ def api_support_resistance_latest():
         # 获取所有币种的最新数据（今日）
         latest_levels = manager.get_latest_levels()
         
+        # 如果按日期存储的数据为空，fallback到直接读取JSONL
         if not latest_levels:
-            return jsonify({
-                'success': False,
-                'message': 'No data available'
-            })
+            print("⚠️ 按日期数据为空，fallback到JSONL文件")
+            return api_support_resistance_latest_from_jsonl()
         
         # 获取最新时间（用于显示"最后更新"）
         update_time = None
@@ -10622,6 +10621,95 @@ def api_support_resistance_import():
         return jsonify({
             'success': False,
             'error': str(e)
+        })
+
+@app.route('/api/support-resistance/latest-from-jsonl')
+def api_support_resistance_latest_from_jsonl():
+    """直接从JSONL文件获取最新支撑阻力数据（fallback方案）"""
+    try:
+        import json
+        from collections import defaultdict
+        
+        levels_file = '/home/user/webapp/data/support_resistance_jsonl/support_resistance_levels.jsonl'
+        
+        if not os.path.exists(levels_file):
+            return jsonify({
+                'success': False,
+                'message': 'Data file not found'
+            })
+        
+        # 读取最后1MB获取最新数据
+        latest_by_symbol = {}
+        with open(levels_file, 'r', encoding='utf-8') as f:
+            # 从文件末尾读取
+            f.seek(0, 2)  # 移到文件末尾
+            file_size = f.tell()
+            # 读取最后1MB数据
+            read_size = min(1024 * 1024, file_size)
+            f.seek(max(0, file_size - read_size))
+            # 跳过第一行（可能不完整）
+            if file_size > read_size:
+                f.readline()
+            
+            for line in f:
+                try:
+                    data = json.loads(line.strip())
+                    symbol = data.get('symbol', '')
+                    if symbol:
+                        # 保留每个币种的最新记录
+                        record_time = data.get('record_time', '')
+                        if symbol not in latest_by_symbol or record_time > latest_by_symbol[symbol].get('record_time', ''):
+                            latest_by_symbol[symbol] = data
+                except:
+                    continue
+        
+        if not latest_by_symbol:
+            return jsonify({
+                'success': False,
+                'message': 'No data available'
+            })
+        
+        # 格式化输出，匹配前端期望的字段
+        coins_data = []
+        for symbol, data in latest_by_symbol.items():
+            # 转换为 OKX 格式（BTCUSDT -> BTC-USDT-SWAP）
+            if symbol.endswith('USDT'):
+                okx_symbol = f"{symbol[:-4]}-USDT-SWAP"
+            else:
+                okx_symbol = symbol
+            
+            coins_data.append({
+                'symbol': okx_symbol,
+                'current_price': data.get('current_price', 0),
+                'support_line_1': data.get('support_line_1', 0),
+                'support_line_2': data.get('support_line_2', 0),
+                'resistance_line_1': data.get('resistance_line_1', 0),
+                'resistance_line_2': data.get('resistance_line_2', 0),
+                'position_7d': data.get('position_7d', 0),
+                'position_48h': data.get('position_48h', 0),
+                'status': data.get('current_price_status', ''),
+                'record_time': data.get('record_time', ''),
+                'record_time_beijing': data.get('record_time_beijing', data.get('record_time', ''))
+            })
+        
+        # 按symbol排序
+        coins_data.sort(key=lambda x: x['symbol'])
+        
+        return jsonify({
+            'success': True,
+            'data': coins_data,
+            'coins': len(coins_data),
+            'data_source': 'JSONL (直接读取)',
+            'update_time': coins_data[0]['record_time_beijing'] if coins_data else ''
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to read data'
         })
 
 @app.route('/api/query/batch-import', methods=['POST'])

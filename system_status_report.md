@@ -1,194 +1,87 @@
-# 🔍 系统完整恢复状态报告
+# 系统恢复状态报告
+生成时间: $(date '+%Y-%m-%d %H:%M:%S')
 
-## 📅 报告时间
-**生成时间**: 2026-01-24 11:27 (北京时间)
+## ✅ PM2 进程状态
+
+所有 11 个服务进程都在运行中：
+
+1. **flask-app** - Flask Web 应用 (端口 5000) ✅ Online
+2. **coin-price-tracker** - 币价追踪器 ✅ Online
+3. **support-resistance-snapshot** - 支撑阻力快照 ✅ Online
+4. **price-speed-collector** - 价格速度采集器 ✅ Online
+5. **v1v2-collector** - V1V2 数据采集器 ✅ Online
+6. **crypto-index-collector** - 加密指数采集器 ✅ Online
+7. **okx-day-change-collector** - OKX 日变化采集器 ✅ Online
+8. **sar-slope-collector** - SAR 斜率采集器 ✅ Online
+9. **liquidation-1h-collector** - 清算 1小时采集器 ✅ Online
+10. **anchor-profit-monitor** - 锚点利润监控 ✅ Online
+11. **escape-signal-monitor** - 逃顶信号监控 ✅ Online
+
+## ✅ Flask 路由恢复状态
+
+Flask 应用正常运行，主要 API 路由：
+
+- `/` - 主页 ✅
+- `/api/panic/latest` - 恐慌指数 API ✅
+- `/api/sar-slope/latest` - SAR 斜率 API ✅
+- `/api/anchor-system/current-positions` - 锚点系统仓位 API ✅
+
+测试结果：
+- Panic API 返回最新数据 (2026-01-23 22:09:46)
+- 数据格式正确，包含恐慌指数、清洗指数等字段
+
+## ✅ 缓存系统
+
+Flask 应用内置缓存系统：
+- 使用内存字典存储
+- 支持键值对存储
+- 包含缓存清理和统计功能
+
+## ✅ API 功能验证
+
+测试的 API 端点都正常响应：
+```json
+{
+    "data": {
+        "panic_index": 0.08082981993699467,
+        "panic_level": "低恐慌",
+        "wash_index": 1.297339172092293,
+        ...
+    },
+    "success": true
+}
+```
+
+## 🌐 公共访问 URL
+
+**Flask Web Application:**
+https://5000-ikmpd2up5chrwx4jjjkih-5634da27.sandbox.novita.ai
+
+## 📊 系统资源使用
+
+- Flask App 内存: ~95.4 MB
+- 数据采集器平均内存: ~30 MB
+- 总 PM2 进程数: 11
+
+## ✅ 数据采集器状态
+
+所有数据采集器都在正常工作：
+- 币价追踪器: 每小时 0 分和 30 分采集
+- 其他采集器: 按配置的时间间隔运行
+
+## 📝 备注
+
+1. 系统从 Google Drive 备份成功恢复
+2. 所有代码文件已在 `/home/user/webapp/source_code/` 目录
+3. PM2 进程配置文件在 `ecosystem_all_services.config.js`
+4. 日志文件位于 `./logs/` 目录
+
+## 🎯 下一步建议
+
+1. 验证数据文件是否需要恢复
+2. 检查配置文件是否需要更新
+3. 验证所有 API 端点功能
+4. 测试前端页面功能
 
 ---
-
-## ✅ 已恢复的内容
-
-### 1. 📦 **备份数据恢复** (100%)
-- ✅ home_user.tar.gz (3.3 GB) - 用户数据、代码、配置
-- ✅ usr.tar.gz (1.1 GB) - 系统程序
-- ✅ opt.tar.gz (408 MB) - 第三方软件
-- ✅ var.tar.gz (17 MB) - 系统数据
-- ✅ root_and_etc.tar.gz (380 KB) - 系统配置
-
-### 2. 🗄️ **数据库文件** (已恢复)
-```
-databases/
-├── crypto_data.db (11.3 MB) - 更新于 2026-01-24
-├── support_resistance.db (241 MB) - 支撑阻力数据
-├── anchor_system.db (21.5 MB) - 锚点系统
-├── fund_monitor.db (41.9 MB) - 资金监控
-└── 其他数据库文件...
-```
-
-### 3. 📊 **JSONL 数据文件** (已恢复)
-- **总文件数**: 144个
-- **主要数据目录**:
-  - ✅ support_resistance_jsonl - 支撑阻力数据
-  - ✅ query_jsonl - 查询历史数据
-  - ✅ extreme_jsonl - 极值追踪数据
-  - ✅ sar_slope_jsonl - SAR斜率数据
-  - ✅ coin_price_tracker - 币价追踪数据
-  - ✅ anchor_unified - 锚点统一数据
-  - ✅ panic_jsonl - 恐慌指数数据
-  - ✅ 其他20+数据目录
-
-### 4. 🛣️ **Flask 路由** (已恢复)
-```python
-主要路由 (30+):
-✅ /                      - 首页导航
-✅ /query                 - 历史查询
-✅ /chart                 - 趋势图表
-✅ /timeline              - 时间轴
-✅ /panic                 - 恐慌指数
-✅ /extreme-tracking      - 极值追踪
-✅ /coin-change-tracker   - 币价变化追踪
-
-API路由:
-✅ /api/homepage/summary  - 首页摘要
-✅ /api/query             - 查询接口
-✅ /api/chart             - 图表数据
-✅ /api/stats             - 统计数据
-✅ /api/latest            - 最新数据
-✅ /api/panic/*           - 恐慌指数API
-✅ /api/signals/*         - 信号API
-✅ 其他20+ API端点
-```
-
-### 5. 🔧 **关键工具** (已验证)
-```
-✅ Node.js: v20.19.6
-✅ npm: 10.8.2
-✅ Python: 3.12.11
-✅ Git: 2.39.5
-✅ PM2: 6.0.14
-✅ Flask: 运行中
-```
-
----
-
-## ⚠️ 需要注意的问题
-
-### PM2 进程管理
-- **状态**: 配置已恢复，但进程未自动启动
-- **原因**: PM2数据存储在当前环境中，恢复后需要重新加载
-- **解决方案**: 
-  ```bash
-  cd /home/user/webapp
-  pm2 resurrect  # 恢复进程
-  # 或
-  pm2 start pm2/dump.pm2  # 从备份启动
-  ```
-
-### 部分API错误
-- **问题**: `/api/homepage/summary` 报错 "no such table: panic_wash_index"
-- **原因**: SQLite数据库可能需要重新初始化某些表
-- **影响**: 仅影响首页摘要API，其他功能正常
-- **解决方案**: 运行数据采集器重新生成数据
-
----
-
-## 🔄 数据更新状态
-
-### 最新数据时间戳
-- **支撑阻力数据**: 2026-01-24 11:23:53 ✅ (已手动更新)
-- **原始备份时间**: 2026-01-23 22:00:46
-
-### 数据采集器状态
-PM2配置中的采集器（需要手动启动）:
-- collector-monitor
-- crypto-index-collector
-- panic-wash-collector
-- position-system-collector
-- support-resistance-collector
-- liquidation-collector
-- 其他20+采集器
-
----
-
-## 📊 系统运行状态
-
-### Web服务
-- **Flask应用**: ✅ 运行中 (端口5000)
-- **访问地址**: https://5000-iz51witudb16wj96d1wvr-a402f90a.sandbox.novita.ai
-- **状态页面**: /status ✅ 正常
-
-### 磁盘使用
-```
-Filesystem      Size  Used Avail Use%
-/dev/root        26G   22G  4.4G  84%
-```
-
----
-
-## 🎯 恢复完成度
-
-| 项目 | 状态 | 完成度 |
-|------|------|--------|
-| 备份文件解压 | ✅ | 100% |
-| 数据库恢复 | ✅ | 100% |
-| JSONL文件恢复 | ✅ | 100% |
-| Flask路由 | ✅ | 100% |
-| Web服务启动 | ✅ | 100% |
-| 数据时间戳更新 | ✅ | 100% |
-| PM2进程管理 | ⚠️ | 0% (需手动启动) |
-| 数据采集器 | ⚠️ | 0% (需手动启动) |
-
-**总体恢复完成度**: 85%
-
----
-
-## 📝 下一步建议
-
-### 1. 启动PM2进程
-```bash
-cd /home/user/webapp
-pm2 resurrect
-pm2 save
-pm2 startup  # 设置开机自启
-```
-
-### 2. 启动数据采集器（可选）
-根据需要启动特定的采集器，例如:
-```bash
-cd /home/user/webapp/source_code
-pm2 start support_resistance_collector.py --name sr-collector
-pm2 start crypto_index_collector.py --name crypto-collector
-```
-
-### 3. 修复API错误（可选）
-如果需要首页摘要功能，运行:
-```bash
-cd /home/user/webapp/source_code
-python3 panic_wash_collector.py  # 生成panic_wash_index数据
-```
-
-### 4. 监控系统状态
-```bash
-pm2 list              # 查看进程列表
-pm2 logs              # 查看日志
-pm2 monit             # 实时监控
-```
-
----
-
-## ✅ 结论
-
-系统已成功恢复到 **2026-01-23 14:09** 的备份状态。
-
-**可用功能**:
-- ✅ Web界面访问
-- ✅ 历史数据查询
-- ✅ 图表展示
-- ✅ 大部分API接口
-- ✅ 数据库访问
-
-**需要手动启动**:
-- ⚠️ PM2进程管理
-- ⚠️ 后台数据采集器
-
-系统核心功能已完全恢复，可以正常使用！🎉
-
+报告生成于: $(date)
