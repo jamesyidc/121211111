@@ -4161,6 +4161,28 @@
                 alert(`❌ 保存失败: ${error}`);
             });
         }
+        
+        // 🔧 临时测试：5秒后强制加载数据
+        let loadAttempts = 0;
+        const MAX_ATTEMPTS = 5;
+        
+        function retryLoadData() {
+            loadAttempts++;
+            console.log(`🔧 重试加载数据 (${loadAttempts}/${MAX_ATTEMPTS})...`);
+            
+            if (typeof window.loadData === 'function') {
+                console.log('✅ window.loadData 存在，开始调用...');
+                window.loadData();
+            } else {
+                console.error('❌ window.loadData 不存在！');
+                if (loadAttempts < MAX_ATTEMPTS) {
+                    setTimeout(retryLoadData, 2000);
+                }
+            }
+        }
+        
+        // 页面加载后3秒开始重试
+        setTimeout(retryLoadData, 3000);
     </script>
 </body>
 </html>

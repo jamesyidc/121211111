@@ -6084,6 +6084,13 @@ def support_resistance_page():
     response.headers['Expires'] = '0'
     return response
 
+@app.route('/test-support-api')
+def test_support_api_page():
+    """支撑阻力API测试页面"""
+    response = make_response(render_template('test_support_api.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    return response
+
 @app.route('/test-chart')
 def test_chart():
     """图表测试页面"""
