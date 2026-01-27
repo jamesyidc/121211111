@@ -1988,12 +1988,20 @@
             renderTable();
         }
         
-        function loadData() {
-            fetch('/api/support-resistance/latest')
-                .then(response => response.json())
+        // 全局作用域定义loadData函数
+        window.loadData = function() {
+            console.log('📡 开始加载主表格数据...');
+            const timestamp = new Date().getTime(); // 缓存破坏器
+            fetch('/api/support-resistance/latest?_=' + timestamp)
+                .then(response => {
+                    console.log('📡 API响应状态:', response.status);
+                    return response.json();
+                })
                 .then(result => {
+                    console.log('📊 API返回数据:', {success: result.success, coins: result.coins, dataLength: result.data?.length});
                     if (result.success) {
                         currentData = result.data;
+                        console.log('✅ 主表格数据加载成功:', currentData.length, '个币种');
                         
                         // Apply current sort if any
                         if (currentSortField) {
@@ -2008,13 +2016,15 @@
                         document.getElementById('updateTime').textContent = '最后更新: ' + (result.update_time || '--');
                         document.getElementById('lastUpdateTime').textContent = result.update_time || '--';
                     } else {
+                        console.error('❌ 数据加载失败:', result.message);
                         document.getElementById('loading').textContent = '数据加载失败: ' + result.message;
                     }
                 })
                 .catch(error => {
+                    console.error('❌ 数据加载错误:', error);
                     document.getElementById('loading').textContent = '数据加载错误: ' + error;
                 });
-        }
+        };
         
         // Add click handlers to sortable headers
         document.addEventListener('DOMContentLoaded', function() {
@@ -3386,10 +3396,14 @@
             
             // 加载主表格数据（27币种）
             console.log('📋 加载主表格数据...');
+            console.log('📋 loadData 函数类型:', typeof window.loadData);
+            console.log('📋 准备调用 loadData()...');
             try {
-                loadData();
+                window.loadData();
+                console.log('📋 loadData() 调用完成');
             } catch (error) {
                 console.error('❌ 加载主表格数据失败:', error);
+                console.error('❌ 错误堆栈:', error.stack);
             }
             
             // 自动刷新主数据
