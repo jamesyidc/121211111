@@ -7526,8 +7526,10 @@ def api_support_resistance_latest():
         if not latest_levels:
             print("⚠️ 今天没有数据，尝试最近7天...")
             from datetime import datetime, timedelta
+            import pytz
+            beijing_tz = pytz.timezone('Asia/Shanghai')
             for days_ago in range(1, 8):
-                past_date = (datetime.now() - timedelta(days=days_ago)).strftime('%Y%m%d')
+                past_date = (datetime.now(beijing_tz) - timedelta(days=days_ago)).strftime('%Y%m%d')
                 latest_levels = manager.get_latest_levels(date_str=past_date)
                 if latest_levels:
                     print(f"✅ 使用 {days_ago} 天前的数据 ({past_date})")
@@ -7658,7 +7660,7 @@ def api_support_resistance_latest():
             'data': coins_data,
             'scenario_1_coins': len(scenario_1_coins),
             'scenario_2_coins': len(scenario_2_coins),
-            'data_source': 'JSONL',
+            'data_source': 'Daily JSONL (按日期存储)',
             'timezone': 'Beijing Time (UTC+8)',
             # 新增：预计算的告警场景详情（避免前端filter计算）
             'alerts_summary': {

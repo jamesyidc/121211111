@@ -181,7 +181,7 @@ def save_snapshot(analysis: Dict) -> bool:
         
         manager.write_snapshot_record(snapshot_data)
         
-        log(f"✅ 快照保存成功 (JSONL): {snapshot_time} | "
+        log(f"✅ 快照保存成功 (Daily JSONL): {snapshot_time} | "
             f"情况1:{analysis['scenario_1']['count']} "
             f"情况2:{analysis['scenario_2']['count']} "
             f"情况3:{analysis['scenario_3']['count']} "
