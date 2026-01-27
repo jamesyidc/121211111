@@ -1263,10 +1263,21 @@
                     
                     console.log(`恐惧贪婪指数历史数据加载成功: ${sortedData.length} 条`);
                 } else {
-                    console.error('恐惧贪婪指数历史数据加载失败');
+                    console.warn('⚠️ 暂无恐惧贪婪指数历史数据');
+                    // 显示空图表
+                    fearGreedChart.setOption({
+                        xAxis: {
+                            data: []
+                        },
+                        series: [
+                            {
+                                data: []
+                            }
+                        ]
+                    });
                 }
             } catch (error) {
-                console.error('加载恐惧贪婪指数历史数据失败:', error);
+                console.warn('⚠️ 加载恐惧贪婪指数历史数据失败:', error);
             }
         }
         
