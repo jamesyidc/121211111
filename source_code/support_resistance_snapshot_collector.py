@@ -38,11 +38,29 @@ def get_latest_data() -> List[Dict]:
     try:
         manager = SupportResistanceDailyManager()
         
-        # 获取今天最新的levels数据（27个币种）
-        latest_records = manager.get_latest_levels(limit=27)
+        # 尝试获取最近7天的数据
+        latest_records = None
+        used_date = None
+        
+        for days_ago in range(8):  # 尝试今天和过去7天
+            if days_ago == 0:
+                # 今天
+                latest_records = manager.get_latest_levels(limit=27)
+                if latest_records:
+                    used_date = "today"
+                    break
+            else:
+                # 过去N天
+                from datetime import datetime, timedelta
+                past_date = (datetime.now(pytz.timezone('Asia/Shanghai')) - timedelta(days=days_ago)).strftime('%Y%m%d')
+                latest_records = manager.get_latest_levels(date_str=past_date, limit=27)
+                if latest_records:
+                    used_date = past_date
+                    log(f"✅ 使用 {days_ago} 天前的数据 ({past_date})")
+                    break
         
         if not latest_records:
-            log("⚠️ 从按日期JSONL未获取到数据")
+            log("⚠️ 从按日期JSONL未获取到数据（尝试了最近8天）")
             return []
         
         results = []

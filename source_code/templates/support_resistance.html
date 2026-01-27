@@ -3221,8 +3221,8 @@
         }
         
         // 加载每日时间轴（选中日期的所有快照）
-        function loadDailyTimeline(date) {
-            console.log('🕐 加载每日时间轴:', date);
+        function loadDailyTimeline(date, retryCount = 0) {
+            console.log('🕐 加载每日时间轴:', date, retryCount > 0 ? `(重试 ${retryCount})` : '');
             
             fetch(`/api/support-resistance/snapshots?date=${date}`)
                 .then(response => response.json())
@@ -3238,7 +3238,19 @@
                         const timelineContainer = document.getElementById('dailyTimeline');
                         
                         if (data.length === 0) {
-                            timelineContainer.innerHTML = '<p style="color: rgba(255,255,255,0.6); text-align: center;">该日期暂无数据</p>';
+                            // 🔄 自动尝试前几天的数据
+                            if (retryCount < 7) {
+                                console.log('⚠️ 该日期无数据，尝试前一天...');
+                                const prevDate = new Date(date);
+                                prevDate.setDate(prevDate.getDate() - 1);
+                                const prevDateStr = prevDate.toISOString().split('T')[0];
+                                setTimeout(() => {
+                                    loadDailyTimeline(prevDateStr, retryCount + 1);
+                                }, 500);
+                                timelineContainer.innerHTML = '<p style="color: rgba(255,255,255,0.6); text-align: center;">该日期暂无数据，正在查找最近数据...</p>';
+                            } else {
+                                timelineContainer.innerHTML = '<p style="color: rgba(255,255,255,0.6); text-align: center;">近7天暂无快照数据</p>';
+                            }
                             return;
                         }
                         
@@ -3257,6 +3269,16 @@
                         
                         timelineContainer.innerHTML = html;
                         console.log('✅ 时间轴渲染完成，共', data.length, '个时间点');
+                        
+                        // 如果是自动回退的日期，更新日期选择器
+                        if (retryCount > 0) {
+                            const datePicker = document.getElementById('datePicker');
+                            if (datePicker) {
+                                datePicker.value = date;
+                                currentDate = date;
+                                console.log('✅ 已自动切换到有数据的日期:', date);
+                            }
+                        }
                     }
                 })
                 .catch(error => {
