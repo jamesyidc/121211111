@@ -190,13 +190,31 @@ class SupportResistanceAPIAdapter:
                 all_records = self.manager.read_date_records(date_str, record_type='snapshot')
                 snapshots = all_records[-limit:] if (limit and len(all_records) > limit) else all_records
             elif limit is None:
-                # limit=None表示获取所有历史数据（跨所有日期）
-                all_snapshots = []
-                available_dates = self.manager.get_available_dates()
-                for date_str in available_dates:
-                    date_snapshots = self.manager.read_date_records(date_str, record_type='snapshot')
-                    all_snapshots.extend(date_snapshots)
-                snapshots = all_snapshots
+                # limit=None表示获取所有历史数据
+                # 优先从历史快照文件读取（包含完整历史数据）
+                snapshots_file = '/home/user/webapp/data/support_resistance_jsonl/support_resistance_snapshots.jsonl'
+                if os.path.exists(snapshots_file):
+                    print(f"📖 从历史快照文件读取所有数据: {snapshots_file}")
+                    snapshots = []
+                    with open(snapshots_file, 'r', encoding='utf-8') as f:
+                        for line in f:
+                            line = line.strip()
+                            if line:
+                                try:
+                                    snapshot = json.loads(line)
+                                    snapshots.append(snapshot)
+                                except json.JSONDecodeError:
+                                    continue
+                    print(f"✅ 成功读取 {len(snapshots)} 条历史快照")
+                else:
+                    # 回退：从按日期分片的文件读取
+                    print("⚠️ 历史快照文件不存在，从按日期文件读取")
+                    all_snapshots = []
+                    available_dates = self.manager.get_available_dates()
+                    for date_str in available_dates:
+                        date_snapshots = self.manager.read_date_records(date_str, record_type='snapshot')
+                        all_snapshots.extend(date_snapshots)
+                    snapshots = all_snapshots
             else:
                 # 获取今天最新的快照（指定limit）
                 snapshots = self.manager.get_latest_snapshot()
