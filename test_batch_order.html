@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>批量开仓测试</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6">🧪 批量开仓测试</h1>
+        
+        <!-- API配置区 -->
+        <div class="bg-white rounded-lg p-6 mb-6 shadow-lg">
+            <h2 class="text-xl font-bold mb-4">🔑 API配置</h2>
+            <div class="space-y-3">
+                <input type="text" id="apiKey" placeholder="API Key" class="w-full px-4 py-2 border rounded">
+                <input type="password" id="apiSecret" placeholder="API Secret" class="w-full px-4 py-2 border rounded">
+                <input type="password" id="passphrase" placeholder="Passphrase" class="w-full px-4 py-2 border rounded">
+                <button onclick="saveConfig()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                    💾 保存配置
+                </button>
+            </div>
+        </div>
+        
+        <!-- 批量开仓策略 -->
+        <div class="bg-white rounded-lg p-6 shadow-lg">
+            <h2 class="text-xl font-bold mb-4">📊 批量开仓策略</h2>
+            
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div>
+                    <h3 class="font-bold mb-3 text-red-600">📉 空单策略</h3>
+                    <div class="space-y-3">
+                        <button onclick="executeBatchOrder('short', 5)" 
+                           class="w-full inline-flex items-center justify-center px-5 py-3 bg-gradient-to-r from-red-400 to-red-500 text-white rounded-xl text-base font-bold hover:from-red-500 hover:to-red-600 transition-all transform hover:scale-105 shadow-lg">
+                            <i class="fas fa-arrow-down mr-2 text-lg"></i>
+                            空单策略 A
+                            <span class="ml-2 text-sm opacity-90">(5%保证金 · 10x)</span>
+                        </button>
+                        
+                        <button onclick="executeBatchOrder('short', 8)" 
+                           class="w-full inline-flex items-center justify-center px-5 py-3 bg-gradient-to-r from-orange-400 to-orange-500 text-white rounded-xl text-base font-bold hover:from-orange-500 hover:to-orange-600 transition-all transform hover:scale-105 shadow-lg">
+                            <i class="fas fa-arrow-down mr-2 text-lg"></i>
+                            空单策略 B
+                            <span class="ml-2 text-sm opacity-90">(8%保证金 · 10x)</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 class="font-bold mb-3 text-green-600">📈 多单策略</h3>
+                    <div class="space-y-3">
+                        <button onclick="executeBatchOrder('long', 3)" 
+                           class="w-full inline-flex items-center justify-center px-5 py-3 bg-gradient-to-r from-green-400 to-green-500 text-white rounded-xl text-base font-bold hover:from-green-500 hover:to-green-600 transition-all transform hover:scale-105 shadow-lg">
+                            <i class="fas fa-arrow-up mr-2 text-lg"></i>
+                            多单策略 A
+                            <span class="ml-2 text-sm opacity-90">(3%保证金 · 10x)</span>
+                        </button>
+                        
+                        <button onclick="executeBatchOrder('long', 5)" 
+                           class="w-full inline-flex items-center justify-center px-5 py-3 bg-gradient-to-r from-purple-400 to-purple-500 text-white rounded-xl text-base font-bold hover:from-purple-500 hover:to-purple-600 transition-all transform hover:scale-105 shadow-lg">
+                            <i class="fas fa-arrow-up mr-2 text-lg"></i>
+                            多单策略 B
+                            <span class="ml-2 text-sm opacity-90">(5%保证金 · 10x)</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 执行日志 -->
+            <div class="mt-6">
+                <h3 class="font-bold mb-2">📋 执行日志</h3>
+                <div id="log" class="bg-gray-50 rounded p-4 h-64 overflow-y-auto font-mono text-sm"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 保存配置到localStorage
+        function saveConfig() {
+            const apiKey = document.getElementById('apiKey').value;
+            const apiSecret = document.getElementById('apiSecret').value;
+            const passphrase = document.getElementById('passphrase').value;
+            
+            if (!apiKey || !apiSecret || !passphrase) {
+                alert('请填写完整的API配置');
+                return;
+            }
+            
+            const accounts = [{
+                id: 'test_account',
+                name: '测试账户',
+                apiKey: apiKey,
+                apiSecret: apiSecret,
+                passphrase: passphrase,
+                balance: 0
+            }];
+            
+            localStorage.setItem('okx_accounts', JSON.stringify(accounts));
+            log('✅ API配置已保存到localStorage');
+        }
+        
+        // 日志输出
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${time}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+        
+        // 批量开仓
+        async function executeBatchOrder(direction, percentPerCoin) {
+            const directionText = direction === 'long' ? '做多' : '做空';
+            const emoji = direction === 'long' ? '📈' : '📉';
+            const strategyName = direction === 'long' ? '多单' : '空单';
+            
+            log(`\n${emoji} 开始执行批量${strategyName}策略 (${percentPerCoin}%保证金)`);
+            
+            // 从localStorage获取账户配置
+            let accounts = [];
+            try {
+                accounts = JSON.parse(localStorage.getItem('okx_accounts') || '[]');
+            } catch (e) {
+                log('❌ 无法读取账户配置: ' + e.message);
+                alert('❌ 请先配置API密钥');
+                return;
+            }
+            
+            if (accounts.length === 0 || !accounts[0].apiKey) {
+                log('❌ 未找到API配置');
+                alert('❌ 请先配置API密钥');
+                return;
+            }
+            
+            const account = accounts[0];
+            log(`📱 使用账户: ${account.name}`);
+            
+            const confirmMsg = `${emoji} 确认批量${strategyName}策略？\n\n` +
+                `【策略参数】\n` +
+                `  • 账户: ${account.name}\n` +
+                `  • 方向: ${directionText}\n` +
+                `  • 每个币保证金: ${percentPerCoin}%\n` +
+                `  • 杠杆: 10x\n` +
+                `  • 币种数: 6个（涨幅前6）\n\n` +
+                `此操作将立即执行实盘交易，确认继续？`;
+            
+            if (!confirm(confirmMsg)) {
+                log('❌ 用户取消操作');
+                return;
+            }
+            
+            try {
+                log('🌐 正在调用批量开仓API...');
+                const response = await fetch('/api/okx-trading/batch-order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        direction: direction,
+                        percentPerCoin: percentPerCoin,
+                        apiKey: account.apiKey,
+                        apiSecret: account.apiSecret,
+                        passphrase: account.passphrase
+                    })
+                });
+                
+                log(`📡 API响应状态: ${response.status}`);
+                const result = await response.json();
+                log(`📦 API响应数据: ${JSON.stringify(result, null, 2)}`);
+                
+                if (result.success) {
+                    log(`✅ 批量开仓成功！`);
+                    log(`   成功: ${result.successCount}个`);
+                    log(`   失败: ${result.failCount}个`);
+                    if (result.results && result.results.length > 0) {
+                        log('\n📊 详细结果:');
+                        result.results.forEach(r => log(`   ${r}`));
+                    }
+                    alert(`✅ 批量开仓成功！\n\n` +
+                        `成功: ${result.successCount}个\n` +
+                        `失败: ${result.failCount}个\n\n` +
+                        `详情:\n${result.results ? result.results.join('\n') : ''}`);
+                } else {
+                    log(`❌ 批量开仓失败: ${result.error}`);
+                    if (result.traceback) {
+                        log(`🐛 堆栈跟踪:\n${result.traceback}`);
+                    }
+                    alert(`❌ 批量开仓失败\n\n${result.error || '未知错误'}`);
+                }
+            } catch (error) {
+                log(`❌ 异常: ${error.message}`);
+                log(`🐛 堆栈: ${error.stack}`);
+                alert(`❌ 批量开仓异常\n\n${error.message}`);
+            }
+        }
+        
+        // 页面加载时检查配置
+        window.onload = function() {
+            const accounts = JSON.parse(localStorage.getItem('okx_accounts') || '[]');
+            if (accounts.length > 0 && accounts[0].apiKey) {
+                log('✅ 检测到已保存的API配置');
+                log(`   账户: ${accounts[0].name}`);
+                log(`   API Key: ${accounts[0].apiKey.substring(0, 10)}...`);
+            } else {
+                log('⚠️  未检测到API配置，请先配置API密钥');
+            }
+        };
+    </script>
+</body>
+</html>

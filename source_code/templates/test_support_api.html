@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API测试页面</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #fff; }
+        #output { white-space: pre-wrap; background: #2a2a2a; padding: 20px; border-radius: 8px; }
+        button { padding: 10px 20px; margin: 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>支撑阻力API测试</h1>
+    <button onclick="testAPI()">测试API</button>
+    <button onclick="loadTable()">加载表格</button>
+    
+    <div id="output">等待测试...</div>
+    
+    <div id="table-container" style="margin-top: 20px;"></div>
+    
+    <script>
+        function testAPI() {
+            const output = document.getElementById('output');
+            output.textContent = '正在调用API...';
+            
+            fetch('/api/support-resistance/latest')
+                .then(response => {
+                    output.textContent += `\nHTTP状态: ${response.status}`;
+                    return response.json();
+                })
+                .then(data => {
+                    output.textContent += `\n\n✅ API返回成功！`;
+                    output.textContent += `\nsuccess: ${data.success}`;
+                    output.textContent += `\ncoins: ${data.coins}`;
+                    output.textContent += `\ndata_source: ${data.data_source}`;
+                    output.textContent += `\nupdate_time: ${data.update_time}`;
+                    output.textContent += `\n\n前3个币种:`;
+                    data.data.slice(0, 3).forEach(coin => {
+                        output.textContent += `\n- ${coin.symbol}: $${coin.current_price}`;
+                    });
+                })
+                .catch(error => {
+                    output.textContent += `\n\n❌ 错误: ${error}`;
+                });
+        }
+        
+        function loadTable() {
+            const container = document.getElementById('table-container');
+            container.innerHTML = '<p>正在加载表格...</p>';
+            
+            fetch('/api/support-resistance/latest')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        let html = `<h2>支撑阻力数据 (${data.coins}个币种)</h2>`;
+                        html += '<table border="1" cellpadding="8" style="border-collapse: collapse; color: #fff;">';
+                        html += '<tr><th>币种</th><th>当前价格</th><th>支撑线1</th><th>压力线1</th><th>7天位置</th><th>48h位置</th></tr>';
+                        
+                        data.data.forEach(coin => {
+                            html += '<tr>';
+                            html += `<td>${coin.symbol}</td>`;
+                            html += `<td>$${coin.current_price}</td>`;
+                            html += `<td>$${coin.support_line_1}</td>`;
+                            html += `<td>$${coin.resistance_line_1}</td>`;
+                            html += `<td>${coin.position_7d.toFixed(1)}%</td>`;
+                            html += `<td>${coin.position_48h.toFixed(1)}%</td>`;
+                            html += '</tr>';
+                        });
+                        
+                        html += '</table>';
+                        container.innerHTML = html;
+                    } else {
+                        container.innerHTML = '<p style="color: red;">数据加载失败</p>';
+                    }
+                })
+                .catch(error => {
+                    container.innerHTML = `<p style="color: red;">错误: ${error}</p>`;
+                });
+        }
+        
+        // 自动测试
+        window.onload = function() {
+            console.log('页面加载完成，3秒后自动测试API');
+            setTimeout(function() {
+                testAPI();
+                setTimeout(loadTable, 2000);
+            }, 3000);
+        };
+    </script>
+</body>
+</html>

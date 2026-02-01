@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>内联测试 - 无CDN依赖</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        .status.loading {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        #response {
+            margin: 20px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 14px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>内联测试 - 无CDN依赖 v1.0</h1>
+    
+    <div id="status" class="status loading">等待测试...</div>
+    
+    <button onclick="runTest()">开始测试</button>
+    
+    <div id="response"></div>
+    
+    <script>
+        // 完全内联的JavaScript，不依赖任何外部库
+        
+        function updateStatus(message, type) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = 'status ' + type;
+        }
+        
+        function log(message) {
+            const responseEl = document.getElementById('response');
+            responseEl.textContent += new Date().toLocaleTimeString() + ' - ' + message + '\n';
+        }
+        
+        async function runTest() {
+            log('========== 开始测试 ==========');
+            updateStatus('正在测试...', 'loading');
+            
+            try {
+                // 步骤1: 测试fetch基本功能
+                log('步骤1: 测试fetch基本功能...');
+                const testUrl = 'https://httpbin.org/get';
+                log('请求URL: ' + testUrl);
+                
+                const testResponse = await fetch(testUrl);
+                log('✅ fetch基本功能正常');
+                log('状态码: ' + testResponse.status);
+                
+                // 步骤2: 请求关键点API
+                log('\n步骤2: 请求关键点API...');
+                const apiUrl = '/api/escape-signal-stats/keypoints?t=' + Date.now();
+                log('请求URL: ' + apiUrl);
+                
+                const startTime = Date.now();
+                const response = await fetch(apiUrl);
+                const fetchTime = ((Date.now() - startTime) / 1000).toFixed(2);
+                log('✅ API响应成功，耗时: ' + fetchTime + '秒');
+                log('状态码: ' + response.status);
+                log('Content-Type: ' + response.headers.get('Content-Type'));
+                
+                // 步骤3: 解析JSON
+                log('\n步骤3: 解析JSON...');
+                const parseStartTime = Date.now();
+                const data = await response.json();
+                const parseTime = ((Date.now() - parseStartTime) / 1000).toFixed(3);
+                log('✅ JSON解析成功，耗时: ' + parseTime + '秒');
+                
+                // 步骤4: 验证数据结构
+                log('\n步骤4: 验证数据结构...');
+                log('数据类型: ' + typeof data);
+                log('是否有success字段: ' + ('success' in data));
+                log('success值: ' + data.success);
+                log('是否有keypoints字段: ' + ('keypoints' in data));
+                log('keypoints类型: ' + (Array.isArray(data.keypoints) ? '数组' : typeof data.keypoints));
+                
+                if (Array.isArray(data.keypoints)) {
+                    log('keypoints数量: ' + data.keypoints.length);
+                    if (data.keypoints.length > 0) {
+                        log('第一个数据点示例:');
+                        log(JSON.stringify(data.keypoints[0], null, 2));
+                    }
+                }
+                
+                // 步骤5: 显示完整响应（前1000字符）
+                log('\n步骤5: 完整响应（前1000字符）:');
+                const jsonStr = JSON.stringify(data, null, 2);
+                log(jsonStr.substring(0, 1000));
+                if (jsonStr.length > 1000) {
+                    log('... (还有 ' + (jsonStr.length - 1000) + ' 字符)');
+                }
+                
+                updateStatus('✅ 所有测试通过！', 'success');
+                log('\n========== 测试完成 ==========');
+                
+            } catch (error) {
+                log('\n❌ 测试失败:');
+                log('错误类型: ' + error.name);
+                log('错误消息: ' + error.message);
+                log('错误堆栈: ' + error.stack);
+                updateStatus('❌ 测试失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 页面加载后自动运行测试
+        window.addEventListener('DOMContentLoaded', function() {
+            log('页面加载完成，准备开始测试...');
+            setTimeout(runTest, 500);
+        });
+    </script>
+</body>
+</html>

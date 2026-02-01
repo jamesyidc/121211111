@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>强制刷新 - 清除所有缓存</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .status {
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
+            font-size: 16px;
+            font-weight: bold;
+            color: white;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        .code {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            font-family: monospace;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 强制刷新 - 清除所有缓存</h1>
+        
+        <div class="status success">
+            <h2>✅ 服务器端代码已确认为最新版本</h2>
+            <p>包含增量更新功能（incrementalUpdate）</p>
+        </div>
+        
+        <div class="status info">
+            <h3>📋 问题诊断</h3>
+            <p>服务器返回的是最新代码，但您的浏览器可能缓存了旧版本。</p>
+            <p><strong>解决方案：</strong>使用以下任一方法清除缓存</p>
+        </div>
+        
+        <h3>方法1: 自动清除缓存并跳转</h3>
+        <button onclick="clearAllCachesAndRedirect()">🚀 一键清除缓存并跳转</button>
+        
+        <h3>方法2: 手动刷新快捷键</h3>
+        <div class="code">
+            Windows/Linux: Ctrl + Shift + R<br>
+            Mac: Cmd + Shift + R
+        </div>
+        
+        <h3>方法3: 直接访问（带时间戳）</h3>
+        <button onclick="window.location.href='/escape-signal-history-v2?force=' + Date.now()">
+            🔗 访问v2页面（带缓存破坏参数）
+        </button>
+        
+        <h3>方法4: 无痕模式</h3>
+        <div class="code">
+            Windows/Linux: Ctrl + Shift + N<br>
+            Mac: Cmd + Shift + N<br>
+            然后访问: /escape-signal-history-v2
+        </div>
+        
+        <div id="result" style="margin-top: 20px;"></div>
+    </div>
+    
+    <script>
+        function clearAllCachesAndRedirect() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<div class="status info">🔄 正在清除缓存...</div>';
+            
+            // 清除localStorage
+            try {
+                localStorage.clear();
+                resultDiv.innerHTML += '<p>✅ localStorage已清除</p>';
+            } catch (e) {
+                resultDiv.innerHTML += '<p>⚠️ localStorage清除失败: ' + e.message + '</p>';
+            }
+            
+            // 清除sessionStorage
+            try {
+                sessionStorage.clear();
+                resultDiv.innerHTML += '<p>✅ sessionStorage已清除</p>';
+            } catch (e) {
+                resultDiv.innerHTML += '<p>⚠️ sessionStorage清除失败: ' + e.message + '</p>';
+            }
+            
+            // 清除Cookie
+            try {
+                document.cookie.split(";").forEach(function(c) { 
+                    document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+                });
+                resultDiv.innerHTML += '<p>✅ Cookies已清除</p>';
+            } catch (e) {
+                resultDiv.innerHTML += '<p>⚠️ Cookies清除失败: ' + e.message + '</p>';
+            }
+            
+            // 尝试清除Service Worker缓存
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                    for(let registration of registrations) {
+                        registration.unregister();
+                    }
+                    resultDiv.innerHTML += '<p>✅ Service Workers已清除</p>';
+                });
+            }
+            
+            // 尝试清除Cache API
+            if ('caches' in window) {
+                caches.keys().then(function(names) {
+                    for (let name of names) {
+                        caches.delete(name);
+                    }
+                    resultDiv.innerHTML += '<p>✅ Cache API已清除</p>';
+                });
+            }
+            
+            resultDiv.innerHTML += '<div class="status success">✅ 缓存清除完成！3秒后自动跳转...</div>';
+            
+            // 3秒后跳转
+            setTimeout(function() {
+                window.location.href = '/escape-signal-history-v2?nocache=' + Date.now() + '&cleared=true';
+            }, 3000);
+        }
+        
+        // 页面加载时显示当前缓存状态
+        window.addEventListener('DOMContentLoaded', function() {
+            const resultDiv = document.getElementById('result');
+            let info = '<div class="status info"><h4>📊 当前缓存状态</h4>';
+            
+            // localStorage
+            try {
+                const lsSize = JSON.stringify(localStorage).length;
+                info += '<p>localStorage: ' + lsSize + ' 字节</p>';
+            } catch (e) {
+                info += '<p>localStorage: 无法访问</p>';
+            }
+            
+            // sessionStorage
+            try {
+                const ssSize = JSON.stringify(sessionStorage).length;
+                info += '<p>sessionStorage: ' + ssSize + ' 字节</p>';
+            } catch (e) {
+                info += '<p>sessionStorage: 无法访问</p>';
+            }
+            
+            // Cookie
+            info += '<p>Cookies: ' + document.cookie.split(';').length + ' 个</p>';
+            
+            info += '</div>';
+            resultDiv.innerHTML = info;
+        });
+    </script>
+</body>
+</html>

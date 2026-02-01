@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>锚点图表标记点测试</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2d3748;
+            border-bottom: 3px solid #4299e1;
+            padding-bottom: 10px;
+        }
+        #chart {
+            width: 100%;
+            height: 600px;
+            margin-top: 20px;
+        }
+        .info {
+            background: #e6f7ff;
+            border: 1px solid #91d5ff;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .info h3 {
+            margin-top: 0;
+            color: #0050b3;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .stat-card h4 {
+            margin: 0 0 10px 0;
+            color: #666;
+            font-size: 14px;
+        }
+        .stat-card .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        .logs {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 3px 0;
+            padding: 2px 0;
+        }
+        .log-success { color: #52c41a; }
+        .log-error { color: #f5222d; }
+        .log-warning { color: #faad14; }
+        .log-info { color: #1890ff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 锚点图表标记点测试</h1>
+        
+        <div class="info">
+            <h3>测试说明</h3>
+            <p>本页面用于测试空单盈利≥120%和空单亏损的标记点显示功能。</p>
+            <ul>
+                <li><strong>🔴 红色标记</strong>：空单盈利≥120%且数量≥3</li>
+                <li><strong>🟢 绿色标记</strong>：空单亏损且数量≥3</li>
+                <li>每小时只标记一次，避免标记过密</li>
+            </ul>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <h4>数据条数</h4>
+                <div class="value" id="dataCount">-</div>
+            </div>
+            <div class="stat-card">
+                <h4>🔴 红色标记数</h4>
+                <div class="value" id="redMarks" style="color: #dc2626;">-</div>
+            </div>
+            <div class="stat-card">
+                <h4>🟢 绿色标记数</h4>
+                <div class="value" id="greenMarks" style="color: #10b981;">-</div>
+            </div>
+        </div>
+
+        <div id="chart"></div>
+
+        <h3 style="margin-top: 30px;">📋 执行日志</h3>
+        <div class="logs" id="logs"></div>
+    </div>
+
+    <script>
+        let chart = null;
+        const logs = document.getElementById('logs');
+
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            const time = new Date().toLocaleTimeString();
+            entry.textContent = `[${time}] ${message}`;
+            logs.appendChild(entry);
+            logs.scrollTop = logs.scrollHeight;
+            console.log(message);
+        }
+
+        async function loadAndRenderChart() {
+            log('🚀 开始加载数据...', 'info');
+
+            try {
+                // 获取数据
+                const response = await fetch('/api/anchor-profit/by-date?date=2026-01-23&type=profit_stats');
+                const result = await response.json();
+
+                if (!result.success || !result.data || result.data.length === 0) {
+                    log('❌ 数据加载失败或无数据', 'error');
+                    return;
+                }
+
+                const dataList = result.data;
+                log(`✅ 成功加载 ${dataList.length} 条数据`, 'success');
+                document.getElementById('dataCount').textContent = dataList.length;
+
+                // 初始化图表
+                if (!chart) {
+                    chart = echarts.init(document.getElementById('chart'));
+                    log('✅ 图表初始化成功', 'success');
+                }
+
+                // 提取时间数据
+                const times = dataList.map(d => {
+                    const dt = new Date(d.timestamp * 1000);
+                    return `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+                });
+
+                // 提取空单数据
+                const shortLte40Data = dataList.map(d => d.stats?.short?.lte_40 || 0);
+                const shortLossData = dataList.map(d => d.stats?.short?.loss || 0);
+                const shortGte80Data = dataList.map(d => d.stats?.short?.gte_80 || 0);
+                const shortGte120Data = dataList.map(d => d.stats?.short?.gte_120 || 0);
+
+                log(`📊 数据统计: 空单≤40% 最大${Math.max(...shortLte40Data)}, 空单≥80% 最大${Math.max(...shortGte80Data)}, 空单≥120% 最大${Math.max(...shortGte120Data)}`, 'info');
+
+                // 计算标记点
+                const shortProfitMarks = [];
+                const shortLossMarks = [];
+                let lastShortProfitHour = null;
+                let lastShortLossHour = null;
+
+                dataList.forEach((d, index) => {
+                    const dt = new Date(d.datetime);
+                    const hour = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')} ${String(dt.getHours()).padStart(2,'0')}`;
+                    const timeStr = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+                    
+                    const shortProfit120 = d.stats?.short?.gte_120 || 0;
+                    const shortLoss = d.stats?.short?.loss || 0;
+
+                    // 空单盈利≥120%数量≥3，每小时只标记一次
+                    if (shortProfit120 >= 3 && hour !== lastShortProfitHour) {
+                        shortProfitMarks.push({
+                            xAxis: timeStr,
+                            yAxis: shortProfit120,
+                            value: shortProfit120,
+                            itemStyle: {
+                                color: '#dc2626',
+                                borderColor: '#fff',
+                                borderWidth: 3
+                            },
+                            label: {
+                                show: true,
+                                formatter: '🔴 {c}',
+                                position: 'top',
+                                color: '#dc2626',
+                                fontSize: 14,
+                                fontWeight: 'bold'
+                            }
+                        });
+                        lastShortProfitHour = hour;
+                        log(`🔴 标记: ${d.datetime} (${timeStr}) - 空单盈利≥120%: ${shortProfit120}个`, 'warning');
+                    }
+
+                    // 空单亏损数量≥3，每小时只标记一次
+                    if (shortLoss >= 3 && hour !== lastShortLossHour) {
+                        shortLossMarks.push({
+                            xAxis: timeStr,
+                            yAxis: shortLoss,
+                            value: shortLoss,
+                            itemStyle: {
+                                color: '#10b981',
+                                borderColor: '#fff',
+                                borderWidth: 3
+                            },
+                            label: {
+                                show: true,
+                                formatter: '🟢 {c}',
+                                position: 'top',
+                                color: '#10b981',
+                                fontSize: 14,
+                                fontWeight: 'bold'
+                            }
+                        });
+                        lastShortLossHour = hour;
+                        log(`🟢 标记: ${d.datetime} (${timeStr}) - 空单亏损: ${shortLoss}个`, 'success');
+                    }
+                });
+
+                log(`📍 标记点统计: 红色标记 ${shortProfitMarks.length} 个, 绿色标记 ${shortLossMarks.length} 个`, 'info');
+                document.getElementById('redMarks').textContent = shortProfitMarks.length;
+                document.getElementById('greenMarks').textContent = shortLossMarks.length;
+
+                // 配置图表
+                const option = {
+                    title: {
+                        text: '多空单盈利分布趋势（2026-01-23）',
+                        left: 'center',
+                        textStyle: {
+                            color: '#2d3748',
+                            fontSize: 18
+                        }
+                    },
+                    tooltip: {
+                        trigger: 'axis',
+                        formatter: function(params) {
+                            let result = params[0].axisValue + '<br/>';
+                            params.forEach(param => {
+                                result += `${param.marker} ${param.seriesName}: ${param.value} 个<br/>`;
+                            });
+                            return result;
+                        }
+                    },
+                    legend: {
+                        data: [
+                            '🟢 空单盈利≤40%',
+                            '🟢 空单亏损',
+                            '🔴 空单盈利≥80%',
+                            '🔴 空单盈利≥120%'
+                        ],
+                        top: 35,
+                        textStyle: {
+                            color: '#2d3748',
+                            fontSize: 12
+                        }
+                    },
+                    grid: {
+                        left: '5%',
+                        right: '5%',
+                        bottom: '5%',
+                        top: 80,
+                        containLabel: true
+                    },
+                    xAxis: {
+                        type: 'category',
+                        boundaryGap: false,
+                        data: times,
+                        axisLabel: {
+                            rotate: 45,
+                            color: '#718096',
+                            fontSize: 10
+                        }
+                    },
+                    yAxis: {
+                        type: 'value',
+                        name: '空单数量',
+                        minInterval: 1,
+                        axisLabel: {
+                            color: '#4b5563'
+                        },
+                        splitLine: {
+                            lineStyle: {
+                                color: '#e5e7eb',
+                                type: 'dashed'
+                            }
+                        }
+                    },
+                    series: [
+                        {
+                            name: '🟢 空单盈利≤40%',
+                            type: 'line',
+                            data: shortLte40Data,
+                            smooth: true,
+                            itemStyle: { color: '#10b981' },
+                            lineStyle: { width: 2, color: '#10b981' },
+                            symbol: 'circle',
+                            symbolSize: 4
+                        },
+                        {
+                            name: '🟢 空单亏损',
+                            type: 'line',
+                            data: shortLossData,
+                            smooth: true,
+                            itemStyle: { color: '#059669' },
+                            lineStyle: { width: 3, color: '#059669' },
+                            symbol: 'circle',
+                            symbolSize: 6,
+                            markPoint: {
+                                symbol: 'pin',
+                                symbolSize: 60,
+                                data: shortLossMarks
+                            }
+                        },
+                        {
+                            name: '🔴 空单盈利≥80%',
+                            type: 'line',
+                            data: shortGte80Data,
+                            smooth: true,
+                            itemStyle: { color: '#ef4444' },
+                            lineStyle: { width: 2, color: '#ef4444' },
+                            symbol: 'circle',
+                            symbolSize: 4
+                        },
+                        {
+                            name: '🔴 空单盈利≥120%',
+                            type: 'line',
+                            data: shortGte120Data,
+                            smooth: true,
+                            itemStyle: { color: '#991b1b' },
+                            lineStyle: { width: 3, color: '#991b1b' },
+                            symbol: 'circle',
+                            symbolSize: 6,
+                            markPoint: {
+                                symbol: 'pin',
+                                symbolSize: 60,
+                                data: shortProfitMarks
+                            }
+                        }
+                    ]
+                };
+
+                chart.setOption(option);
+                log('✅ 图表渲染完成', 'success');
+
+                // 强制刷新
+                setTimeout(() => {
+                    chart.resize();
+                    log('🔄 图表尺寸已刷新', 'info');
+                }, 100);
+
+            } catch (error) {
+                log(`❌ 错误: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+
+        // 页面加载完成后自动执行
+        window.addEventListener('load', () => {
+            log('✅ 页面加载完成', 'success');
+            loadAndRenderChart();
+        });
+    </script>
+</body>
+</html>

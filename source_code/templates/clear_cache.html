@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>清除缓存并重新加载</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f3f4f6;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #1f2937;
+            margin-top: 0;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            margin: 10px 10px 10px 0;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 12px rgba(37, 99, 235, 0.3);
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 12px rgba(5, 150, 105, 0.3);
+        }
+        .steps {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .steps li {
+            margin: 8px 0;
+        }
+        code {
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🔄 清除浏览器缓存</h1>
+        
+        <p><strong>检测到您可能正在使用旧版本的缓存页面。</strong></p>
+        
+        <div class="steps">
+            <strong>请按以下步骤操作：</strong>
+            <ol>
+                <li><strong>Chrome/Edge</strong>: 按 <code>Ctrl+Shift+Delete</code> (Windows) 或 <code>Cmd+Shift+Delete</code> (Mac)</li>
+                <li>选择"缓存的图片和文件"</li>
+                <li>点击"清除数据"</li>
+                <li>或者直接按 <code>Ctrl+Shift+R</code> (Windows) 或 <code>Cmd+Shift+R</code> (Mac) <strong>硬刷新</strong></li>
+            </ol>
+        </div>
+        
+        <h3>快速操作：</h3>
+        <a href="/escape-signal-history-v2?v={{ timestamp }}&nocache=1" class="btn btn-primary" 
+           onclick="return confirm('即将打开页面，请确保已清除缓存！');">
+            🚀 打开页面（带防缓存参数）
+        </a>
+        
+        <a href="javascript:location.reload(true)" class="btn btn-success">
+            🔄 强制刷新当前页
+        </a>
+        
+        <h3>当前时间戳:</h3>
+        <p><code>{{ timestamp }}</code></p>
+        
+        <h3>如果问题仍然存在：</h3>
+        <ul>
+            <li>尝试使用<strong>无痕/隐私模式</strong>打开</li>
+            <li>按 <code>F12</code> 打开开发者工具</li>
+            <li>在 Network 面板勾选 "Disable cache"</li>
+            <li>刷新页面</li>
+        </ul>
+    </div>
+    
+    <script>
+        console.log('🔍 当前页面时间戳:', '{{ timestamp }}');
+        console.log('🔍 如果看到这条消息，说明JavaScript可以正常执行');
+    </script>
+</body>
+</html>

@@ -1,152 +1,260 @@
-# 🎯 快速使用指南
+# 🚀 系统快速启动指南
 
-## 📱 立即查看
+## 📋 系统概览
 
-**访问地址**: https://5000-igsydcyqs9jlcot56rnqk-8f57ffe2.sandbox.novita.ai/anchor-system-real
-
----
-
-## 📊 图表说明
-
-### 双Y轴设计
-
-```
-        多头数量                               空单数量
-     (左Y轴-绿色)                           (右Y轴-红色)
-          ↓                                      ↓
-    
-    15 ├─────────────────────────────────────── 15
-       │    🟢 多头≥120% (7个)
-    10 ├─────🟢 多头≥80% (10个)───────────🔴── 10
-       │    🟢 多头≤40% (8个)          空单≥80% (4个)
-     5 ├─────🟢 多头亏损 (0个)─────────🔴──── 5
-       │                        空单≤40% (8个)
-     0 └───────────────────────────────────────── 0
-        07:35  07:36  07:37  07:38  07:39  07:40
-```
-
-### 颜色含义
-
-#### 🟢 左侧绿色（多头）
-- **深绿** (#059669) - 盈利 ≥ 120%
-- **绿色** (#10b981) - 盈利 ≥ 80%
-- **浅绿** (#86efac) - 盈利 ≤ 40%
-- **青绿** (#22c55e) - 亏损
-
-#### 🔴 右侧红色（空单）
-- **暗红** (#b91c1c) - 盈利 ≥ 120%
-- **红色** (#f87171) - 盈利 ≥ 80%
-- **浅红** (#fca5a5) - 盈利 ≤ 40%
-- **深红** (#dc2626) - 亏损
+**项目**: 加密货币数据分析系统  
+**状态**: ✅ 运行中  
+**访问URL**: https://5000-ikmpd2up5chrwx4jjjkih-5634da27.sandbox.novita.ai
 
 ---
 
-## 🔍 查看步骤
+## 🎯 快速命令
 
-### 1️⃣ 打开页面
-直接访问上述地址
-
-### 2️⃣ 找到图表
-图表位于页面顶部，标题为"💰 多空单盈利统计"
-
-### 3️⃣ 查看数据
-- **左侧数字**：多头数量
-- **右侧数字**：空单数量
-- **横轴**：时间（HH:MM格式）
-- **图例**：显示所有8条线的说明
-
-### 4️⃣ 交互操作
-- **鼠标悬停**：显示具体数值
-- **点击图例**：隐藏/显示对应线条
-- **自动刷新**：每60秒更新一次
-
----
-
-## 📈 当前数据（07:37）
-
-### 多头持仓（22个）
+### 查看服务状态
+```bash
+cd /home/user/webapp && pm2 list
 ```
-盈利 ≥ 120%  ████████████████  7个 (31.8%)
-盈利 ≥ 80%   ██████████████████████  10个 (45.5%)
-盈利 ≤ 40%   ███████████████  8个 (36.4%)
-亏损 < 0%                    0个 (0%)
-```
-
-### 空单持仓（22个）
-```
-盈利 ≥ 120%                  0个 (0%)
-盈利 ≥ 80%   ████████  4个 (18.2%)
-盈利 ≤ 40%   ███████████████  8个 (36.4%)
-亏损 < 0%                    0个 (0%)
-```
-
----
-
-## 🎛️ 控制台调试
-
-### 打开开发者工具
-- **Windows**: F12 或 Ctrl+Shift+I
-- **Mac**: Cmd+Option+I
 
 ### 查看日志
-切换到 Console 标签，应该看到：
+```bash
+# 查看所有日志
+cd /home/user/webapp && pm2 logs
+
+# 查看特定服务日志
+cd /home/user/webapp && pm2 logs flask-app
+cd /home/user/webapp && pm2 logs coin-price-tracker
 ```
-🚀 开始加载空单盈利统计数据...
-📊 API返回结果: {count: 47, ...}
-📈 开始渲染空单盈利统计图表，数据条数: 47
-📊 图表数据 - 多头 (🟢左Y轴): {...}
-📊 图表数据 - 空单 (🔴右Y轴): {...}
-✅ 空单盈利统计图表渲染完成
+
+### 重启服务
+```bash
+# 重启所有服务
+cd /home/user/webapp && pm2 restart all
+
+# 重启特定服务
+cd /home/user/webapp && pm2 restart flask-app
+```
+
+### 停止/启动服务
+```bash
+# 停止所有
+cd /home/user/webapp && pm2 stop all
+
+# 启动所有
+cd /home/user/webapp && pm2 start ecosystem_all_services.config.js
 ```
 
 ---
 
-## 🔧 故障排查
+## 🔍 主要功能页面
 
-### 图表不显示？
-1. 刷新页面（Ctrl+F5 强制刷新）
-2. 检查控制台是否有错误
-3. 查看PM2服务状态：`pm2 status`
-
-### 数据不更新？
-1. 检查采集服务：`pm2 logs anchor-profit-monitor`
-2. 手动触发采集：`curl http://localhost:5000/api/anchor-profit/collect -X POST`
-
-### 图表显示异常？
-1. 清除浏览器缓存
-2. 检查API数据：`curl http://localhost:5000/api/anchor-profit/latest?minutes=5`
+| 页面 | URL路径 | 描述 |
+|-----|--------|------|
+| 主页 | / | 系统主页和导航 |
+| 查询页面 | /query | 数据查询界面 |
+| 交易决策 | /trading-decision | 交易决策分析 |
+| 交易管理器 | /trading-manager | 交易管理界面 |
+| 仪表板 | /dashboard | 数据仪表板 |
+| 锚点监控 | /anchor-auto-monitor | 锚点自动监控 |
+| API文档 | /api/docs | API接口文档 |
 
 ---
 
-## 📚 相关文档
+## 📡 主要API端点
 
-- `FINAL_SUMMARY.md` - 完整的技术文档
-- `DUAL_YAXIS_CHART_COMPLETE.md` - 双Y轴实现说明
-- `ANCHOR_PROFIT_DATA_COLLECTION_FIX.md` - 数据采集修复记录
+### 数据查询
+```bash
+# 获取最新数据
+curl http://localhost:5000/api/latest
+
+# 查询历史数据
+curl "http://localhost:5000/api/query?start_date=2026-01-20&end_date=2026-01-27"
+
+# 获取图表数据
+curl http://localhost:5000/api/chart
+```
+
+### 交易相关
+```bash
+# 获取交易配置
+curl http://localhost:5000/api/trading/config
+
+# 获取交易决策
+curl http://localhost:5000/api/trading/decisions
+
+# 获取交易信号
+curl http://localhost:5000/api/trading/signals
+```
+
+### 特定数据
+```bash
+# SAR斜率数据
+curl http://localhost:5000/api/sar-slope/latest-jsonl
+
+# 锚点系统当前持仓
+curl "http://localhost:5000/api/anchor-system/current-positions?trade_mode=real"
+
+# Panic指数
+curl http://localhost:5000/api/panic/latest
+```
 
 ---
 
-## 💡 提示
+## 🛠️ 维护操作
 
-- 图表显示最近60分钟的数据
-- 每分钟采集一次新数据
-- 页面每60秒自动刷新
-- 绿色线在左侧Y轴，红色线在右侧Y轴
-- 两个Y轴独立刻度，互不影响
+### 清理磁盘空间
+```bash
+cd /home/user/webapp
+
+# 清理PM2日志
+pm2 flush
+
+# 删除7天前的日志
+find logs/ -name "*.log" -mtime +7 -delete
+
+# 清理临时文件
+rm -rf extract_key_files/
+```
+
+### 检查磁盘使用
+```bash
+df -h
+du -sh /home/user/webapp/*
+```
+
+### 备份配置
+```bash
+cd /home/user/webapp
+tar -czf configs_backup_$(date +%Y%m%d).tar.gz configs/ ecosystem*.js
+```
 
 ---
 
-## ✅ 验证成功标志
+## 🏗️ 服务架构
 
-如果看到以下内容，说明一切正常：
+### 核心服务
+- **flask-app**: 主Web应用 (端口5000)
 
-✓ 图表中有8条线（4绿+4红）  
-✓ 左侧Y轴标签为绿色  
-✓ 右侧Y轴标签为红色  
-✓ 绿色线有数据（不全是0）  
-✓ 红色线有数据（不全是0）  
-✓ 最后更新时间显示当前时间  
+### 数据采集器
+1. **coin-price-tracker**: 币价追踪
+2. **support-resistance-snapshot**: 支撑阻力快照
+3. **price-speed-collector**: 价格速度采集
+4. **v1v2-collector**: V1V2数据采集
+5. **crypto-index-collector**: 加密指数采集
+6. **okx-day-change-collector**: OKX日变化采集
+7. **sar-slope-collector**: SAR斜率采集
+8. **liquidation-1h-collector**: 1小时清算采集
+
+### 监控服务
+9. **anchor-profit-monitor**: 锚点利润监控
+10. **escape-signal-monitor**: 逃顶信号监控
 
 ---
 
-**🎉 享受使用！**
+## 📂 目录结构
+
+```
+/home/user/webapp/
+├── source_code/          # Python源代码
+│   └── app.py           # 主Flask应用
+├── configs/             # 配置文件
+│   ├── anchor_config.json
+│   ├── telegram_config.json
+│   └── trading_config.json
+├── ecosystem_*.js       # PM2配置文件
+├── templates/           # HTML模板
+├── static/             # 静态资源
+├── logs/               # 日志文件
+└── data/               # 数据目录 (JSONL文件)
+```
+
+---
+
+## 🔥 常见问题
+
+### Q: 如何查看实时日志？
+```bash
+cd /home/user/webapp && pm2 logs --lines 50
+```
+
+### Q: 服务崩溃了怎么办？
+```bash
+# 查看哪个服务崩溃
+cd /home/user/webapp && pm2 list
+
+# 查看错误日志
+cd /home/user/webapp && pm2 logs <service-name> --err
+
+# 重启服务
+cd /home/user/webapp && pm2 restart <service-name>
+```
+
+### Q: 如何更新配置？
+1. 编辑配置文件: `configs/*.json`
+2. 重启相关服务: `pm2 restart <service-name>`
+
+### Q: 磁盘空间不足？
+```bash
+# 清理日志
+cd /home/user/webapp && pm2 flush
+cd /home/user/webapp && find logs/ -name "*.log" -mtime +3 -delete
+
+# 删除下载的备份文件
+rm -rf /home/user/webapp/1-23完整5.4g/
+```
+
+---
+
+## 🚨 紧急操作
+
+### 全部重启
+```bash
+cd /home/user/webapp
+pm2 delete all
+pm2 start ecosystem_all_services.config.js
+```
+
+### 只启动Flask应用
+```bash
+cd /home/user/webapp
+pm2 start ecosystem_flask.config.js
+```
+
+### 停止所有服务
+```bash
+cd /home/user/webapp && pm2 stop all
+```
+
+---
+
+## 📞 系统信息
+
+- **Python版本**: Python 3.x
+- **Flask**: Web框架
+- **PM2**: 进程管理
+- **数据格式**: JSONL (JSON Lines)
+- **压缩**: gzip (flask_compress)
+
+---
+
+## ✅ 健康检查
+
+```bash
+# 1. 检查PM2服务
+cd /home/user/webapp && pm2 list
+
+# 2. 测试Flask应用
+curl http://localhost:5000/
+
+# 3. 测试API
+curl http://localhost:5000/api/latest
+
+# 4. 检查磁盘空间
+df -h
+
+# 5. 检查内存
+free -h
+```
+
+---
+
+**系统已完全恢复并运行正常！** 🎉

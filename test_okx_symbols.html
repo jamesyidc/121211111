@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OKX币种测试</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6">🧪 OKX币种可用性测试</h1>
+        
+        <div class="bg-white rounded-lg p-6 mb-6 shadow-lg">
+            <h2 class="text-xl font-bold mb-4">📊 检查币种信息</h2>
+            <button onclick="checkSymbols()" class="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-bold">
+                🔍 检查 BTC、ETH、SOL、BNB、XRP、DOGE
+            </button>
+        </div>
+        
+        <div id="results" class="bg-white rounded-lg p-6 shadow-lg">
+            <h2 class="text-xl font-bold mb-4">📋 检查结果</h2>
+            <div id="resultsContent" class="font-mono text-sm"></div>
+        </div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const div = document.getElementById('resultsContent');
+            const colors = {
+                'success': 'text-green-600',
+                'error': 'text-red-600',
+                'warning': 'text-orange-600',
+                'info': 'text-gray-700'
+            };
+            div.innerHTML += `<div class="${colors[type]}">${message}</div>`;
+        }
+        
+        async function checkSymbols() {
+            document.getElementById('resultsContent').innerHTML = '';
+            
+            const symbols = [
+                'BTC-USDT-SWAP',
+                'ETH-USDT-SWAP',
+                'SOL-USDT-SWAP',
+                'BNB-USDT-SWAP',
+                'XRP-USDT-SWAP',
+                'DOGE-USDT-SWAP'
+            ];
+            
+            log('🔄 开始检查币种信息...', 'info');
+            log('', 'info');
+            
+            try {
+                // 1. 获取市场行情
+                log('📊 步骤1: 获取市场行情', 'info');
+                const tickerResponse = await fetch('https://www.okx.com/api/v5/market/tickers?instType=SWAP');
+                const tickerData = await tickerResponse.json();
+                
+                if (tickerData.code !== '0') {
+                    log(`❌ 获取行情失败: ${tickerData.msg}`, 'error');
+                    return;
+                }
+                
+                log(`✅ 获取到 ${tickerData.data.length} 个币种行情`, 'success');
+                log('', 'info');
+                
+                // 2. 检查每个币种
+                for (const symbol of symbols) {
+                    log(`━━━━━ ${symbol} ━━━━━`, 'info');
+                    
+                    // 检查行情
+                    const ticker = tickerData.data.find(t => t.instId === symbol);
+                    if (!ticker) {
+                        log(`❌ 未找到行情数据`, 'error');
+                        continue;
+                    }
+                    
+                    log(`✅ 最新价格: ${ticker.last} USDT`, 'success');
+                    log(`   24h涨跌: ${(parseFloat(ticker.changeRate24h) * 100).toFixed(2)}%`, 'info');
+                    log(`   24h成交量: ${ticker.vol24h}`, 'info');
+                    
+                    // 获取合约规格
+                    const instResponse = await fetch(`https://www.okx.com/api/v5/public/instruments?instType=SWAP&instId=${symbol}`);
+                    const instData = await instResponse.json();
+                    
+                    if (instData.code === '0' && instData.data && instData.data.length > 0) {
+                        const inst = instData.data[0];
+                        log(`✅ 合约面值(ctVal): ${inst.ctVal}`, 'success');
+                        log(`   最小下单量(minSz): ${inst.minSz}`, 'info');
+                        log(`   合约状态(state): ${inst.state}`, inst.state === 'live' ? 'success' : 'warning');
+                        log(`   最大杠杆(lever): ${inst.lever}`, 'info');
+                        
+                        // 计算7.5 USDT保证金需要多少张合约
+                        const marginUsdt = 7.5;
+                        const contractValueUsdt = marginUsdt * 10; // 10x杠杆
+                        const ctVal = parseFloat(inst.ctVal);
+                        const price = parseFloat(ticker.last);
+                        const usdtPerContract = ctVal * price;
+                        const contractsNeeded = Math.max(1, Math.round(contractValueUsdt / usdtPerContract));
+                        const actualMargin = (contractsNeeded * usdtPerContract) / 10;
+                        
+                        log(``, 'info');
+                        log(`💰 保证金计算 (7.5 USDT保证金):`, 'info');
+                        log(`   合约价值: ${contractValueUsdt.toFixed(2)} USDT`, 'info');
+                        log(`   每张合约USDT价值: ${usdtPerContract.toFixed(4)} USDT`, 'info');
+                        log(`   需要合约数: ${contractsNeeded} 张`, 'info');
+                        log(`   实际保证金: ${actualMargin.toFixed(2)} USDT`, 'info');
+                        
+                        if (inst.state !== 'live') {
+                            log(`⚠️  警告: 合约状态不是live，可能无法交易`, 'warning');
+                        }
+                        
+                        if (contractsNeeded < parseFloat(inst.minSz)) {
+                            log(`⚠️  警告: 计算的合约数小于最小下单量`, 'warning');
+                        }
+                    } else {
+                        log(`❌ 无法获取合约规格`, 'error');
+                    }
+                    
+                    log('', 'info');
+                }
+                
+                log('✅ 所有检查完成', 'success');
+                
+            } catch (error) {
+                log(`❌ 异常: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -2,7 +2,8 @@
 """
 加密货币数据分析系统 - 完全仿照参考页面风格
 """
-from flask import Flask, render_template_string, render_template, request, jsonify, send_from_directory, make_response, redirect
+from flask import Flask, render_template_string, render_template, request, jsonify, send_from_directory, send_file, make_response, redirect
+from flask_compress import Compress
 import sqlite3
 from datetime import datetime, timedelta
 import json
@@ -13,13 +14,87 @@ import time
 import traceback
 
 app = Flask(__name__)
+# 启用gzip压缩 - 减少74KB到约15-20KB
+Compress(app)
 
 # 导入JSONL管理器
 from gdrive_jsonl_manager import GDriveJSONLManager
 from query_jsonl_manager import QueryJSONLManager
 
 gdrive_jsonl_manager = GDriveJSONLManager()
-query_jsonl_manager = QueryJSONLManager()
+# 使用GDrive数据目录作为Query数据源（包含最新数据）
+query_jsonl_manager = QueryJSONLManager(data_dir='/home/user/webapp/data/gdrive_jsonl')
+
+# OKX交易日志管理器
+class OKXTradingLogger:
+    """OKX交易日志记录器 - 所有操作记录到JSONL文件（只写不改）"""
+    def __init__(self, log_dir='/home/user/webapp/data/okx_trading_logs'):
+        self.log_dir = log_dir
+        os.makedirs(log_dir, exist_ok=True)
+        
+    def _get_log_file(self, date_str=None):
+        """获取当天的日志文件路径"""
+        if date_str is None:
+            date_str = datetime.now(BEIJING_TZ).strftime('%Y%m%d')
+        return os.path.join(self.log_dir, f'trading_log_{date_str}.jsonl')
+    
+    def log(self, action, account_id, details=None, result=None):
+        """
+        记录交易操作日志
+        
+        参数：
+        - action: 操作类型（open_position, close_position, cancel_order, batch_open, batch_close等）
+        - account_id: 账户ID
+        - details: 操作详情（交易对、方向、数量等）
+        - result: 操作结果（成功/失败、错误信息等）
+        """
+        try:
+            log_entry = {
+                'timestamp': datetime.now(BEIJING_TZ).isoformat(),
+                'timestamp_unix': int(time.time()),
+                'action': action,
+                'account_id': account_id,
+                'details': details or {},
+                'result': result or {}
+            }
+            
+            log_file = self._get_log_file()
+            with open(log_file, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
+            
+            print(f"[OKX日志] {action} - {account_id} - {result.get('status', 'unknown')}")
+            
+        except Exception as e:
+            print(f"[OKX日志] 记录失败: {str(e)}")
+    
+    def get_logs(self, date_str=None, limit=100):
+        """
+        读取日志（不修改）
+        
+        参数：
+        - date_str: 日期字符串（YYYYMMDD），None=今天
+        - limit: 返回最近N条
+        """
+        try:
+            log_file = self._get_log_file(date_str)
+            if not os.path.exists(log_file):
+                return []
+            
+            logs = []
+            with open(log_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if line.strip():
+                        logs.append(json.loads(line))
+            
+            # 返回最近的N条
+            return logs[-limit:] if limit else logs
+            
+        except Exception as e:
+            print(f"[OKX日志] 读取失败: {str(e)}")
+            return []
+
+# 初始化交易日志记录器
+okx_trading_logger = OKXTradingLogger()
 
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
@@ -1544,6 +1619,11 @@ MAIN_HTML = """
 def index():
     """首页 - 功能导航"""
     return render_template('index.html')
+
+@app.route('/coin-change-tracker')
+def coin_change_tracker_page():
+    """27币涨跌幅追踪系统页面"""
+    return render_template('coin_change_tracker.html')
 
 @app.route('/query')
 def query_page():
@@ -5997,21 +6077,338 @@ def coin_pool_page():
 
 @app.route('/support-resistance')
 def support_resistance_page():
-    """支撑压力线系统页面"""
+    """支撑压力线系统页面（旧版）"""
     response = make_response(render_template('support_resistance.html'))
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
     return response
 
-@app.route('/escape-signal-history')
-def escape_signal_history_page():
-    """逃顶信号系统统计 - 历史数据明细页面"""
-    response = make_response(render_template('escape_signal_history.html'))
+@app.route('/test-support-api')
+def test_support_api_page():
+    """支撑阻力API测试页面"""
+    response = make_response(render_template('test_support_api.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    return response
+
+@app.route('/test-chart')
+def test_chart():
+    """图表测试页面"""
+    with open('/home/user/webapp/test_chart_simple.html', 'r', encoding='utf-8') as f:
+        content = f.read()
+    response = make_response(content)
+    response.headers['Content-Type'] = 'text/html; charset=utf-8'
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    return response
+
+@app.route('/test-simple')
+def test_simple():
+    """极简测试页面 - 最小化图表显示测试"""
+    response = make_response(render_template('test_simple.html'))
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
     return response
+
+@app.route('/test-inline')
+def test_inline():
+    """内联测试页面 - 完全不依赖CDN"""
+    response = make_response(render_template('test_inline.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    response.headers.pop('ETag', None)
+    response.headers.pop('Last-Modified', None)
+    return response
+
+@app.route('/clear-cache')
+def clear_cache_redirect():
+    """清除缓存并跳转 - 终极方案"""
+    response = make_response(render_template('clear_cache_redirect.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+@app.route('/force-refresh')
+def force_refresh_page():
+    """强制刷新页面 - 清除所有浏览器缓存"""
+    response = make_response(render_template('force_refresh.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+@app.route('/escape-signal-history')
+@app.route('/clear-cache-guide')
+def clear_cache_guide():
+    """清除缓存引导页面"""
+    import time
+    response = make_response(render_template('clear_cache.html', timestamp=int(time.time())))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+@app.route('/escape-signal-history-v2')  # v2路由，绕过CDN缓存
+def escape_signal_history_page():
+    """逃顶信号系统统计 - 历史数据明细页面"""
+    import time
+    response = make_response(render_template('escape_signal_history.html'))
+    # 🔥 强制禁用所有缓存
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0, no-transform'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    # 🔥 禁用ETag防止304响应
+    response.headers['ETag'] = str(time.time())  # 每次都不同
+    response.headers['Last-Modified'] = ''
+    # 🔥 添加版本标识
+    response.headers['X-Version'] = 'v3.0-final-' + str(int(time.time()))
+    return response
+
+# 添加缓存机制
+_escape_signal_cache = {
+    'data': None,
+    'timestamp': 0,
+    'ttl': 60  # 缓存60秒
+}
+
+@app.route('/api/escape-signal-stats/keypoints')
+def api_escape_signal_stats_keypoints():
+    """获取逃顶信号关键点数据（用于图表快速渲染）- 后端智能采样 + 缓存"""
+    import time
+    
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp')
+        from escape_signal_jsonl_manager import EscapeSignalJSONLManager
+        
+        # 🔥 支持快速模式：只返回最新N个点
+        fast_mode = request.args.get('fast', type=str, default='false').lower() == 'true'
+        fast_limit = request.args.get('limit', type=int, default=100)
+        
+        # 检查缓存（只有非快速模式才使用缓存）
+        if not fast_mode:
+            current_time = time.time()
+            if (_escape_signal_cache['data'] is not None and 
+                current_time - _escape_signal_cache['timestamp'] < _escape_signal_cache['ttl']):
+                # 缓存命中，直接返回
+                return jsonify(_escape_signal_cache['data'])
+        
+        manager = EscapeSignalJSONLManager()
+        
+        # 读取所有记录
+        all_records = manager.read_records(reverse=False)
+        
+        # 过滤出1月3日之后的数据
+        since_date = '2026-01-03 00:00:00'
+        filtered_records = [r for r in all_records if r.get('stat_time', '') >= since_date]
+        filtered_records = sorted(filtered_records, key=lambda x: x.get('stat_time', ''))
+        
+        if not filtered_records:
+            return jsonify({'success': False, 'message': 'No data available'})
+        
+        # 🔥 快速模式：只返回最新N个点
+        if fast_mode:
+            latest_records = filtered_records[-fast_limit:]
+            result = {
+                'success': True,
+                'fast_mode': True,
+                'keypoint_count': len(latest_records),
+                'total_records': len(filtered_records),
+                'data_range': f"{latest_records[0].get('stat_time', '')} ~ {latest_records[-1].get('stat_time', '')}",
+                'keypoints': [
+                    {
+                        'stat_time': r.get('stat_time', ''),
+                        'signal_24h_count': r.get('signal_24h_count', 0),
+                        'signal_2h_count': r.get('signal_2h_count', 0),
+                        'rise_strength_level': r.get('rise_strength_level', 0),
+                        'decline_strength_level': r.get('decline_strength_level', 0)
+                    }
+                    for r in latest_records
+                ],
+                'max_signal_24h': max(r.get('signal_24h_count', 0) for r in latest_records)
+            }
+            # Flask会自动处理JSON响应
+            return jsonify(result)
+        
+        total_count = len(filtered_records)
+        
+        # 智能关键点采样算法
+        def extract_keypoints(data, target_points=2000):
+            """提取关键点（后端版本）"""
+            if len(data) <= target_points:
+                return list(range(len(data)))
+            
+            keypoints = set()
+            
+            # 1. 计算P99.9阈值
+            signal24h_values = [d.get('signal_24h_count', 0) for d in data if d.get('signal_24h_count', 0) > 0]
+            if not signal24h_values:
+                return list(range(len(data)))
+            
+            sorted_signals = sorted(signal24h_values)
+            p999_idx = int(len(sorted_signals) * 0.999)
+            p999 = sorted_signals[p999_idx] if p999_idx < len(sorted_signals) else sorted_signals[-1]
+            p95_idx = int(len(sorted_signals) * 0.95)
+            p95 = sorted_signals[p95_idx] if p95_idx < len(sorted_signals) else sorted_signals[-1]
+            
+            # 2. 极端峰值（P99.9以上）
+            for i, d in enumerate(data):
+                if d.get('signal_24h_count', 0) >= p999:
+                    keypoints.add(i)
+            
+            # 3. 全局极值
+            max_val = max(d.get('signal_24h_count', 0) for d in data)
+            min_vals = [d.get('signal_24h_count', 0) for d in data if d.get('signal_24h_count', 0) > 0]
+            min_val = min(min_vals) if min_vals else 0
+            
+            for i, d in enumerate(data):
+                val = d.get('signal_24h_count', 0)
+                if val == max_val or (val == min_val and val > 0):
+                    keypoints.add(i)
+            
+            # 4. 局部峰值（每6小时窗口保留1个显著峰值）
+            window_size = 360  # 6小时
+            for i in range(0, len(data), window_size):
+                window_end = min(i + window_size, len(data))
+                window_max = max(
+                    (d.get('signal_24h_count', 0), idx) 
+                    for idx, d in enumerate(data[i:window_end], start=i)
+                )
+                if window_max[0] >= p95:  # 只保留超过P95的局部峰值
+                    keypoints.add(window_max[1])
+            
+            # 5. 首尾点
+            keypoints.add(0)
+            keypoints.add(len(data) - 1)
+            
+            # 6. 均匀填充到目标点数
+            current_count = len(keypoints)
+            if current_count < target_points:
+                needed = target_points - current_count
+                step = max(1, len(data) // needed)
+                for i in range(0, len(data), step):
+                    if i not in keypoints:
+                        keypoints.add(i)
+                    if len(keypoints) >= target_points:
+                        break
+            
+            return sorted(list(keypoints))
+        
+        # 提取关键点索引
+        # 支持limit参数控制返回的关键点数量
+        target_points = request.args.get('limit', type=int, default=2000)
+        target_points = min(target_points, 2000)  # 最多2000个
+        target_points = max(target_points, 50)    # 最少50个
+        keypoint_indices = extract_keypoints(filtered_records, target_points=target_points)
+        
+        # 构建关键点数据
+        keypoints_data = [
+            {
+                'stat_time': filtered_records[i].get('stat_time'),
+                'signal_24h_count': filtered_records[i].get('signal_24h_count', 0),
+                'signal_2h_count': filtered_records[i].get('signal_2h_count', 0),
+                'decline_strength_level': filtered_records[i].get('decline_strength_level', 0),
+                'rise_strength_level': filtered_records[i].get('rise_strength_level', 0)
+            }
+            for i in keypoint_indices
+        ]
+        
+        # 计算统计信息
+        max_signal_24h = max((r.get('signal_24h_count', 0) or 0) for r in filtered_records)
+        max_signal_2h = max((r.get('signal_2h_count', 0) or 0) for r in filtered_records)
+        
+        result = {
+            'success': True,
+            'keypoints': keypoints_data,
+            'total_records': total_count,
+            'keypoint_count': len(keypoints_data),
+            'compression_rate': f'{len(keypoints_data) / total_count * 100:.1f}%',
+            'max_signal_24h': max_signal_24h,
+            'max_signal_2h': max_signal_2h,
+            'data_range': f'{filtered_records[0].get("stat_time")} ~ {filtered_records[-1].get("stat_time")}'
+        }
+        
+        # 更新缓存
+        _escape_signal_cache['data'] = result
+        _escape_signal_cache['timestamp'] = current_time
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
+@app.route('/api/escape-signal-stats/incremental')
+def api_escape_signal_stats_incremental():
+    """增量更新API - 只返回最新的N条数据（默认10条）"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp')
+        from escape_signal_jsonl_manager import EscapeSignalJSONLManager
+        
+        manager = EscapeSignalJSONLManager()
+        
+        # 获取参数
+        limit = request.args.get('limit', type=int, default=10)  # 默认只返回最新10条
+        since_time = request.args.get('since', type=str, default=None)  # 可选：从某个时间点之后的数据
+        
+        # 读取所有记录（正序）
+        all_records = manager.read_records(reverse=False)
+        
+        # 过滤出1月3日之后的数据
+        since_date = '2026-01-03 00:00:00'
+        filtered_records = [r for r in all_records if r.get('stat_time', '') >= since_date]
+        
+        # 如果指定了since_time，只返回该时间之后的数据
+        if since_time:
+            filtered_records = [r for r in filtered_records if r.get('stat_time', '') > since_time]
+        
+        # 按时间倒序排序，取最新的limit条
+        filtered_records = sorted(filtered_records, key=lambda x: x.get('stat_time', ''), reverse=True)[:limit]
+        
+        # 再按时间正序排序（方便前端追加）
+        filtered_records = sorted(filtered_records, key=lambda x: x.get('stat_time', ''))
+        
+        if not filtered_records:
+            return jsonify({
+                'success': True,
+                'data': [],
+                'count': 0,
+                'message': 'No new data'
+            })
+        
+        # 构建返回数据
+        incremental_data = [
+            {
+                'stat_time': r.get('stat_time'),
+                'signal_24h_count': r.get('signal_24h_count', 0),
+                'signal_2h_count': r.get('signal_2h_count', 0),
+                'decline_strength_level': r.get('decline_strength_level', 0),
+                'rise_strength_level': r.get('rise_strength_level', 0)
+            }
+            for r in filtered_records
+        ]
+        
+        return jsonify({
+            'success': True,
+            'data': incremental_data,
+            'count': len(incremental_data),
+            'latest_time': filtered_records[-1].get('stat_time') if filtered_records else None
+        })
+    
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
 
 @app.route('/api/escape-signal-stats')
 def api_escape_signal_stats():
@@ -6026,7 +6423,7 @@ def api_escape_signal_stats():
         manager = EscapeSignalJSONLManager()
         
         # 获取请求参数
-        limit = request.args.get('limit', type=int, default=None)  # None表示不限制
+        limit = request.args.get('limit', type=int, default=1000)  # 默认限制1000条
         
         # 获取统计信息
         stats_info = manager.get_statistics()
@@ -6117,6 +6514,158 @@ def api_escape_signal_stats():
             'error': str(e),
             'traceback': traceback.format_exc()
         }), 500
+
+@app.route('/escape-signal-simple')
+def escape_signal_simple_page():
+    """逃顶信号简洁版页面"""
+    response = make_response(render_template('escape_signal_simple.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+@app.route('/api/escape-signal-simple')
+def api_escape_signal_simple():
+    """获取逃顶信号数据 - 极简API"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp')
+        from escape_signal_jsonl_manager import EscapeSignalJSONLManager
+        
+        manager = EscapeSignalJSONLManager()
+        
+        # 获取limit参数
+        limit = request.args.get('limit', type=int, default=1000)
+        
+        # 读取最近的记录
+        records = manager.read_records(limit=limit, reverse=True)  # 倒序（最新在前）
+        
+        # 过滤1月3日之后的数据
+        since_date = '2026-01-03 00:00:00'
+        filtered_records = [r for r in records if r.get('stat_time', '') >= since_date]
+        
+        # 计算统计信息
+        stats_info = manager.get_statistics()
+        
+        max_24h = max([r.get('signal_24h_count', 0) for r in filtered_records]) if filtered_records else 0
+        max_2h = max([r.get('signal_2h_count', 0) for r in filtered_records]) if filtered_records else 0
+        
+        return jsonify({
+            'success': True,
+            'total_count': stats_info['total_records'],
+            'records': filtered_records,
+            'max_signal_24h': max_24h,
+            'max_signal_2h': max_2h,
+            'data_source': 'JSONL',
+            'timezone': 'Beijing Time (UTC+8)'
+        })
+        
+    except Exception as e:
+        print(f"❌ API错误: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/escape-signal-stats/dates')
+def get_escape_signal_dates():
+    """获取逃顶信号可用的日期列表"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from escape_signal_daily_reader import EscapeSignalDailyReader
+        
+        reader = EscapeSignalDailyReader()
+        dates = reader.get_available_dates()
+        
+        return jsonify({
+            'success': True,
+            'dates': dates,
+            'count': len(dates)
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@app.route('/api/escape-signal-stats/keypoints-monthly')
+def get_escape_signal_keypoints_monthly():
+    """获取逃顶信号关键点数据（用于月度总图）"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from escape_signal_daily_reader import EscapeSignalDailyReader
+        
+        reader = EscapeSignalDailyReader()
+        keypoints = reader.get_keypoints()
+        
+        return jsonify({
+            'success': True,
+            'data': keypoints,
+            'count': len(keypoints)
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/escape-signal-stats/by-date')
+def get_escape_signal_by_date():
+    """按日期获取逃顶信号数据（用于日线图）"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from escape_signal_daily_reader import EscapeSignalDailyReader
+        from datetime import datetime
+        
+        # 获取日期参数（默认今天）
+        date = request.args.get('date', datetime.now().strftime("%Y-%m-%d"))
+        
+        reader = EscapeSignalDailyReader()
+        data = reader.get_date_data(date)
+        stats = reader.get_date_statistics(date)
+        
+        return jsonify({
+            'success': True,
+            'date': date,
+            'data': data,
+            'count': len(data),
+            'statistics': stats
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/escape-signal-stats/summary')
+def get_escape_signal_summary():
+    """获取逃顶信号数据总览"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from escape_signal_daily_reader import EscapeSignalDailyReader
+        
+        reader = EscapeSignalDailyReader()
+        summary = reader.get_summary()
+        
+        return jsonify({
+            'success': True,
+            'summary': summary
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
 
 @app.route('/trading-signals')
 def trading_signals_page():
@@ -6349,7 +6898,8 @@ def api_trading_signals_analyze():
         import pytz
         from opening_logic import get_opening_suggestion
         
-        conn = sqlite3.connect('/home/user/webapp/databases/support_resistance.db')
+        # 连接crypto_data数据库（用于其他系统数据）
+        conn = sqlite3.connect('/home/user/webapp/databases/crypto_data.db')
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         
@@ -6367,19 +6917,49 @@ def api_trading_signals_analyze():
             opening_can_long = False
             opening_position_percent = 0
         
-        # 1. 获取支撑压力线数据
-        cursor.execute('''
-            SELECT symbol, current_price, support_line_1, support_line_2, resistance_line_1,
-                   distance_to_support_1, distance_to_support_2, distance_to_resistance_1,
-                   position_s2_r1, record_time
-            FROM support_resistance_levels
-            WHERE id IN (
-                SELECT MAX(id) 
-                FROM support_resistance_levels 
-                GROUP BY symbol
-            )
-        ''')
-        sr_data = {row['symbol']: dict(row) for row in cursor.fetchall()}
+        # 1. 获取支撑压力线数据（从JSONL）
+        import sys
+        sys.path.insert(0, '/home/user/webapp')
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from support_resistance_api_adapter import SupportResistanceAPIAdapter
+        
+        adapter = SupportResistanceAPIAdapter()
+        sr_result = adapter.get_all_symbols_latest()
+        
+        sr_data = {}
+        if sr_result['success'] and sr_result['data']:
+            for item in sr_result['data']:
+                symbol = item.get('symbol', '')
+                # 计算距离支撑线的距离百分比
+                current_price = item.get('current_price', 0)
+                support_1 = item.get('support_line_1', 0)
+                support_2 = item.get('support_line_2', 0)
+                resistance_1 = item.get('resistance_line_1', 0)
+                
+                distance_to_support_1 = None
+                distance_to_support_2 = None
+                distance_to_resistance_1 = None
+                position_s2_r1 = item.get('position_7d', 0)  # 使用position_7d作为s2_r1位置
+                
+                if support_1 and current_price:
+                    distance_to_support_1 = ((current_price - support_1) / support_1) * 100
+                if support_2 and current_price:
+                    distance_to_support_2 = ((current_price - support_2) / support_2) * 100
+                if resistance_1 and current_price:
+                    distance_to_resistance_1 = ((resistance_1 - current_price) / current_price) * 100
+                
+                sr_data[symbol] = {
+                    'symbol': symbol,
+                    'current_price': current_price,
+                    'support_line_1': support_1,
+                    'support_line_2': support_2,
+                    'resistance_line_1': resistance_1,
+                    'distance_to_support_1': distance_to_support_1,
+                    'distance_to_support_2': distance_to_support_2,
+                    'distance_to_resistance_1': distance_to_resistance_1,
+                    'position_s2_r1': position_s2_r1,
+                    'record_time': item.get('record_time', '')
+                }
         
         # 2. 获取价格突破数据(创新低统计 - 最近7天)
         seven_days_ago = now - timedelta(days=7)
@@ -6937,27 +7517,41 @@ def api_trading_signals_history():
 
 @app.route('/api/support-resistance/latest')
 def api_support_resistance_latest():
-    """获取最新的支撑压力线数据（从 JSONL）"""
+    """获取最新的支撑压力线数据（从按日期存储的JSONL）"""
     try:
         import sys
         sys.path.insert(0, '/home/user/webapp')
-        from support_resistance_jsonl_manager import SupportResistanceJSONLManager
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from support_resistance_daily_manager import SupportResistanceDailyManager
         
-        manager = SupportResistanceJSONLManager()
+        manager = SupportResistanceDailyManager()
         
-        # 获取所有币种的最新数据
-        latest_levels = manager.get_all_latest_levels()
+        # 尝试获取今天的数据
+        latest_levels = manager.get_latest_levels()
         
+        # 如果今天没有数据，尝试最近7天的数据
         if not latest_levels:
-            return jsonify({
-                'success': False,
-                'message': 'No data available'
-            })
+            print("⚠️ 今天没有数据，尝试最近7天...")
+            from datetime import datetime, timedelta
+            import pytz
+            beijing_tz = pytz.timezone('Asia/Shanghai')
+            for days_ago in range(1, 8):
+                past_date = (datetime.now(beijing_tz) - timedelta(days=days_ago)).strftime('%Y%m%d')
+                latest_levels = manager.get_latest_levels(date_str=past_date)
+                if latest_levels:
+                    print(f"✅ 使用 {days_ago} 天前的数据 ({past_date})")
+                    break
+        
+        # 如果还是没有数据，fallback到直接读取JSONL
+        if not latest_levels:
+            print("⚠️ 按日期数据为空，fallback到JSONL文件")
+            return api_support_resistance_latest_from_jsonl()
         
         # 获取最新时间（用于显示"最后更新"）
         update_time = None
         for level in latest_levels:
-            time_str = level.get('record_time_beijing') or level.get('record_time')
+            data = level.get('data', level)  # 提取data字段
+            time_str = data.get('record_time_beijing') or data.get('record_time')
             if time_str:
                 update_time = time_str
                 break
@@ -6968,7 +7562,10 @@ def api_support_resistance_latest():
         scenario_2_coins = []
         
         for level in latest_levels:
-            symbol = level.get('symbol', '')
+            # 提取data字段（新JSONL格式）
+            data = level.get('data', level)  # 兼容新旧格式
+            
+            symbol = data.get('symbol', '')
             
             # 转换为 OKX 格式（BTCUSDT -> BTC-USDT-SWAP）
             if symbol.endswith('USDT'):
@@ -6976,19 +7573,19 @@ def api_support_resistance_latest():
             else:
                 okx_symbol = symbol
             
-            current_price = level.get('current_price', 0)
-            support_1 = level.get('support_line_1', 0)
-            support_2 = level.get('support_line_2', 0)
-            resistance_1 = level.get('resistance_line_1', 0)
-            resistance_2 = level.get('resistance_line_2', 0)
-            position_7d = level.get('position_7d', 0)
-            position_48h = level.get('position_48h', 0)
+            current_price = data.get('current_price', 0)
+            support_1 = data.get('support_line_1', 0)
+            support_2 = data.get('support_line_2', 0)
+            resistance_1 = data.get('resistance_line_1', 0)
+            resistance_2 = data.get('resistance_line_2', 0)
+            position_7d = data.get('position_7d', 0)
+            position_48h = data.get('position_48h', 0)
             
             # 判断告警场景
-            alert_7d_low = level.get('alert_7d_low', 0) or (1 if position_7d <= 10 else 0)
-            alert_7d_high = level.get('alert_7d_high', 0) or (1 if position_7d >= 90 else 0)
-            alert_48h_low = level.get('alert_48h_low', 0) or (1 if position_48h <= 10 else 0)
-            alert_48h_high = level.get('alert_48h_high', 0) or (1 if position_48h >= 90 else 0)
+            alert_7d_low = data.get('alert_7d_low', 0) or (1 if position_7d <= 10 else 0)
+            alert_7d_high = data.get('alert_7d_high', 0) or (1 if position_7d >= 90 else 0)
+            alert_48h_low = data.get('alert_48h_low', 0) or (1 if position_48h <= 10 else 0)
+            alert_48h_high = data.get('alert_48h_high', 0) or (1 if position_48h >= 90 else 0)
             
             coin_info = {
                 'symbol': okx_symbol,
@@ -6999,10 +7596,10 @@ def api_support_resistance_latest():
                 'resistance_line_1': resistance_1,
                 'resistance_line_2': resistance_2,
                 # 天数和小时数
-                'support_1_days': level.get('support_1_days', 0),
-                'support_2_hours': level.get('support_2_hours', 0),
-                'resistance_1_days': level.get('resistance_1_days', 0),
-                'resistance_2_hours': level.get('resistance_2_hours', 0),
+                'support_1_days': data.get('support_1_days', 0),
+                'support_2_hours': data.get('support_2_hours', 0),
+                'resistance_1_days': data.get('resistance_1_days', 0),
+                'resistance_2_hours': data.get('resistance_2_hours', 0),
                 # 位置字段
                 'position_7d': position_7d,
                 'position_48h': position_48h,
@@ -7070,7 +7667,7 @@ def api_support_resistance_latest():
             'data': coins_data,
             'scenario_1_coins': len(scenario_1_coins),
             'scenario_2_coins': len(scenario_2_coins),
-            'data_source': 'JSONL',
+            'data_source': 'Daily JSONL (按日期存储)',
             'timezone': 'Beijing Time (UTC+8)',
             # 新增：预计算的告警场景详情（避免前端filter计算）
             'alerts_summary': {
@@ -7121,21 +7718,16 @@ def api_support_resistance_snapshots():
         date_filter = request.args.get('date', None)
         limit = int(request.args.get('limit', 100))
         
-        # 获取快照数据
-        # all=true时返回所有历史数据（从2025-12-25开始的完整数据，约21638条）
-        # 性能测试：读取21638条记录仅需0.05秒，可接受
-        result = adapter.get_snapshots(limit=None if all_data else limit)
+        # 如果指定了日期，直接获取该日期的所有数据
+        if date_filter:
+            result = adapter.get_snapshots(date=date_filter, limit=None)
+        else:
+            # 获取快照数据
+            # all=true时返回所有历史数据（从2025-12-25开始的完整数据，约30000条）
+            result = adapter.get_snapshots(limit=None if all_data else limit)
         
         if not result['success']:
             return jsonify(result)
-        
-        # 如果有日期过滤
-        if date_filter:
-            result['data'] = [
-                s for s in result['data'] 
-                if s.get('snapshot_time', '').startswith(date_filter)
-            ]
-            result['count'] = len(result['data'])
         
         return jsonify(result)
         
@@ -7451,45 +8043,30 @@ def api_support_resistance_chart_data():
 
 @app.route('/api/support-resistance/latest-signal')
 def api_support_resistance_latest_signal():
-    """获取最新快照数据并检测是否触发信号"""
+    """获取最新快照数据并检测是否触发信号（从按日期存储的JSONL）"""
     try:
-        import json
-        from datetime import datetime
-        import pytz
+        import sys
+        sys.path.insert(0, '/home/user/webapp')
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from support_resistance_api_adapter import SupportResistanceAPIAdapter
         
-        conn = sqlite3.connect('/home/user/webapp/databases/support_resistance.db')
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+        adapter = SupportResistanceAPIAdapter()
         
-        # 获取最新的快照
-        cursor.execute('''
-            SELECT 
-                snapshot_time, snapshot_date,
-                scenario_1_count, scenario_2_count, scenario_3_count, scenario_4_count,
-                scenario_1_coins, scenario_2_coins, scenario_3_coins, scenario_4_coins,
-                total_coins
-            FROM support_resistance_snapshots
-            ORDER BY snapshot_time DESC
-            LIMIT 1
-        ''')
+        # 从API适配器获取最新快照
+        result = adapter.get_snapshots(limit=1)
         
-        row = cursor.fetchone()
-        conn.close()
-        
-        if not row:
+        if not result['success'] or not result['data']:
             return jsonify({
                 'success': False,
                 'message': '暂无快照数据'
             })
         
-        # 注意：数据库中存储的已经是北京时间，不需要再次转换
-        # 数据采集脚本使用 datetime.now(pytz.timezone('Asia/Shanghai')) 存储
-        snapshot_time_str = row['snapshot_time']  # 已经是北京时间
+        row = result['data'][0]
         
-        scenario_1 = row['scenario_1_count'] or 0
-        scenario_2 = row['scenario_2_count'] or 0
-        scenario_3 = row['scenario_3_count'] or 0
-        scenario_4 = row['scenario_4_count'] or 0
+        scenario_1 = row.get('scenario_1_count', 0) or 0
+        scenario_2 = row.get('scenario_2_count', 0) or 0
+        scenario_3 = row.get('scenario_3_count', 0) or 0
+        scenario_4 = row.get('scenario_4_count', 0) or 0
         
         # 检测信号
         # 抄底信号：情况1 >= 8 AND 情况2 >= 8（两个条件都要满足）
@@ -7498,28 +8075,30 @@ def api_support_resistance_latest_signal():
         # 逃顶信号：(情况3 + 情况4) >= 8（总和满足即可）
         sell_signal = (scenario_3 + scenario_4) >= 8
         
-        result = {
+        result_data = {
             'success': True,
-            'snapshot_time': snapshot_time_str,  # 直接使用数据库中的北京时间
-            'snapshot_date': row['snapshot_date'],
+            'snapshot_time': row.get('snapshot_time'),
+            'snapshot_date': row.get('snapshot_date'),
             'scenario_1_count': scenario_1,
             'scenario_2_count': scenario_2,
             'scenario_3_count': scenario_3,
             'scenario_4_count': scenario_4,
-            'scenario_1_coins': json.loads(row['scenario_1_coins']) if row['scenario_1_coins'] else [],
-            'scenario_2_coins': json.loads(row['scenario_2_coins']) if row['scenario_2_coins'] else [],
-            'scenario_3_coins': json.loads(row['scenario_3_coins']) if row['scenario_3_coins'] else [],
-            'scenario_4_coins': json.loads(row['scenario_4_coins']) if row['scenario_4_coins'] else [],
-            'total_coins': row['total_coins'],
+            'scenario_1_coins': row.get('scenario_1_coins', []),
+            'scenario_2_coins': row.get('scenario_2_coins', []),
+            'scenario_3_coins': row.get('scenario_3_coins', []),
+            'scenario_4_coins': row.get('scenario_4_coins', []),
+            'total_coins': row.get('total_coins', 27),
             'signals': {
                 'buy': buy_signal,
                 'sell': sell_signal,
                 'buy_count': scenario_1 + scenario_2 if buy_signal else 0,
                 'sell_count': scenario_3 + scenario_4 if sell_signal else 0
-            }
+            },
+            'data_source': 'JSONL (按日期存储)',
+            'timezone': 'Beijing Time (UTC+8)'
         }
         
-        return jsonify(result)
+        return jsonify(result_data)
         
     except Exception as e:
         return jsonify({
@@ -7529,26 +8108,31 @@ def api_support_resistance_latest_signal():
 
 @app.route('/api/support-resistance/dates')
 def api_support_resistance_dates():
-    """获取有快照数据的所有日期列表"""
+    """获取有快照数据的所有日期列表（从按日期存储的JSONL）"""
     try:
-        conn = sqlite3.connect('/home/user/webapp/databases/support_resistance.db')
-        cursor = conn.cursor()
+        import sys
+        sys.path.insert(0, '/home/user/webapp')
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from support_resistance_daily_manager import SupportResistanceDailyManager
         
-        cursor.execute('''
-            SELECT DISTINCT snapshot_date
-            FROM support_resistance_snapshots
-            ORDER BY snapshot_date DESC
-        ''')
+        manager = SupportResistanceDailyManager()
         
-        rows = cursor.fetchall()
-        conn.close()
+        # 获取所有可用日期
+        available_dates = manager.get_available_dates()
         
-        dates = [row[0] for row in rows]
+        # 转换格式：YYYYMMDD -> YYYY-MM-DD
+        formatted_dates = []
+        for date_str in reversed(available_dates):  # 倒序，最新的在前
+            if len(date_str) == 8:
+                formatted_dates.append(f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}")
+            else:
+                formatted_dates.append(date_str)
         
         return jsonify({
             'success': True,
-            'dates': dates,
-            'count': len(dates)
+            'dates': formatted_dates,
+            'count': len(formatted_dates),
+            'data_source': 'JSONL (按日期存储)'
         })
         
     except Exception as e:
@@ -7559,52 +8143,66 @@ def api_support_resistance_dates():
 
 @app.route('/api/support-resistance/escape-max-stats')
 def api_support_resistance_escape_max_stats():
-    """获取逃顶快照数的历史最大值统计"""
+    """获取逃顶快照数的历史最大值统计（从按日期存储的JSONL）"""
     try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp')
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from support_resistance_api_adapter import SupportResistanceAPIAdapter
         from datetime import datetime, timedelta
         
-        conn = sqlite3.connect('/home/user/webapp/databases/support_resistance.db')
-        cursor = conn.cursor()
+        adapter = SupportResistanceAPIAdapter()
         
         # 计算24小时前的时间
         now = datetime.now()
-        time_24h_ago = (now - timedelta(hours=24)).strftime('%Y-%m-%d %H:%M:%S')
-        time_2h_ago = (now - timedelta(hours=2)).strftime('%Y-%m-%d %H:%M:%S')
+        time_24h_ago = now - timedelta(hours=24)
+        time_2h_ago = now - timedelta(hours=2)
         
-        # 获取所有快照数据并计算逃顶信号数（scenario3 + scenario4 >= 5）
-        # 24小时内的数据
-        cursor.execute('''
-            SELECT 
-                snapshot_time,
-                scenario_3_count + scenario_4_count as escape_count
-            FROM support_resistance_snapshots
-            WHERE snapshot_time >= ?
-            ORDER BY snapshot_time DESC
-        ''', (time_24h_ago,))
+        # 获取最近2天的所有快照（确保覆盖24小时）
+        today = now.strftime('%Y-%m-%d')
+        yesterday = (now - timedelta(days=1)).strftime('%Y-%m-%d')
         
-        rows_24h = cursor.fetchall()
+        # 获取今日和昨日的快照
+        snapshots_today = adapter.get_snapshots(date=today, limit=None)
+        snapshots_yesterday = adapter.get_snapshots(date=yesterday, limit=None)
+        
+        all_snapshots = []
+        if snapshots_today['success'] and snapshots_today['data']:
+            all_snapshots.extend(snapshots_today['data'])
+        if snapshots_yesterday['success'] and snapshots_yesterday['data']:
+            all_snapshots.extend(snapshots_yesterday['data'])
+        
+        # 筛选24小时内和2小时内的快照
+        rows_24h = []
+        rows_2h = []
+        
+        for snapshot in all_snapshots:
+            snapshot_time_str = snapshot.get('snapshot_time', '')
+            if not snapshot_time_str:
+                continue
+                
+            try:
+                snapshot_time = datetime.strptime(snapshot_time_str, '%Y-%m-%d %H:%M:%S')
+            except:
+                continue
+            
+            scenario_3 = snapshot.get('scenario_3_count', 0) or 0
+            scenario_4 = snapshot.get('scenario_4_count', 0) or 0
+            escape_count = scenario_3 + scenario_4
+            
+            if snapshot_time >= time_24h_ago:
+                rows_24h.append(escape_count)
+                
+                if snapshot_time >= time_2h_ago:
+                    rows_2h.append(escape_count)
         
         # 计算24小时内的逃顶快照数和最大的逃顶信号数
-        escape_snapshot_count_24h = sum(1 for row in rows_24h if row[1] >= 5)
-        max_escape_count_24h = max([row[1] for row in rows_24h], default=0)
-        
-        # 2小时内的数据
-        cursor.execute('''
-            SELECT 
-                snapshot_time,
-                scenario_3_count + scenario_4_count as escape_count
-            FROM support_resistance_snapshots
-            WHERE snapshot_time >= ?
-            ORDER BY snapshot_time DESC
-        ''', (time_2h_ago,))
-        
-        rows_2h = cursor.fetchall()
+        escape_snapshot_count_24h = sum(1 for count in rows_24h if count >= 5)
+        max_escape_count_24h = max(rows_24h, default=0)
         
         # 计算2小时内的逃顶快照数和最大的逃顶信号数
-        escape_snapshot_count_2h = sum(1 for row in rows_2h if row[1] >= 5)
-        max_escape_count_2h = max([row[1] for row in rows_2h], default=0)
-        
-        conn.close()
+        escape_snapshot_count_2h = sum(1 for count in rows_2h if count >= 5)
+        max_escape_count_2h = max(rows_2h, default=0)
         
         return jsonify({
             'success': True,
@@ -7615,7 +8213,9 @@ def api_support_resistance_escape_max_stats():
             'stats_2h': {
                 'escape_snapshot_count': escape_snapshot_count_2h,
                 'max_escape_count': max_escape_count_2h
-            }
+            },
+            'data_source': 'JSONL (按日期存储)',
+            'timezone': 'Beijing Time (UTC+8)'
         })
         
     except Exception as e:
@@ -7624,6 +8224,123 @@ def api_support_resistance_escape_max_stats():
             'success': False,
             'message': str(e),
             'traceback': traceback.format_exc()
+        })
+
+# =====================================================
+# 支撑压力线全局趋势 API
+# =====================================================
+
+@app.route('/api/support-resistance/trend')
+def api_support_resistance_trend():
+    """获取全局趋势数据（支持分层加载：全局15分钟采样，放大后1分钟完整数据）"""
+    try:
+        import os
+        import json
+        from datetime import datetime, timedelta
+        
+        # 获取参数
+        days = request.args.get('days', 30, type=int)  # 默认30天
+        month = request.args.get('month', None)  # 可选：指定月份 YYYYMM
+        sample = request.args.get('sample', 15, type=int)  # 采样间隔（分钟），默认15分钟
+        start_time = request.args.get('start', None)  # 可选：开始时间（放大查看时使用）
+        end_time = request.args.get('end', None)  # 可选：结束时间（放大查看时使用）
+        
+        trend_dir = '/home/user/webapp/data/support_resistance_trend'
+        
+        if month:
+            # 指定月份
+            trend_file = os.path.join(trend_dir, f'support_resistance_trend_{month}.jsonl')
+            files_to_read = [trend_file] if os.path.exists(trend_file) else []
+        else:
+            # 读取最近N天的数据（可能跨月）
+            now = datetime.now()
+            months_to_check = set()
+            for i in range(days + 1):
+                date = now - timedelta(days=i)
+                months_to_check.add(date.strftime('%Y%m'))
+            
+            files_to_read = []
+            for m in sorted(months_to_check):
+                trend_file = os.path.join(trend_dir, f'support_resistance_trend_{m}.jsonl')
+                if os.path.exists(trend_file):
+                    files_to_read.append(trend_file)
+        
+        # 读取数据
+        trend_data = []
+        cutoff_time = datetime.now() - timedelta(days=days) if not month else None
+        
+        # 时间范围过滤（放大查看时使用）
+        filter_start = datetime.fromisoformat(start_time.replace('+08:00', '')) if start_time else None
+        filter_end = datetime.fromisoformat(end_time.replace('+08:00', '')) if end_time else None
+        
+        for file_path in files_to_read:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if line.strip():
+                        try:
+                            point = json.loads(line)
+                            
+                            # 时间过滤
+                            point_time = datetime.fromisoformat(point['timestamp'].replace('+08:00', ''))
+                            
+                            # 过滤天数范围
+                            if cutoff_time and point_time < cutoff_time:
+                                continue
+                            
+                            # 过滤放大时间范围
+                            if filter_start and point_time < filter_start:
+                                continue
+                            if filter_end and point_time > filter_end:
+                                continue
+                            
+                            trend_data.append(point)
+                        except:
+                            continue
+        
+        # 按时间排序
+        trend_data.sort(key=lambda x: x['timestamp'])
+        
+        # 数据采样（全局视图时降采样，放大后返回完整数据）
+        sampled_data = trend_data
+        actual_interval = '1 minute'
+        
+        if sample > 1 and not (start_time and end_time):
+            # 全局视图：进行采样（每N分钟取一个点）
+            sampled_data = []
+            for i, point in enumerate(trend_data):
+                try:
+                    point_time = datetime.fromisoformat(point['timestamp'].replace('+08:00', ''))
+                    # 每N分钟取一个点：分钟数能被N整除
+                    if point_time.minute % sample == 0:
+                        sampled_data.append(point)
+                except:
+                    continue
+            actual_interval = f'{sample} minutes'
+        else:
+            # 放大视图或sample=1：返回完整数据
+            actual_interval = '1 minute'
+        
+        return jsonify({
+            'success': True,
+            'data': sampled_data,
+            'count': len(sampled_data),
+            'total_count': len(trend_data),
+            'days': days,
+            'sample': sample,
+            'data_source': 'JSONL Trend Data',
+            'interval': actual_interval,
+            'description': f'采集频率1分钟，返回间隔{actual_interval}',
+            'is_sampled': len(sampled_data) < len(trend_data),
+            'zoom_range': {
+                'start': start_time,
+                'end': end_time
+            } if (start_time and end_time) else None
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
         })
 
 # =====================================================
@@ -8482,12 +9199,6 @@ def api_symbol_extremes(symbol):
             'error': str(e)
         }), 500
 
-
-@app.route('/test-chart')
-def test_chart():
-    """测试K线图渲染"""
-    with open('test_chart_render.html', 'r', encoding='utf-8') as f:
-        return f.read()
 
 # ==================== 新版本路由 - 强制刷新 ====================
 
@@ -9718,8 +10429,8 @@ def api_query_latest():
             'success': True,
             'data': {
                 '运算时间': snapshot.get('snapshot_time'),
-                '急涨': snapshot.get('rush_up', 0),
-                '急跌': snapshot.get('rush_down', 0),
+                '急涨': snapshot.get('rush_up_total', 0),  # GDrive使用rush_up_total
+                '急跌': snapshot.get('rush_down_total', 0),  # GDrive使用rush_down_total
                 '差值': snapshot.get('diff', 0),
                 '计次': snapshot.get('count', 0),
                 '比值': snapshot.get('ratio', 0),
@@ -9932,6 +10643,95 @@ def api_support_resistance_import():
             'error': str(e)
         })
 
+@app.route('/api/support-resistance/latest-from-jsonl')
+def api_support_resistance_latest_from_jsonl():
+    """直接从JSONL文件获取最新支撑阻力数据（fallback方案）"""
+    try:
+        import json
+        from collections import defaultdict
+        
+        levels_file = '/home/user/webapp/data/support_resistance_jsonl/support_resistance_levels.jsonl'
+        
+        if not os.path.exists(levels_file):
+            return jsonify({
+                'success': False,
+                'message': 'Data file not found'
+            })
+        
+        # 读取最后1MB获取最新数据
+        latest_by_symbol = {}
+        with open(levels_file, 'r', encoding='utf-8') as f:
+            # 从文件末尾读取
+            f.seek(0, 2)  # 移到文件末尾
+            file_size = f.tell()
+            # 读取最后1MB数据
+            read_size = min(1024 * 1024, file_size)
+            f.seek(max(0, file_size - read_size))
+            # 跳过第一行（可能不完整）
+            if file_size > read_size:
+                f.readline()
+            
+            for line in f:
+                try:
+                    data = json.loads(line.strip())
+                    symbol = data.get('symbol', '')
+                    if symbol:
+                        # 保留每个币种的最新记录
+                        record_time = data.get('record_time', '')
+                        if symbol not in latest_by_symbol or record_time > latest_by_symbol[symbol].get('record_time', ''):
+                            latest_by_symbol[symbol] = data
+                except:
+                    continue
+        
+        if not latest_by_symbol:
+            return jsonify({
+                'success': False,
+                'message': 'No data available'
+            })
+        
+        # 格式化输出，匹配前端期望的字段
+        coins_data = []
+        for symbol, data in latest_by_symbol.items():
+            # 转换为 OKX 格式（BTCUSDT -> BTC-USDT-SWAP）
+            if symbol.endswith('USDT'):
+                okx_symbol = f"{symbol[:-4]}-USDT-SWAP"
+            else:
+                okx_symbol = symbol
+            
+            coins_data.append({
+                'symbol': okx_symbol,
+                'current_price': data.get('current_price', 0),
+                'support_line_1': data.get('support_line_1', 0),
+                'support_line_2': data.get('support_line_2', 0),
+                'resistance_line_1': data.get('resistance_line_1', 0),
+                'resistance_line_2': data.get('resistance_line_2', 0),
+                'position_7d': data.get('position_7d', 0),
+                'position_48h': data.get('position_48h', 0),
+                'status': data.get('current_price_status', ''),
+                'record_time': data.get('record_time', ''),
+                'record_time_beijing': data.get('record_time_beijing', data.get('record_time', ''))
+            })
+        
+        # 按symbol排序
+        coins_data.sort(key=lambda x: x['symbol'])
+        
+        return jsonify({
+            'success': True,
+            'data': coins_data,
+            'coins': len(coins_data),
+            'data_source': 'JSONL (直接读取)',
+            'update_time': coins_data[0]['record_time_beijing'] if coins_data else ''
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to read data'
+        })
+
 @app.route('/api/query/batch-import', methods=['POST'])
 def api_query_batch_import():
     """批量导入当天所有TXT文件数据"""
@@ -9997,11 +10797,6 @@ def api_query_batch_import():
             'success': False,
             'error': str(e)
         })
-
-@app.route('/test-simple')
-def test_simple():
-    """简单测试页面 - 验证window.onload和ECharts基础功能"""
-    return render_template('test_simple.html')
 
 @app.route('/api/chart-config')
 def chart_config():
@@ -12718,6 +13513,20 @@ def anchor_test():
     from flask import send_file
     return send_file('/home/user/webapp/anchor_test.html')
 
+@app.route('/test-anchor-chart')
+def test_anchor_chart():
+    """锚点图表测试页面"""
+    response = make_response(render_template('test_anchor_chart.html'))
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return response
+
+@app.route('/test-anchor-markpoint')
+def test_anchor_markpoint():
+    """锚点图表标记点测试页面"""
+    response = make_response(render_template('test_anchor_markpoint.html'))
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return response
+
 @app.route('/anchor-system-real')
 def anchor_system_real():
     """实盘锚点系统"""
@@ -12989,6 +13798,1334 @@ def update_sub_account_config():
             'error': str(e)
         })
 
+@app.route('/api/okx-trading/account-balance', methods=['POST'])
+def get_okx_account_balance():
+    """获取OKX账户余额"""
+    try:
+        import hmac
+        import base64
+        from datetime import datetime, timezone
+        import requests
+        
+        data = request.get_json()
+        api_key = data.get('apiKey', '')
+        secret_key = data.get('apiSecret', '')
+        passphrase = data.get('passphrase', '')
+        
+        if not api_key or not secret_key or not passphrase:
+            return jsonify({
+                'success': False,
+                'error': 'API凭证不完整'
+            })
+        
+        # OKX API配置
+        base_url = 'https://www.okx.com'
+        request_path = '/api/v5/account/balance'
+        method = 'GET'
+        
+        # 生成签名
+        timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        message = timestamp + method + request_path
+        mac = hmac.new(
+            bytes(secret_key, encoding='utf8'),
+            bytes(message, encoding='utf-8'),
+            digestmod='sha256'
+        )
+        signature = base64.b64encode(mac.digest()).decode()
+        
+        # 请求头
+        headers = {
+            'OK-ACCESS-KEY': api_key,
+            'OK-ACCESS-SIGN': signature,
+            'OK-ACCESS-TIMESTAMP': timestamp,
+            'OK-ACCESS-PASSPHRASE': passphrase,
+            'Content-Type': 'application/json'
+        }
+        
+        # 发送请求
+        response = requests.get(base_url + request_path, headers=headers, timeout=10)
+        result = response.json()
+        
+        if result.get('code') == '0' and result.get('data'):
+            # 获取USDT余额
+            balances = result['data']
+            usdt_balance = 0.0
+            
+            for account in balances:
+                details = account.get('details', [])
+                for detail in details:
+                    if detail.get('ccy') == 'USDT':
+                        # 可用余额 + 冻结余额
+                        available = float(detail.get('availBal', 0))
+                        frozen = float(detail.get('frozenBal', 0))
+                        usdt_balance += (available + frozen)
+            
+            return jsonify({
+                'success': True,
+                'balance': round(usdt_balance, 2),
+                'currency': 'USDT',
+                'raw_data': result['data']
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('msg', '获取余额失败'),
+                'code': result.get('code', 'unknown')
+            })
+            
+    except requests.exceptions.Timeout:
+        return jsonify({
+            'success': False,
+            'error': 'API请求超时'
+        })
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            'success': False,
+            'error': f'网络请求失败: {str(e)}'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/okx-trading/account-info', methods=['POST'])
+def get_okx_account_info():
+    """获取OKX账户详细信息（权益、保证金、盈亏等）"""
+    try:
+        import hmac
+        import base64
+        from datetime import datetime, timezone
+        import requests
+        
+        data = request.get_json()
+        api_key = data.get('apiKey', '')
+        secret_key = data.get('apiSecret', '')
+        passphrase = data.get('passphrase', '')
+        
+        if not api_key or not secret_key or not passphrase:
+            return jsonify({
+                'success': False,
+                'error': 'API凭证不完整'
+            })
+        
+        # OKX API配置
+        base_url = 'https://www.okx.com'
+        request_path = '/api/v5/account/balance'
+        method = 'GET'
+        
+        # 生成签名
+        timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        message = timestamp + method + request_path
+        mac = hmac.new(
+            bytes(secret_key, encoding='utf8'),
+            bytes(message, encoding='utf-8'),
+            digestmod='sha256'
+        )
+        signature = base64.b64encode(mac.digest()).decode()
+        
+        # 请求头
+        headers = {
+            'OK-ACCESS-KEY': api_key,
+            'OK-ACCESS-SIGN': signature,
+            'OK-ACCESS-TIMESTAMP': timestamp,
+            'OK-ACCESS-PASSPHRASE': passphrase,
+            'Content-Type': 'application/json'
+        }
+        
+        # 发送请求
+        response = requests.get(base_url + request_path, headers=headers, timeout=10)
+        result = response.json()
+        
+        if result.get('code') == '0' and result.get('data'):
+            # 解析账户信息
+            account_data = result['data'][0]
+            details = account_data.get('details', [])
+            
+            # 汇总信息
+            total_equity = float(account_data.get('totalEq', 0))  # 总权益（美元）
+            available_balance = 0.0  # 可用余额
+            frozen_balance = 0.0  # 冻结余额
+            margin_used = 0.0  # 已用保证金
+            unrealized_pnl = 0.0  # 未实现盈亏
+            
+            # 统计各币种
+            for detail in details:
+                if detail.get('ccy') == 'USDT':
+                    available_balance = float(detail.get('availBal', 0))
+                    frozen_balance = float(detail.get('frozenBal', 0))
+                    unrealized_pnl = float(detail.get('upl', 0))
+            
+            # 计算已用保证金（从账户余额API无法直接获取，需要从持仓API获取）
+            # 这里先返回基础信息
+            
+            return jsonify({
+                'success': True,
+                'data': {
+                    'totalEquity': total_equity,  # 总权益（USD）
+                    'availableBalance': available_balance,  # 可用余额（USDT）
+                    'frozenBalance': frozen_balance,  # 冻结余额（USDT）
+                    'usedMargin': margin_used,  # 已用保证金
+                    'unrealizedPnl': unrealized_pnl,  # 未实现盈亏
+                    'currency': 'USDT'
+                }
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('msg', '获取账户信息失败'),
+                'code': result.get('code', 'unknown')
+            })
+            
+    except requests.exceptions.Timeout:
+        return jsonify({
+            'success': False,
+            'error': 'API请求超时'
+        })
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            'success': False,
+            'error': f'网络请求失败: {str(e)}'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/okx-trading/positions', methods=['POST'])
+def get_okx_positions():
+    """获取OKX持仓列表"""
+    try:
+        import hmac
+        import base64
+        from datetime import datetime, timezone
+        import requests
+        
+        data = request.get_json()
+        api_key = data.get('apiKey', '')
+        secret_key = data.get('apiSecret', '')
+        passphrase = data.get('passphrase', '')
+        
+        if not api_key or not secret_key or not passphrase:
+            return jsonify({
+                'success': False,
+                'error': 'API凭证不完整'
+            })
+        
+        # OKX API配置
+        base_url = 'https://www.okx.com'
+        request_path = '/api/v5/account/positions'
+        method = 'GET'
+        
+        # 生成签名
+        timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        message = timestamp + method + request_path
+        mac = hmac.new(
+            bytes(secret_key, encoding='utf8'),
+            bytes(message, encoding='utf-8'),
+            digestmod='sha256'
+        )
+        signature = base64.b64encode(mac.digest()).decode()
+        
+        # 请求头
+        headers = {
+            'OK-ACCESS-KEY': api_key,
+            'OK-ACCESS-SIGN': signature,
+            'OK-ACCESS-TIMESTAMP': timestamp,
+            'OK-ACCESS-PASSPHRASE': passphrase,
+            'Content-Type': 'application/json'
+        }
+        
+        # 发送请求
+        response = requests.get(base_url + request_path, headers=headers, timeout=10)
+        result = response.json()
+        
+        if result.get('code') == '0':
+            positions_data = result.get('data', [])
+            
+            # 过滤和格式化持仓数据
+            positions = []
+            total_margin = 0.0
+            total_unrealized_pnl = 0.0
+            
+            for pos in positions_data:
+                pos_size = float(pos.get('pos', 0))
+                if pos_size != 0:  # 只返回有持仓的
+                    inst_id = pos.get('instId', '')
+                    pos_side = pos.get('posSide', '')
+                    leverage = float(pos.get('lever', 0))
+                    avg_price = float(pos.get('avgPx', 0))
+                    mark_price = float(pos.get('markPx', 0))
+                    upl = float(pos.get('upl', 0))
+                    upl_ratio = float(pos.get('uplRatio', 0))
+                    margin = float(pos.get('margin', 0))
+                    
+                    total_margin += margin
+                    total_unrealized_pnl += upl
+                    
+                    positions.append({
+                        'instId': inst_id,
+                        'posSide': pos_side,
+                        'posSize': abs(pos_size),
+                        'leverage': leverage,
+                        'avgPrice': avg_price,
+                        'markPrice': mark_price,
+                        'unrealizedPnl': upl,
+                        'unrealizedPnlRatio': upl_ratio * 100,  # 转换为百分比
+                        'margin': margin
+                    })
+            
+            return jsonify({
+                'success': True,
+                'data': positions,
+                'summary': {
+                    'totalPositions': len(positions),
+                    'totalMargin': total_margin,
+                    'totalUnrealizedPnl': total_unrealized_pnl
+                }
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('msg', '获取持仓失败'),
+                'code': result.get('code', 'unknown')
+            })
+            
+    except requests.exceptions.Timeout:
+        return jsonify({
+            'success': False,
+            'error': 'API请求超时'
+        })
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            'success': False,
+            'error': f'网络请求失败: {str(e)}'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/okx-trading/logs', methods=['GET'])
+def get_okx_trading_logs():
+    """获取OKX交易日志"""
+    try:
+        date_str = request.args.get('date', None)  # YYYYMMDD格式
+        limit = int(request.args.get('limit', 100))
+        
+        logs = okx_trading_logger.get_logs(date_str=date_str, limit=limit)
+        
+        return jsonify({
+            'success': True,
+            'count': len(logs),
+            'logs': logs
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@app.route('/api/okx-trading/favorite-symbols', methods=['GET'])
+def get_favorite_symbols():
+    """获取常用币列表（全局共享）"""
+    try:
+        import json
+        import os
+        
+        file_path = 'data/favorite_symbols.jsonl'
+        
+        # 如果文件不存在，创建默认配置
+        if not os.path.exists(file_path):
+            default_symbols = ["BTC-USDT-SWAP", "ETH-USDT-SWAP", "SOL-USDT-SWAP", 
+                             "BNB-USDT-SWAP", "XRP-USDT-SWAP", "DOGE-USDT-SWAP"]
+            with open(file_path, 'w') as f:
+                from datetime import datetime
+                json.dump({
+                    'symbols': default_symbols,
+                    'updated_at': datetime.utcnow().isoformat() + 'Z'
+                }, f)
+        
+        # 读取最后一行
+        with open(file_path, 'r') as f:
+            lines = f.readlines()
+            if lines:
+                data = json.loads(lines[-1].strip())
+                return jsonify({
+                    'success': True,
+                    'symbols': data.get('symbols', []),
+                    'updated_at': data.get('updated_at', '')
+                })
+        
+        return jsonify({
+            'success': True,
+            'symbols': [],
+            'updated_at': ''
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@app.route('/api/okx-trading/favorite-symbols', methods=['POST'])
+def update_favorite_symbols():
+    """更新常用币列表（全局共享）"""
+    try:
+        import json
+        from datetime import datetime
+        
+        data = request.get_json()
+        symbols = data.get('symbols', [])
+        
+        file_path = 'data/favorite_symbols.jsonl'
+        
+        # 追加新的配置到文件
+        with open(file_path, 'a') as f:
+            json.dump({
+                'symbols': symbols,
+                'updated_at': datetime.utcnow().isoformat() + 'Z'
+            }, f)
+            f.write('\n')
+        
+        return jsonify({
+            'success': True,
+            'symbols': symbols
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+
+@app.route('/api/okx-trading/place-order', methods=['POST'])
+def place_okx_order():
+    """OKX下单接口"""
+    try:
+        import hmac
+        import base64
+        from datetime import datetime, timezone
+        import requests
+        
+        data = request.get_json()
+        api_key = data.get('apiKey', '')
+        secret_key = data.get('apiSecret', '')
+        passphrase = data.get('passphrase', '')
+        
+        # 订单参数
+        inst_id = data.get('instId', '')  # 交易对，如 BTC-USDT-SWAP
+        side = data.get('side', '')  # buy/sell
+        pos_side = data.get('posSide', '')  # long/short
+        order_type = data.get('ordType', 'market')  # market/limit
+        size = data.get('sz', '')  # USDT金额
+        price = data.get('px', '')  # 限价单价格
+        leverage = data.get('lever', '10')  # 杠杆倍数，默认10
+        
+        if not api_key or not secret_key or not passphrase:
+            return jsonify({
+                'success': False,
+                'error': 'API凭证不完整'
+            })
+        
+        if not inst_id or not side or not size:
+            return jsonify({
+                'success': False,
+                'error': '订单参数不完整'
+            })
+        
+        # OKX API配置
+        base_url = 'https://www.okx.com'
+        
+        # 步骤1: 设置杠杆倍数（重要！）
+        try:
+            set_leverage_path = '/api/v5/account/set-leverage'
+            leverage_body = json.dumps({
+                'instId': inst_id,
+                'lever': str(leverage),
+                'mgnMode': 'isolated',  # 逐仓模式
+                'posSide': pos_side if pos_side else 'long'
+            })
+            
+            leverage_timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+            leverage_message = leverage_timestamp + 'POST' + set_leverage_path + leverage_body
+            leverage_mac = hmac.new(
+                bytes(secret_key, encoding='utf8'),
+                bytes(leverage_message, encoding='utf-8'),
+                digestmod='sha256'
+            )
+            leverage_signature = base64.b64encode(leverage_mac.digest()).decode()
+            
+            leverage_headers = {
+                'OK-ACCESS-KEY': api_key,
+                'OK-ACCESS-SIGN': leverage_signature,
+                'OK-ACCESS-TIMESTAMP': leverage_timestamp,
+                'OK-ACCESS-PASSPHRASE': passphrase,
+                'Content-Type': 'application/json'
+            }
+            
+            leverage_response = requests.post(base_url + set_leverage_path, headers=leverage_headers, data=leverage_body, timeout=10)
+            leverage_result = leverage_response.json()
+            
+            # 杠杆设置失败不一定是致命错误（可能已经设置过）
+            if leverage_result.get('code') != '0':
+                print(f"设置杠杆失败（可能已设置）: {leverage_result.get('msg')}")
+        except Exception as e:
+            print(f"设置杠杆异常（继续下单）: {str(e)}")
+        
+        # 步骤2: 下单
+        request_path = '/api/v5/trade/order'
+        method = 'POST'
+        
+        # 将USDT金额转换为合约张数（永续合约，面值为1USD）
+        # sz单位：合约永续是币的数量（如BTC数量）
+        # 对于USDT计价合约，sz = USDT金额 / 当前价格
+        current_price = float(price) if price else None
+        
+        # 如果没有价格，需要先获取当前市价
+        if not current_price:
+            try:
+                ticker_path = f'/api/v5/market/ticker?instId={inst_id}'
+                ticker_response = requests.get(base_url + ticker_path, timeout=5)
+                ticker_data = ticker_response.json()
+                if ticker_data.get('code') == '0' and ticker_data.get('data'):
+                    current_price = float(ticker_data['data'][0].get('last', 0))
+            except:
+                pass
+        
+        if not current_price or current_price == 0:
+            return jsonify({
+                'success': False,
+                'error': '无法获取当前价格，请使用限价单并指定价格'
+            })
+        
+        # 用户输入的是合约价值（USDT），不是保证金！
+        # 重要：用户输入7.5 USDT，就是想开7.5 USDT的仓位
+        # 保证金 = 合约价值 / 杠杆倍数
+        
+        user_usdt = float(size)  # 用户输入的USDT金额（合约价值）
+        leverage_value = float(leverage)  # 杠杆倍数
+        
+        # 合约价值就是用户输入的金额
+        contract_value_usdt = user_usdt
+        
+        # 🔥 动态获取合约面值（ctVal）- 每张合约代表多少币
+        # 不同币种的合约面值不同，必须从 API 获取，不能硬编码！
+        coin_per_contract = None
+        try:
+            instruments_path = f'/api/v5/public/instruments?instType=SWAP&instId={inst_id}'
+            instruments_response = requests.get(base_url + instruments_path, timeout=5)
+            instruments_data = instruments_response.json()
+            
+            if instruments_data.get('code') == '0' and instruments_data.get('data'):
+                ct_val = instruments_data['data'][0].get('ctVal', '')
+                if ct_val:
+                    coin_per_contract = float(ct_val)
+                    print(f"[合约规格] {inst_id} 每张合约面值: {coin_per_contract} 币")
+        except Exception as e:
+            print(f"[合约规格] 获取失败，使用回退逻辑: {str(e)}")
+        
+        # 如果 API 获取失败，使用回退逻辑（保留原有逻辑作为备份）
+        if coin_per_contract is None:
+            if 'BTC' in inst_id:
+                coin_per_contract = 0.01
+            elif 'ETH' in inst_id:
+                coin_per_contract = 0.1
+            elif 'SOL' in inst_id or 'DOGE' in inst_id or 'XRP' in inst_id or 'ADA' in inst_id or 'TRX' in inst_id:
+                coin_per_contract = 1.0
+            else:
+                coin_per_contract = 0.1
+            print(f"[合约规格] 使用回退值: {coin_per_contract} 币")
+        
+        # 每张合约的USDT价值 = 每张合约的币数量 * 当前币价
+        usdt_per_contract = coin_per_contract * current_price
+        
+        # 需要的合约张数 = 合约价值 / 每张合约价值
+        contracts_count = contract_value_usdt / usdt_per_contract
+        
+        # OKX要求sz必须是整数张数，四舍五入
+        contracts_count = max(1, round(contracts_count))
+        contracts_str = str(int(contracts_count))
+        
+        # 计算实际使用的USDT金额
+        actual_contract_value = contracts_count * usdt_per_contract
+        actual_margin_used = actual_contract_value / leverage_value
+        
+        print(f"[下单计算] 用户输入合约价值: {user_usdt} USDT")
+        print(f"[下单计算] 杠杆倍数: {leverage_value}x")
+        print(f"[下单计算] 每张合约: {coin_per_contract} 币 = {usdt_per_contract:.4f} USDT")
+        print(f"[下单计算] 所需张数: {contracts_count} 张")
+        print(f"[下单计算] 实际合约价值: {actual_contract_value:.4f} USDT")
+        print(f"[下单计算] 实际占用保证金: {actual_margin_used:.4f} USDT")
+        
+        # 构建请求体
+        order_params = {
+            'instId': inst_id,
+            'tdMode': 'isolated',  # 逐仓模式（只使用指定的保证金，不会占用全部余额）
+            'side': side,
+            'ordType': order_type,
+            'sz': contracts_str  # 合约张数（币的数量）
+        }
+        
+        # 合约需要指定持仓方向
+        if pos_side:
+            order_params['posSide'] = pos_side
+        
+        # 限价单需要价格
+        if order_type == 'limit' and price:
+            order_params['px'] = str(price)
+        
+        body = json.dumps(order_params)
+        
+        # 生成签名
+        timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        message = timestamp + method + request_path + body
+        mac = hmac.new(
+            bytes(secret_key, encoding='utf8'),
+            bytes(message, encoding='utf-8'),
+            digestmod='sha256'
+        )
+        signature = base64.b64encode(mac.digest()).decode()
+        
+        # 请求头
+        headers = {
+            'OK-ACCESS-KEY': api_key,
+            'OK-ACCESS-SIGN': signature,
+            'OK-ACCESS-TIMESTAMP': timestamp,
+            'OK-ACCESS-PASSPHRASE': passphrase,
+            'Content-Type': 'application/json'
+        }
+        
+        # 发送请求
+        response = requests.post(base_url + request_path, headers=headers, data=body, timeout=10)
+        result = response.json()
+        
+        # 记录详细日志
+        print(f"[OKX下单] 请求参数: {order_params}")
+        print(f"[OKX下单] 响应结果: {result}")
+        
+        if result.get('code') == '0':
+            order_data = result.get('data', [])
+            if order_data:
+                order = order_data[0]
+                
+                # 记录成功日志
+                okx_trading_logger.log(
+                    action='open_position',
+                    account_id='user_account',  # 可以从前端传入
+                    details={
+                        'instId': inst_id,
+                        'side': side,
+                        'posSide': pos_side,
+                        'ordType': order_type,
+                        'contracts': contracts_str,
+                        'inputUsdt': user_usdt,
+                        'leverage': leverage_value,
+                        'price': current_price
+                    },
+                    result={
+                        'status': 'success',
+                        'ordId': order.get('ordId', ''),
+                        'actualUsdt': round(actual_margin_used, 2),
+                        'contractValue': round(actual_contract_value, 2)
+                    }
+                )
+                
+                return jsonify({
+                    'success': True,
+                    'data': {
+                        'ordId': order.get('ordId', ''),
+                        'clOrdId': order.get('clOrdId', ''),
+                        'sCode': order.get('sCode', '0'),
+                        'sMsg': order.get('sMsg', '订单提交成功'),
+                        'contracts': contracts_str,
+                        'inputUsdt': user_usdt,  # 用户输入的开仓金额
+                        'actualUsdt': round(actual_margin_used, 2),  # 实际占用的保证金
+                        'contractValue': round(actual_contract_value, 2),  # 实际合约价值
+                        'leverage': leverage_value,  # 杠杆倍数
+                        'price': current_price
+                    },
+                    'message': f'下单成功！开仓 {round(actual_contract_value, 2)} USDT，占用保证金 {round(actual_margin_used, 2)} USDT（{leverage_value}x杠杆）'
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': '订单响应数据为空'
+                })
+        else:
+            # 记录失败日志
+            error_msg = result.get('msg', '下单失败')
+            error_code = result.get('code', 'unknown')
+            
+            okx_trading_logger.log(
+                action='open_position',
+                account_id='user_account',
+                details={
+                    'instId': inst_id,
+                    'side': side,
+                    'posSide': pos_side,
+                    'ordType': order_type,
+                    'contracts': contracts_str,
+                    'inputUsdt': user_usdt,
+                    'leverage': leverage_value
+                },
+                result={
+                    'status': 'failed',
+                    'error': error_msg,
+                    'code': error_code
+                }
+            )
+            
+            # 返回更详细的错误信息
+            error_msg = result.get('msg', '下单失败')
+            error_code = result.get('code', 'unknown')
+            
+            # 常见错误代码解释
+            error_hints = {
+                '1': '操作失败，请检查API权限、账户状态和订单参数',
+                '50004': 'API Key无效',
+                '50005': 'API签名错误',
+                '50006': 'API Passphrase错误',
+                '50007': 'API权限不足',
+                '50011': '余额不足',
+                '51000': '参数错误',
+                '51001': '交易对不存在或已下架',
+                '51008': '订单数量太小',
+                '51009': '订单数量太大',
+                '51010': '订单金额太小',
+                '51020': '账户状态异常',
+            }
+            
+            hint = error_hints.get(error_code, '')
+            full_error = f"{error_msg} (代码:{error_code})"
+            if hint:
+                full_error += f"\n提示: {hint}"
+            
+            return jsonify({
+                'success': False,
+                'error': full_error,
+                'code': error_code,
+                'details': {
+                    'instId': inst_id,
+                    'contracts': contracts_str,
+                    'usdtAmount': size,
+                    'price': current_price
+                }
+            })
+            
+    except requests.exceptions.Timeout:
+        return jsonify({
+            'success': False,
+            'error': 'API请求超时'
+        })
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            'success': False,
+            'error': f'网络请求失败: {str(e)}'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/okx-trading/market-tickers', methods=['GET'])
+def get_okx_market_tickers():
+    """获取OKX市场行情数据"""
+    try:
+        import requests
+        
+        # 获取所有SWAP合约的行情
+        base_url = 'https://www.okx.com'
+        ticker_path = '/api/v5/market/tickers?instType=SWAP'
+        
+        response = requests.get(base_url + ticker_path, timeout=10)
+        result = response.json()
+        
+        if result.get('code') == '0':
+            tickers_data = result.get('data', [])
+            
+            # 指定要显示的27个币种
+            allowed_symbols = [
+                'BTC', 'ETH', 'XRP', 'BNB', 'SOL', 'LTC', 'DOGE', 'SUI', 'TRX',
+                'TON', 'ETC', 'BCH', 'HBAR', 'XLM', 'FIL', 'LINK', 'CRO', 'DOT',
+                'AAVE', 'UNI', 'NEAR', 'APT', 'CFX', 'CRV', 'STX', 'LDO', 'TAO'
+            ]
+            
+            # 只返回指定的USDT-SWAP交易对
+            usdt_tickers = []
+            for ticker in tickers_data:
+                inst_id = ticker.get('instId', '')
+                if 'USDT-SWAP' in inst_id:
+                    # 提取币种名称
+                    symbol = inst_id.replace('-USDT-SWAP', '')
+                    
+                    # 只处理允许的币种
+                    if symbol not in allowed_symbols:
+                        continue
+                    
+                    # 计算UTC+8 0点开始的涨跌幅
+                    current_price = float(ticker.get('last', 0))
+                    open_price_utc8 = float(ticker.get('sodUtc8', 0))  # UTC+8 0点（北京时间0点）的开盘价
+                    
+                    # 计算涨跌幅百分比
+                    if open_price_utc8 > 0:
+                        change_percent = ((current_price - open_price_utc8) / open_price_utc8) * 100
+                    else:
+                        change_percent = 0
+                    
+                    usdt_tickers.append({
+                        'symbol': inst_id,
+                        'name': symbol,
+                        'price': current_price,
+                        'change24h': round(change_percent, 2),  # 24h涨跌幅（UTC+8 0点开始）
+                        'high24h': float(ticker.get('high24h', 0)),
+                        'low24h': float(ticker.get('low24h', 0)),
+                        'vol24h': float(ticker.get('vol24h', 0)),
+                        'volCcy24h': float(ticker.get('volCcy24h', 0)),
+                        'timestamp': ticker.get('ts', '')
+                    })
+            
+            # 按照指定顺序排序
+            sorted_tickers = []
+            for symbol in allowed_symbols:
+                ticker = next((t for t in usdt_tickers if t['name'] == symbol), None)
+                if ticker:
+                    sorted_tickers.append(ticker)
+            
+            return jsonify({
+                'success': True,
+                'data': sorted_tickers,
+                'count': len(sorted_tickers)
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('msg', '获取行情失败')
+            })
+            
+    except requests.exceptions.Timeout:
+        return jsonify({
+            'success': False,
+            'error': 'API请求超时'
+        })
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            'success': False,
+            'error': f'网络请求失败: {str(e)}'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@app.route('/api/okx-trading/pending-orders', methods=['POST'])
+def get_okx_pending_orders():
+    """获取当前委托（未成交订单）"""
+    try:
+        import hmac
+        import base64
+        from datetime import datetime, timezone
+        import requests
+        
+        data = request.get_json()
+        api_key = data.get('apiKey', '')
+        secret_key = data.get('apiSecret', '')
+        passphrase = data.get('passphrase', '')
+        
+        if not api_key or not secret_key or not passphrase:
+            return jsonify({
+                'success': False,
+                'error': 'API凭证不完整'
+            })
+        
+        # OKX API配置
+        base_url = 'https://www.okx.com'
+        request_path = '/api/v5/trade/orders-pending?instType=SWAP'
+        method = 'GET'
+        
+        # 生成签名
+        timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        message = timestamp + method + request_path
+        mac = hmac.new(
+            bytes(secret_key, encoding='utf8'),
+            bytes(message, encoding='utf-8'),
+            digestmod='sha256'
+        )
+        signature = base64.b64encode(mac.digest()).decode()
+        
+        # 请求头
+        headers = {
+            'OK-ACCESS-KEY': api_key,
+            'OK-ACCESS-SIGN': signature,
+            'OK-ACCESS-TIMESTAMP': timestamp,
+            'OK-ACCESS-PASSPHRASE': passphrase,
+            'Content-Type': 'application/json'
+        }
+        
+        # 发送请求
+        response = requests.get(base_url + request_path, headers=headers, timeout=10)
+        result = response.json()
+        
+        if result.get('code') == '0':
+            orders_data = result.get('data', [])
+            
+            # 格式化订单数据
+            orders = []
+            for order in orders_data:
+                orders.append({
+                    'ordId': order.get('ordId'),
+                    'instId': order.get('instId'),
+                    'side': order.get('side'),  # buy/sell
+                    'posSide': order.get('posSide'),  # long/short
+                    'ordType': order.get('ordType'),  # market/limit
+                    'px': order.get('px', ''),  # 委托价格
+                    'sz': order.get('sz'),  # 委托数量
+                    'fillSz': order.get('fillSz', '0'),  # 已成交数量
+                    'avgPx': order.get('avgPx', '0'),  # 成交均价
+                    'state': order.get('state'),  # live/partially_filled
+                    'cTime': order.get('cTime'),  # 创建时间
+                    'uTime': order.get('uTime')  # 更新时间
+                })
+            
+            return jsonify({
+                'success': True,
+                'data': orders,
+                'count': len(orders)
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('msg', '获取委托失败'),
+                'code': result.get('code', '')
+            })
+            
+    except requests.exceptions.Timeout:
+        return jsonify({
+            'success': False,
+            'error': 'API请求超时'
+        })
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            'success': False,
+            'error': f'网络请求失败: {str(e)}'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/okx-trading/cancel-order', methods=['POST'])
+def cancel_okx_order():
+    """撤销订单"""
+    try:
+        import hmac
+        import base64
+        from datetime import datetime, timezone
+        import requests
+        
+        data = request.get_json()
+        api_key = data.get('apiKey', '')
+        secret_key = data.get('apiSecret', '')
+        passphrase = data.get('passphrase', '')
+        order_id = data.get('ordId', '')
+        inst_id = data.get('instId', '')
+        
+        if not api_key or not secret_key or not passphrase:
+            return jsonify({
+                'success': False,
+                'error': 'API凭证不完整'
+            })
+        
+        if not order_id or not inst_id:
+            return jsonify({
+                'success': False,
+                'error': '订单ID或交易对不能为空'
+            })
+        
+        # OKX API配置
+        base_url = 'https://www.okx.com'
+        request_path = '/api/v5/trade/cancel-order'
+        method = 'POST'
+        
+        # 构建请求体
+        order_params = {
+            'instId': inst_id,
+            'ordId': order_id
+        }
+        
+        body = json.dumps(order_params)
+        
+        # 生成签名
+        timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        message = timestamp + method + request_path + body
+        mac = hmac.new(
+            bytes(secret_key, encoding='utf8'),
+            bytes(message, encoding='utf-8'),
+            digestmod='sha256'
+        )
+        signature = base64.b64encode(mac.digest()).decode()
+        
+        # 请求头
+        headers = {
+            'OK-ACCESS-KEY': api_key,
+            'OK-ACCESS-SIGN': signature,
+            'OK-ACCESS-TIMESTAMP': timestamp,
+            'OK-ACCESS-PASSPHRASE': passphrase,
+            'Content-Type': 'application/json'
+        }
+        
+        # 发送请求
+        response = requests.post(base_url + request_path, headers=headers, data=body, timeout=10)
+        result = response.json()
+        
+        print(f"[OKX撤单] 请求参数: {order_params}")
+        print(f"[OKX撤单] 响应结果: {result}")
+        
+        if result.get('code') == '0':
+            # 记录撤单成功日志
+            okx_trading_logger.log(
+                action='cancel_order',
+                account_id='user_account',
+                details={
+                    'instId': inst_id,
+                    'ordId': ord_id
+                },
+                result={
+                    'status': 'success'
+                }
+            )
+            
+            return jsonify({
+                'success': True,
+                'message': '撤单成功'
+            })
+        else:
+            # 记录撤单失败日志
+            okx_trading_logger.log(
+                action='cancel_order',
+                account_id='user_account',
+                details={
+                    'instId': inst_id,
+                    'ordId': ord_id
+                },
+                result={
+                    'status': 'failed',
+                    'error': result.get('msg', '撤单失败'),
+                    'code': result.get('code', '')
+                }
+            )
+            
+            return jsonify({
+                'success': False,
+                'error': result.get('msg', '撤单失败'),
+                'code': result.get('code', '')
+            })
+            
+    except requests.exceptions.Timeout:
+        return jsonify({
+            'success': False,
+            'error': 'API请求超时'
+        })
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            'success': False,
+            'error': f'网络请求失败: {str(e)}'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/okx-trading/order-detail', methods=['POST'])
+def get_okx_order_detail():
+    """查询OKX订单详情"""
+    try:
+        import hmac
+        import base64
+        from datetime import datetime, timezone
+        import requests
+        
+        data = request.get_json()
+        api_key = data.get('apiKey', '')
+        secret_key = data.get('apiSecret', '')
+        passphrase = data.get('passphrase', '')
+        order_id = data.get('ordId', '')
+        inst_id = data.get('instId', '')
+        
+        if not api_key or not secret_key or not passphrase:
+            return jsonify({
+                'success': False,
+                'error': 'API凭证不完整'
+            })
+        
+        if not order_id or not inst_id:
+            return jsonify({
+                'success': False,
+                'error': '订单ID或交易对不能为空'
+            })
+        
+        # OKX API配置
+        base_url = 'https://www.okx.com'
+        request_path = f'/api/v5/trade/order?instId={inst_id}&ordId={order_id}'
+        method = 'GET'
+        
+        # 生成签名
+        timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        message = timestamp + method + request_path
+        mac = hmac.new(
+            bytes(secret_key, encoding='utf8'),
+            bytes(message, encoding='utf-8'),
+            digestmod='sha256'
+        )
+        signature = base64.b64encode(mac.digest()).decode()
+        
+        # 请求头
+        headers = {
+            'OK-ACCESS-KEY': api_key,
+            'OK-ACCESS-SIGN': signature,
+            'OK-ACCESS-TIMESTAMP': timestamp,
+            'OK-ACCESS-PASSPHRASE': passphrase,
+            'Content-Type': 'application/json'
+        }
+        
+        # 发送请求
+        response = requests.get(base_url + request_path, headers=headers, timeout=10)
+        result = response.json()
+        
+        print(f"[OKX订单查询] 订单ID: {order_id}, 响应: {result}")
+        
+        if result.get('code') == '0':
+            order_data = result.get('data', [])
+            if order_data:
+                order = order_data[0]
+                
+                # 订单状态映射
+                state_map = {
+                    'live': '等待成交',
+                    'partially_filled': '部分成交',
+                    'filled': '完全成交',
+                    'canceled': '已撤销',
+                    'mmp_canceled': '做市商保护撤单',
+                    'partially_canceled': '部分成交已撤销'
+                }
+                
+                state = order.get('state', '')
+                state_text = state_map.get(state, state)
+                
+                return jsonify({
+                    'success': True,
+                    'data': {
+                        'ordId': order.get('ordId'),
+                        'instId': order.get('instId'),
+                        'state': state,
+                        'stateText': state_text,
+                        'px': order.get('px', ''),  # 委托价格
+                        'sz': order.get('sz', ''),  # 委托数量
+                        'fillSz': order.get('fillSz', '0'),  # 成交数量
+                        'avgPx': order.get('avgPx', '0'),  # 成交均价
+                        'side': order.get('side', ''),  # buy/sell
+                        'posSide': order.get('posSide', ''),  # long/short
+                        'ordType': order.get('ordType', ''),  # market/limit
+                        'fee': order.get('fee', '0'),  # 手续费
+                        'rebate': order.get('rebate', '0'),  # 返佣
+                        'pnl': order.get('pnl', '0'),  # 收益
+                        'uTime': order.get('uTime', ''),  # 更新时间
+                        'cTime': order.get('cTime', ''),  # 创建时间
+                        'cancelSource': order.get('cancelSource', ''),  # 撤单来源
+                        'code': order.get('code', ''),  # 错误码
+                        'msg': order.get('msg', '')  # 错误信息
+                    }
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': '订单不存在或已过期'
+                })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('msg', '查询失败'),
+                'code': result.get('code', '')
+            })
+            
+    except requests.exceptions.Timeout:
+        return jsonify({
+            'success': False,
+            'error': 'API请求超时'
+        })
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            'success': False,
+            'error': f'网络请求失败: {str(e)}'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/okx-trading/close-position', methods=['POST'])
+def close_okx_position():
+    """平仓接口 - 支持全部平仓或部分平仓"""
+    try:
+        import hmac
+        import base64
+        from datetime import datetime, timezone
+        import requests
+        
+        data = request.get_json()
+        api_key = data.get('apiKey', '')
+        secret_key = data.get('apiSecret', '')
+        passphrase = data.get('passphrase', '')
+        inst_id = data.get('instId', '')
+        pos_side = data.get('posSide', '')  # long/short
+        close_size = data.get('closeSize', None)  # 平仓数量（张数），None=全部平仓
+        
+        if not api_key or not secret_key or not passphrase:
+            return jsonify({
+                'success': False,
+                'error': 'API凭证不完整'
+            })
+        
+        if not inst_id or not pos_side:
+            return jsonify({
+                'success': False,
+                'error': '交易对和持仓方向不能为空'
+            })
+        
+        # OKX API配置
+        base_url = 'https://www.okx.com'
+        method = 'POST'
+        
+        # 判断是全部平仓还是部分平仓
+        if close_size is None or close_size == 0:
+            # 全部平仓：使用 close-position 接口
+            request_path = '/api/v5/trade/close-position'
+            order_params = {
+                'instId': inst_id,
+                'posSide': pos_side,
+                'mgnMode': 'isolated'  # 逐仓模式
+            }
+            print(f"[OKX平仓] 全部平仓: {inst_id} {pos_side}")
+        else:
+            # 部分平仓：使用下单接口，通过反向开仓来平仓
+            request_path = '/api/v5/trade/order'
+            
+            # 平多单 -> sell，平空单 -> buy
+            side = 'sell' if pos_side == 'long' else 'buy'
+            
+            order_params = {
+                'instId': inst_id,
+                'tdMode': 'isolated',
+                'side': side,
+                'posSide': pos_side,
+                'ordType': 'market',  # 市价单
+                'sz': str(int(close_size)),  # 平仓数量（张数）
+                'reduceOnly': 'true'  # 只减仓，不开新仓
+            }
+            print(f"[OKX平仓] 部分平仓: {inst_id} {pos_side} {close_size}张")
+        
+        body = json.dumps(order_params)
+        
+        # 生成签名
+        timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        message = timestamp + method + request_path + body
+        mac = hmac.new(
+            bytes(secret_key, encoding='utf8'),
+            bytes(message, encoding='utf-8'),
+            digestmod='sha256'
+        )
+        signature = base64.b64encode(mac.digest()).decode()
+        
+        # 请求头
+        headers = {
+            'OK-ACCESS-KEY': api_key,
+            'OK-ACCESS-SIGN': signature,
+            'OK-ACCESS-TIMESTAMP': timestamp,
+            'OK-ACCESS-PASSPHRASE': passphrase,
+            'Content-Type': 'application/json'
+        }
+        
+        # 发送请求
+        response = requests.post(base_url + request_path, headers=headers, data=body, timeout=10)
+        result = response.json()
+        
+        print(f"[OKX平仓] 请求参数: {order_params}")
+        print(f"[OKX平仓] 响应结果: {result}")
+        
+        if result.get('code') == '0':
+            # 记录平仓成功日志
+            okx_trading_logger.log(
+                action='close_position',
+                account_id='user_account',
+                details={
+                    'instId': inst_id,
+                    'posSide': pos_side,
+                    'closeSize': close_size,
+                    'closeType': 'full' if close_size is None else 'partial'
+                },
+                result={
+                    'status': 'success'
+                }
+            )
+            
+            return jsonify({
+                'success': True,
+                'message': '平仓成功'
+            })
+        else:
+            # 记录平仓失败日志
+            okx_trading_logger.log(
+                action='close_position',
+                account_id='user_account',
+                details={
+                    'instId': inst_id,
+                    'posSide': pos_side,
+                    'closeSize': close_size
+                },
+                result={
+                    'status': 'failed',
+                    'error': result.get('msg', '平仓失败'),
+                    'code': result.get('code', '')
+                }
+            )
+            
+            return jsonify({
+                'success': False,
+                'error': result.get('msg', '平仓失败'),
+                'code': result.get('code', '')
+            })
+            
+    except requests.exceptions.Timeout:
+        return jsonify({
+            'success': False,
+            'error': 'API请求超时'
+        })
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            'success': False,
+            'error': f'网络请求失败: {str(e)}'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
 @app.route('/api/anchor-system/auto-maintenance-config')
 def get_auto_maintenance_config():
     """获取自动维护配置"""
@@ -13149,21 +15286,37 @@ def get_anchor_profit_records():
             # 查询所有记录
             all_records = manager.get_all_records()
             
-            # 按 inst_id, pos_side, record_type 排序
-            all_records.sort(key=lambda x: (
+            # 只保留每个(inst_id, pos_side, record_type)组合的最新记录
+            latest_records = {}
+            for r in all_records:
+                key = (r.get('inst_id'), r.get('pos_side'), r.get('record_type'))
+                # 比较updated_at或created_at，保留最新的
+                existing = latest_records.get(key)
+                if existing is None:
+                    latest_records[key] = r
+                else:
+                    # 比较时间戳，保留更新的
+                    existing_time = existing.get('updated_at') or existing.get('created_at') or ''
+                    new_time = r.get('updated_at') or r.get('created_at') or ''
+                    if new_time > existing_time:
+                        latest_records[key] = r
+            
+            # 转换为列表并排序
+            unique_records = list(latest_records.values())
+            unique_records.sort(key=lambda x: (
                 x.get('inst_id', ''),
                 x.get('pos_side', ''),
                 x.get('record_type', '')
             ))
             
             records = []
-            for r in all_records:
+            for r in unique_records:
                 records.append({
                     'inst_id': r.get('inst_id'),
                     'pos_side': r.get('pos_side'),
                     'record_type': r.get('record_type'),
                     'profit_rate': r.get('profit_rate'),
-                    'timestamp': r.get('timestamp'),
+                    'timestamp': r.get('updated_at') or r.get('created_at'),
                     'pos_size': r.get('pos_size'),
                     'avg_price': r.get('avg_price'),
                     'mark_price': r.get('mark_price')
@@ -13175,6 +15328,86 @@ def get_anchor_profit_records():
             'total': len(records),
             'trade_mode': trade_mode,
             'data_source': 'JSONL'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/anchor-system/profit-records-with-coins')
+def get_profit_records_with_coins():
+    """获取历史极值记录 + 27个币的实时涨跌幅和价格"""
+    try:
+        trade_mode = request.args.get('trade_mode', 'real')
+        
+        # 1. 获取极值记录
+        manager = ExtremeJSONLManager(trade_mode=trade_mode)
+        all_records = manager.get_deduplicated_records()
+        
+        # 转换为API格式
+        records = []
+        for r in all_records:
+            records.append({
+                'inst_id': r.get('inst_id'),
+                'pos_side': r.get('pos_side'),
+                'record_type': r.get('record_type'),
+                'profit_rate': r.get('profit_rate'),
+                'timestamp': r.get('updated_at') or r.get('created_at'),
+                'pos_size': r.get('pos_size'),
+                'avg_price': r.get('avg_price'),
+                'mark_price': r.get('mark_price')
+            })
+        
+        # 2. 获取27个币的实时涨跌幅和价格
+        coins_data = None
+        try:
+            # 读取最新的27币数据
+            import os
+            import json as json_module
+            
+            coin_prices_file = 'data/coin_price_tracker/coin_prices_30min.jsonl'
+            if os.path.exists(coin_prices_file):
+                with open(coin_prices_file, 'r', encoding='utf-8') as f:
+                    # 读取最后一行（最新数据）
+                    lines = f.readlines()
+                    if lines:
+                        last_line = lines[-1].strip()
+                        if last_line:
+                            latest_data = json_module.loads(last_line)
+                            
+                            # 提取27个币的数据
+                            coins_list = []
+                            day_changes = latest_data.get('day_changes', {})
+                            
+                            for symbol, data in day_changes.items():
+                                if isinstance(data, dict):
+                                    coins_list.append({
+                                        'symbol': symbol,
+                                        'name': symbol,  # 简化处理
+                                        'current_price': data.get('current_price', 0),
+                                        'base_price': data.get('base_price', 0),
+                                        'day_change_percent': data.get('change_pct', 0),  # 使用 change_pct 字段
+                                    })
+                            
+                            if coins_list:
+                                coins_data = {
+                                    'timestamp': latest_data.get('timestamp'),
+                                    'datetime': latest_data.get('collect_time', latest_data.get('datetime')),  # 使用 collect_time
+                                    'total_change': latest_data.get('total_change', 0),  # 使用 total_change
+                                    'coins': coins_list
+                                }
+        except Exception as e:
+            print(f"❌ 获取27币数据失败: {e}")
+        
+        return jsonify({
+            'success': True,
+            'records': records,
+            'total': len(records),
+            'trade_mode': trade_mode,
+            'data_source': 'JSONL',
+            'coins_data': coins_data  # 新增：27个币的实时数据
         })
     except Exception as e:
         return jsonify({
@@ -14261,7 +16494,7 @@ def trigger_anchor_profit_collect():
 
 @app.route('/api/anchor-profit/history')
 def get_anchor_profit_history():
-    """获取历史数据"""
+    """获取历史数据（优化版：支持压缩）"""
     try:
         import sys
         from pathlib import Path
@@ -14271,13 +16504,107 @@ def get_anchor_profit_history():
         # 获取limit参数（默认60条，即最近1小时）
         limit = request.args.get('limit', 60, type=int)
         
+        # 限制最大请求量，避免性能问题
+        max_limit = 4320  # 最多3天的数据
+        if limit > max_limit:
+            limit = max_limit
+        
         # 获取最近数据
         data = get_recent_data(limit)
         
-        return jsonify({
+        response_data = {
             'success': True,
             'data': data,
             'count': len(data)
+        }
+        
+        # 创建响应
+        response = jsonify(response_data)
+        
+        # 添加缓存头（缓存60秒）
+        response.headers['Cache-Control'] = 'public, max-age=60'
+        
+        return response
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@app.route('/api/anchor-profit/dates')
+def get_anchor_profit_dates():
+    """获取可用的日期列表"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from anchor_daily_reader import AnchorDailyReader
+        
+        reader = AnchorDailyReader()
+        dates = reader.get_available_dates()
+        
+        return jsonify({
+            'success': True,
+            'dates': dates,
+            'count': len(dates)
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@app.route('/api/anchor-profit/by-date')
+def get_anchor_profit_by_date():
+    """按日期获取锚点盈利数据"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from anchor_daily_reader import AnchorDailyReader
+        from datetime import datetime
+        
+        # 获取日期参数（默认今天）
+        date = request.args.get('date', datetime.now().strftime("%Y-%m-%d"))
+        data_type = request.args.get('type', 'profit_stats')  # 默认只返回盈利统计
+        
+        reader = AnchorDailyReader()
+        data = reader.get_date_data(date, data_type)
+        
+        # 获取统计信息
+        stats = reader.get_date_statistics(date)
+        
+        return jsonify({
+            'success': True,
+            'date': date,
+            'data': data,
+            'count': len(data),
+            'statistics': stats
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/anchor-profit/summary')
+def get_anchor_profit_summary():
+    """获取盈利统计摘要"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp/source_code')
+        from anchor_daily_reader import AnchorDailyReader
+        from datetime import datetime
+        
+        # 获取日期参数（默认今天）
+        date = request.args.get('date', datetime.now().strftime("%Y-%m-%d"))
+        
+        reader = AnchorDailyReader()
+        summary = reader.get_profit_stats_summary(date)
+        
+        return jsonify({
+            'success': True,
+            'summary': summary
         })
     except Exception as e:
         return jsonify({
@@ -14605,6 +16932,1051 @@ def api_extreme_tracking_stats():
         })
 
 
+# ==================== 实盘交易系统路由 ====================
+
+@app.route('/live-trading')
+def live_trading():
+    """实盘交易系统主页"""
+    try:
+        with open('/home/user/webapp/live-trading-system/public/live-trading-v2.html', 'r', encoding='utf-8') as f:
+            return f.read()
+    except FileNotFoundError:
+        return "实盘交易系统文件未找到", 404
+    except Exception as e:
+        return f"加载实盘交易系统失败: {str(e)}", 500
+
+@app.route('/live-trading/<path:filename>')
+def live_trading_static(filename):
+    """实盘交易系统静态文件服务"""
+    try:
+        # 尝试从public目录加载
+        file_path = f'/home/user/webapp/live-trading-system/public/{filename}'
+        if os.path.exists(file_path):
+            # 根据文件扩展名设置mimetype
+            if filename.endswith('.js'):
+                return send_file(file_path, mimetype='application/javascript')
+            elif filename.endswith('.css'):
+                return send_file(file_path, mimetype='text/css')
+            elif filename.endswith('.html'):
+                return send_file(file_path, mimetype='text/html')
+            else:
+                return send_file(file_path)
+        
+        # 尝试从根目录加载
+        file_path = f'/home/user/webapp/live-trading-system/{filename}'
+        if os.path.exists(file_path):
+            if filename.endswith('.js'):
+                return send_file(file_path, mimetype='application/javascript')
+            elif filename.endswith('.css'):
+                return send_file(file_path, mimetype='text/css')
+            else:
+                return send_file(file_path)
+        
+        return f"文件未找到: {filename}", 404
+    except Exception as e:
+        import traceback
+        print(f"静态文件加载错误: {str(e)}")
+        print(traceback.format_exc())
+        return f"加载文件失败: {str(e)}", 500
+
+# 实盘交易API端点
+@app.route('/api/live-trading/<path:endpoint>', methods=['GET', 'POST', 'PUT', 'DELETE'])
+def live_trading_api(endpoint):
+    """实盘交易API代理"""
+    try:
+        import json
+        
+        # 这里应该调用实际的交易API
+        # 暂时返回模拟数据
+        return jsonify({
+            'success': True,
+            'message': f'API endpoint: {endpoint}',
+            'method': request.method,
+            'data': request.get_json() if request.is_json else None
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+# ==================== 服务健康监控 API ====================
+@app.route('/api/service-health')
+def service_health():
+    """获取所有数据采集服务的健康状态"""
+    try:
+        from service_health_monitor import get_health_status
+        result = get_health_status()
+        return jsonify({
+            'success': True,
+            **result
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+# ==================== 重大事件系统 API ====================
+@app.route('/major-events-test')
+def major_events_test():
+    """重大事件按钮测试页面"""
+    try:
+        html_file = '/home/user/webapp/test_buttons.html'
+        with open(html_file, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+        
+        # 添加no-cache头
+        response = make_response(html_content)
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '-1'
+        return response
+    except FileNotFoundError:
+        return "测试页面未找到", 404
+    except Exception as e:
+        return f"加载测试页面失败: {str(e)}", 500
+
+@app.route('/major-events')
+def major_events_page():
+    """重大事件系统主页"""
+    try:
+        html_file = '/home/user/webapp/major-events-system/major_events.html'
+        with open(html_file, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+        
+        # 添加no-cache头，防止浏览器缓存
+        response = make_response(html_content)
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '-1'
+        return response
+    except FileNotFoundError:
+        return "重大事件系统页面未找到", 404
+    except Exception as e:
+        return f"加载重大事件系统失败: {str(e)}", 500
+
+@app.route('/major-events/<path:filename>')
+def major_events_static(filename):
+    """重大事件系统静态文件"""
+    try:
+        file_path = f'/home/user/webapp/major-events-system/{filename}'
+        if os.path.exists(file_path):
+            if filename.endswith('.js'):
+                return send_file(file_path, mimetype='application/javascript')
+            elif filename.endswith('.css'):
+                return send_file(file_path, mimetype='text/css')
+            else:
+                return send_file(file_path)
+        return f"文件未找到: {filename}", 404
+    except Exception as e:
+        return f"加载文件失败: {str(e)}", 500
+
+@app.route('/api/major-events/current-status', methods=['GET'])
+def get_major_events_status():
+    """获取当前事件监控状态"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp/major-events-system')
+        from major_events_monitor import MajorEventsMonitor
+        
+        monitor = MajorEventsMonitor()
+        
+        # 获取当前数据
+        top_signal_count = monitor.get_2h_top_signal_count()
+        coins_change_sum = monitor.get_27_coins_change_sum()
+        liquidation_amount = monitor.get_1h_liquidation_amount()
+        
+        # 获取最近24小时的事件
+        recent_events = monitor.get_recent_events(hours=24)
+        
+        return jsonify({
+            'success': True,
+            'timestamp': datetime.now().isoformat(),
+            'current_data': {
+                'top_signal_2h': top_signal_count,
+                'coins_change_sum': coins_change_sum,
+                'liquidation_1h': liquidation_amount
+            },
+            'event_states': monitor.event_states,
+            'recent_events': list(reversed(recent_events[-10:])),  # 最近10个事件，倒序排列（最新的在前）
+            'total_events_24h': len(recent_events)
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/major-events/recent', methods=['GET'])
+def get_recent_major_events():
+    """获取最近的重大事件"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp/major-events-system')
+        from major_events_monitor import MajorEventsMonitor
+        
+        monitor = MajorEventsMonitor()
+        
+        # 获取时间参数
+        hours = int(request.args.get('hours', 24))
+        
+        events = monitor.get_recent_events(hours=hours)
+        
+        return jsonify({
+            'success': True,
+            'hours': hours,
+            'events': list(reversed(events)),  # 倒序排列，最新的在前
+            'total': len(events)
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/major-events/trigger-check', methods=['POST'])
+def trigger_event_check():
+    """手动触发事件检查"""
+    try:
+        import sys
+        sys.path.insert(0, '/home/user/webapp/major-events-system')
+        from major_events_monitor import MajorEventsMonitor
+        
+        monitor = MajorEventsMonitor()
+        triggered_events = monitor.monitor_cycle()
+        
+        return jsonify({
+            'success': True,
+            'triggered_events': triggered_events,
+            'count': len(triggered_events)
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/anchor-system/profit-history', methods=['GET'])
+def get_anchor_system_profit_history():
+    """获取锚定系统盈利历史数据（按日期查询，支持分页加载）"""
+    try:
+        import json
+        from pathlib import Path
+        
+        # 获取参数
+        trade_mode = request.args.get('trade_mode', 'real')  # real or paper
+        date_str = request.args.get('date')  # YYYY-MM-DD 格式
+        
+        # 数据目录
+        data_dir = Path('/home/user/webapp/data/anchor_profit_stats')
+        
+        # 如果指定了日期，尝试从按日期文件读取
+        if date_str:
+            # 尝试按日期文件（新格式）
+            date_file = data_dir / f'anchor_profit_{date_str}.jsonl'
+            
+            if date_file.exists():
+                # 从按日期文件读取
+                history_data = []
+                with open(date_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        try:
+                            data = json.loads(line.strip())
+                            # 兼容旧数据：如果没有 trade_mode 字段，默认认为是 real
+                            data_trade_mode = data.get('trade_mode', 'real')
+                            if data_trade_mode == trade_mode:
+                                history_data.append(data)
+                        except:
+                            continue
+                
+                return jsonify({
+                    'success': True,
+                    'trade_mode': trade_mode,
+                    'date': date_str,
+                    'history': history_data,
+                    'count': len(history_data),
+                    'source': 'date_file'
+                })
+            else:
+                # 按日期文件不存在，尝试从主文件读取（兼容旧数据）
+                main_file = data_dir / 'anchor_profit_stats.jsonl'
+                if not main_file.exists():
+                    return jsonify({
+                        'success': False,
+                        'error': f'数据文件不存在：{date_str}'
+                    })
+                
+                # 解析日期范围
+                from datetime import datetime as dt
+                target_date = dt.strptime(date_str, '%Y-%m-%d')
+                start_timestamp = int(target_date.replace(hour=0, minute=0, second=0).timestamp())
+                end_timestamp = int(target_date.replace(hour=23, minute=59, second=59).timestamp())
+                
+                # 从主文件读取指定日期的数据
+                history_data = []
+                with open(main_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        try:
+                            data = json.loads(line.strip())
+                            timestamp = data.get('timestamp', 0)
+                            if start_timestamp <= timestamp <= end_timestamp:
+                                # 兼容旧数据：如果没有 trade_mode 字段，默认认为是 real
+                                data_trade_mode = data.get('trade_mode', 'real')
+                                if data_trade_mode == trade_mode:
+                                    history_data.append(data)
+                        except:
+                            continue
+                
+                return jsonify({
+                    'success': True,
+                    'trade_mode': trade_mode,
+                    'date': date_str,
+                    'history': history_data,
+                    'count': len(history_data),
+                    'source': 'main_file_filtered'
+                })
+        
+        # 如果没有指定日期，返回今天的数据（默认行为）
+        else:
+            today_str = datetime.now(BEIJING_TZ).strftime('%Y-%m-%d')
+            return get_anchor_system_profit_history_by_date(trade_mode, today_str, data_dir)
+            
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+def get_anchor_system_profit_history_by_date(trade_mode, date_str, data_dir):
+    """辅助函数：按日期查询数据"""
+    import json
+    from pathlib import Path
+    from datetime import datetime as dt
+    
+    # 尝试按日期文件
+    date_file = data_dir / f'anchor_profit_{date_str}.jsonl'
+    
+    if date_file.exists():
+        history_data = []
+        with open(date_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    data = json.loads(line.strip())
+                    # 兼容旧数据：如果没有 trade_mode 字段，默认认为是 real
+                    data_trade_mode = data.get('trade_mode', 'real')
+                    if data_trade_mode == trade_mode:
+                        history_data.append(data)
+                except:
+                    continue
+        
+        return jsonify({
+            'success': True,
+            'trade_mode': trade_mode,
+            'date': date_str,
+            'history': history_data,
+            'count': len(history_data),
+            'source': 'date_file'
+        })
+    else:
+        # 从主文件读取
+        main_file = data_dir / 'anchor_profit_stats.jsonl'
+        if not main_file.exists():
+            return jsonify({
+                'success': False,
+                'error': f'数据文件不存在：{date_str}'
+            })
+        
+        target_date = dt.strptime(date_str, '%Y-%m-%d')
+        start_timestamp = int(target_date.replace(hour=0, minute=0, second=0).timestamp())
+        end_timestamp = int(target_date.replace(hour=23, minute=59, second=59).timestamp())
+        
+        history_data = []
+        with open(main_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    data = json.loads(line.strip())
+                    timestamp = data.get('timestamp', 0)
+                    if start_timestamp <= timestamp <= end_timestamp:
+                        # 兼容旧数据：如果没有 trade_mode 字段，默认认为是 real
+                        data_trade_mode = data.get('trade_mode', 'real')
+                        if data_trade_mode == trade_mode:
+                            history_data.append(data)
+                except:
+                    continue
+        
+        return jsonify({
+            'success': True,
+            'trade_mode': trade_mode,
+            'date': date_str,
+            'history': history_data,
+            'count': len(history_data),
+            'source': 'main_file_filtered'
+        })
+
+@app.route('/api/major-events/data/sar-slope', methods=['GET'])
+def get_sar_slope_data():
+    """获取SAR斜率数据（从JSONL读取）"""
+    try:
+        import json
+        from pathlib import Path
+        
+        hours = int(request.args.get('hours', 1))  # 默认1小时
+        jsonl_file = Path('/home/user/webapp/major-events-system/data/sar_slope_data.jsonl')
+        
+        if not jsonl_file.exists():
+            return jsonify({'success': False, 'error': 'JSONL文件不存在'})
+        
+        data_list = []
+        cutoff_time = int(time.time()) - (hours * 3600)
+        
+        with open(jsonl_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    data = json.loads(line.strip())
+                    if data.get('timestamp', 0) >= cutoff_time:
+                        data_list.append(data)
+                except:
+                    continue
+        
+        return jsonify({
+            'success': True,
+            'hours': hours,
+            'data': data_list,
+            'count': len(data_list)
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/major-events/data/liquidation', methods=['GET'])
+def get_liquidation_data():
+    """获取爆仓数据（从JSONL读取）"""
+    try:
+        import json
+        from pathlib import Path
+        
+        hours = int(request.args.get('hours', 1))  # 默认1小时
+        jsonl_file = Path('/home/user/webapp/major-events-system/data/liquidation_data.jsonl')
+        
+        if not jsonl_file.exists():
+            return jsonify({'success': False, 'error': 'JSONL文件不存在'})
+        
+        data_list = []
+        cutoff_time = int(time.time()) - (hours * 3600)
+        
+        with open(jsonl_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    data = json.loads(line.strip())
+                    if data.get('timestamp', 0) >= cutoff_time:
+                        data_list.append(data)
+                except:
+                    continue
+        
+        return jsonify({
+            'success': True,
+            'hours': hours,
+            'data': data_list,
+            'count': len(data_list)
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/okx-trading/batch-order', methods=['POST'])
+def batch_order_from_event():
+    """从重大事件页面触发的批量开仓"""
+    try:
+        import requests
+        import hmac
+        import base64
+        from datetime import datetime, timezone
+        
+        data = request.get_json()
+        direction = data.get('direction', 'short')  # long/short
+        percent_per_coin = float(data.get('percentPerCoin', 5))
+        api_key = data.get('apiKey', '')
+        secret_key = data.get('apiSecret', '')
+        passphrase = data.get('passphrase', '')
+        
+        if not api_key or not secret_key or not passphrase:
+            return jsonify({
+                'success': False,
+                'error': 'API凭证不完整'
+            })
+        
+        # 1. 获取账户余额
+        base_url = 'https://www.okx.com'
+        balance_path = '/api/v5/account/balance'
+        balance_timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        balance_message = balance_timestamp + 'GET' + balance_path
+        balance_mac = hmac.new(bytes(secret_key, encoding='utf8'), bytes(balance_message, encoding='utf-8'), digestmod='sha256')
+        balance_signature = base64.b64encode(balance_mac.digest()).decode()
+        
+        balance_headers = {
+            'OK-ACCESS-KEY': api_key,
+            'OK-ACCESS-SIGN': balance_signature,
+            'OK-ACCESS-TIMESTAMP': balance_timestamp,
+            'OK-ACCESS-PASSPHRASE': passphrase,
+            'Content-Type': 'application/json'
+        }
+        
+        balance_response = requests.get(base_url + balance_path, headers=balance_headers, timeout=10)
+        balance_result = balance_response.json()
+        
+        if balance_result.get('code') != '0':
+            return jsonify({
+                'success': False,
+                'error': f"获取余额失败: {balance_result.get('msg')}"
+            })
+        
+        # 提取USDT可用余额
+        balance = 0
+        for detail in balance_result.get('data', [{}])[0].get('details', []):
+            if detail.get('ccy') == 'USDT':
+                balance = float(detail.get('availBal', 0))
+                break
+        
+        if balance <= 0:
+            return jsonify({
+                'success': False,
+                'error': f"USDT余额不足: {balance}"
+            })
+        
+        # 2. 获取常用币列表
+        favorite_file = 'data/favorite_symbols.jsonl'
+        favorite_symbols = []
+        try:
+            with open(favorite_file, 'r') as f:
+                lines = f.readlines()
+                if lines:
+                    favorite_data = json.loads(lines[-1].strip())
+                    favorite_symbols = favorite_data.get('symbols', [])
+        except:
+            favorite_symbols = ["BTC-USDT-SWAP", "ETH-USDT-SWAP", "SOL-USDT-SWAP", 
+                              "BNB-USDT-SWAP", "XRP-USDT-SWAP", "DOGE-USDT-SWAP"]
+        
+        if len(favorite_symbols) < 6:
+            return jsonify({
+                'success': False,
+                'error': f"常用币不足6个，当前: {len(favorite_symbols)}个"
+            })
+        
+        # 3. 获取市场行情，选择涨幅前6
+        ticker_path = '/api/v5/market/tickers?instType=SWAP'
+        ticker_response = requests.get(base_url + ticker_path, timeout=10)
+        ticker_result = ticker_response.json()
+        
+        if ticker_result.get('code') != '0':
+            return jsonify({
+                'success': False,
+                'error': f"获取行情失败: {ticker_result.get('msg')}"
+            })
+        
+        # 筛选常用币并按涨跌幅排序
+        symbols_data = []
+        for ticker in ticker_result.get('data', []):
+            inst_id = ticker.get('instId', '')
+            if inst_id in favorite_symbols:
+                change_24h = float(ticker.get('changeRate24h', 0)) * 100
+                price = float(ticker.get('last', 0))
+                symbols_data.append({
+                    'instId': inst_id,
+                    'price': price,
+                    'change': change_24h
+                })
+        
+        # 按涨跌幅排序，取前6
+        symbols_data.sort(key=lambda x: x['change'], reverse=True)
+        top6_symbols = symbols_data[:6]
+        
+        if len(top6_symbols) < 6:
+            return jsonify({
+                'success': False,
+                'error': f"可用币种不足6个，当前: {len(top6_symbols)}个"
+            })
+        
+        # 4. 计算每个币的开仓参数
+        margin_per_coin = balance * percent_per_coin / 100  # 保证金
+        contract_value_per_coin = margin_per_coin * 10  # 合约价值（10x杠杆）
+        
+        # 5. 批量下单
+        success_count = 0
+        fail_count = 0
+        results = []
+        
+        for symbol_data in top6_symbols:
+            inst_id = symbol_data['instId']
+            price = symbol_data['price']
+            
+            try:
+                # 设置杠杆
+                leverage = '10'
+                pos_side = direction  # long/short
+                
+                set_leverage_path = '/api/v5/account/set-leverage'
+                leverage_body = json.dumps({
+                    'instId': inst_id,
+                    'lever': leverage,
+                    'mgnMode': 'isolated',
+                    'posSide': pos_side
+                })
+                
+                leverage_timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+                leverage_message = leverage_timestamp + 'POST' + set_leverage_path + leverage_body
+                leverage_mac = hmac.new(bytes(secret_key, encoding='utf8'), bytes(leverage_message, encoding='utf-8'), digestmod='sha256')
+                leverage_signature = base64.b64encode(leverage_mac.digest()).decode()
+                
+                leverage_headers = {
+                    'OK-ACCESS-KEY': api_key,
+                    'OK-ACCESS-SIGN': leverage_signature,
+                    'OK-ACCESS-TIMESTAMP': leverage_timestamp,
+                    'OK-ACCESS-PASSPHRASE': passphrase,
+                    'Content-Type': 'application/json'
+                }
+                
+                requests.post(base_url + set_leverage_path, headers=leverage_headers, data=leverage_body, timeout=10)
+                
+                # 获取合约规格
+                instruments_path = f'/api/v5/public/instruments?instType=SWAP&instId={inst_id}'
+                instruments_response = requests.get(base_url + instruments_path, timeout=5)
+                instruments_data = instruments_response.json()
+                
+                ct_val = 0.1  # 默认值
+                if instruments_data.get('code') == '0' and instruments_data.get('data'):
+                    ct_val = float(instruments_data['data'][0].get('ctVal', 0.1))
+                
+                # 计算合约张数
+                usdt_per_contract = ct_val * price
+                contracts_count = max(1, round(contract_value_per_coin / usdt_per_contract))
+                
+                # 下单
+                request_path = '/api/v5/trade/order'
+                side = 'buy' if direction == 'long' else 'sell'
+                
+                order_params = {
+                    'instId': inst_id,
+                    'tdMode': 'isolated',
+                    'side': side,
+                    'posSide': pos_side,
+                    'ordType': 'market',
+                    'sz': str(int(contracts_count))
+                }
+                
+                body = json.dumps(order_params)
+                timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+                message = timestamp + 'POST' + request_path + body
+                mac = hmac.new(bytes(secret_key, encoding='utf8'), bytes(message, encoding='utf-8'), digestmod='sha256')
+                signature = base64.b64encode(mac.digest()).decode()
+                
+                headers = {
+                    'OK-ACCESS-KEY': api_key,
+                    'OK-ACCESS-SIGN': signature,
+                    'OK-ACCESS-TIMESTAMP': timestamp,
+                    'OK-ACCESS-PASSPHRASE': passphrase,
+                    'Content-Type': 'application/json'
+                }
+                
+                response = requests.post(base_url + request_path, headers=headers, data=body, timeout=10)
+                result = response.json()
+                
+                print(f"[批量开仓] {inst_id} 下单响应: {result}")
+                
+                if result.get('code') == '0':
+                    success_count += 1
+                    results.append(f"✅ {inst_id}: 成功 ({contracts_count}张)")
+                else:
+                    fail_count += 1
+                    error_msg = result.get('msg', '未知错误')
+                    error_code = result.get('code', '未知代码')
+                    results.append(f"❌ {inst_id}: [{error_code}] {error_msg}")
+                    print(f"[批量开仓] {inst_id} 失败: code={error_code}, msg={error_msg}")
+                    
+            except Exception as e:
+                fail_count += 1
+                results.append(f"❌ {inst_id}: {str(e)}")
+                print(f"[批量开仓] {inst_id} 异常: {str(e)}")
+        
+        return jsonify({
+            'success': success_count > 0,
+            'successCount': success_count,
+            'failCount': fail_count,
+            'results': results
+        })
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+
+@app.route('/api/okx-trading/hedge-order', methods=['POST'])
+def hedge_order_from_event():
+    """从重大事件页面触发的对冲开仓"""
+    try:
+        data = request.get_json()
+        hedge_direction = data.get('hedgeDirection', 'short')  # short=空单配多单, long=多单配空单
+        
+        # TODO: 这里需要获取账户配置和持仓信息
+        # 临时方案：返回提示信息，要求用户在交易页面配置账户后再使用
+        
+        return jsonify({
+            'success': False,
+            'error': '此功能需要先在交易页面配置API密钥。\n\n请前往"OKX交易系统"页面配置账户后使用。',
+            'redirect': '/okx-trading'
+        })
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+
+# ==================== 27币涨跌幅追踪系统 API ====================
+
+@app.route('/api/coin-change-tracker/latest', methods=['GET'])
+def get_coin_change_latest():
+    """获取最新的27币涨跌幅数据"""
+    try:
+        from datetime import datetime, timezone, timedelta
+        from pathlib import Path
+        
+        data_dir = Path('data/coin_change_tracker')
+        if not data_dir.exists():
+            return jsonify({
+                'success': False,
+                'error': '数据目录不存在'
+            })
+        
+        # 获取当前日期
+        beijing_time = datetime.now(timezone(timedelta(hours=8)))
+        date_str = beijing_time.strftime('%Y%m%d')
+        
+        # 读取今天的数据文件
+        data_file = data_dir / f'coin_change_{date_str}.jsonl'
+        
+        if not data_file.exists():
+            return jsonify({
+                'success': False,
+                'error': f'今天的数据文件不存在: {date_str}'
+            })
+        
+        # 读取最后一条记录
+        with open(data_file, 'r') as f:
+            lines = f.readlines()
+            if lines:
+                latest = json.loads(lines[-1].strip())
+                return jsonify({
+                    'success': True,
+                    'data': latest
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': '数据文件为空'
+                })
+                
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+
+@app.route('/api/coin-change-tracker/history', methods=['GET'])
+def get_coin_change_history():
+    """获取27币涨跌幅历史数据"""
+    try:
+        from datetime import datetime, timezone, timedelta
+        from pathlib import Path
+        
+        # 获取参数
+        date_str = request.args.get('date')  # YYYYMMDD
+        limit = int(request.args.get('limit', 1440))  # 默认1天的数据（1440分钟）
+        
+        data_dir = Path('data/coin_change_tracker')
+        if not data_dir.exists():
+            return jsonify({
+                'success': False,
+                'error': '数据目录不存在'
+            })
+        
+        # 如果没有指定日期，使用今天
+        if not date_str:
+            beijing_time = datetime.now(timezone(timedelta(hours=8)))
+            date_str = beijing_time.strftime('%Y%m%d')
+        
+        # 读取数据文件
+        data_file = data_dir / f'coin_change_{date_str}.jsonl'
+        
+        if not data_file.exists():
+            return jsonify({
+                'success': False,
+                'error': f'数据文件不存在: {date_str}'
+            })
+        
+        # 读取数据
+        records = []
+        with open(data_file, 'r') as f:
+            lines = f.readlines()
+            # 取最后limit条
+            for line in lines[-limit:]:
+                if line.strip():
+                    records.append(json.loads(line.strip()))
+        
+        return jsonify({
+            'success': True,
+            'date': date_str,
+            'count': len(records),
+            'data': records
+        })
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+
+@app.route('/api/coin-change-tracker/baseline', methods=['GET'])
+def get_coin_change_baseline():
+    """获取当天的基准价"""
+    try:
+        from datetime import datetime, timezone, timedelta
+        from pathlib import Path
+        
+        # 获取参数
+        date_str = request.args.get('date')
+        
+        data_dir = Path('data/coin_change_tracker')
+        if not data_dir.exists():
+            return jsonify({
+                'success': False,
+                'error': '数据目录不存在'
+            })
+        
+        # 如果没有指定日期，使用今天
+        if not date_str:
+            beijing_time = datetime.now(timezone(timedelta(hours=8)))
+            date_str = beijing_time.strftime('%Y%m%d')
+        
+        # 读取基准价文件
+        baseline_file = data_dir / f'baseline_{date_str}.json'
+        
+        if not baseline_file.exists():
+            return jsonify({
+                'success': False,
+                'error': f'基准价文件不存在: {date_str}'
+            })
+        
+        with open(baseline_file, 'r') as f:
+            baseline_data = json.load(f)
+        
+        return jsonify({
+            'success': True,
+            'data': baseline_data
+        })
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+
+@app.route('/api/coin-change-tracker/reset-baseline', methods=['POST'])
+def reset_coin_change_baseline():
+    """手动重置基准价（使用当前价格）"""
+    try:
+        from datetime import datetime, timezone, timedelta
+        from pathlib import Path
+        import requests
+        
+        # 获取当前时间
+        beijing_time = datetime.now(timezone(timedelta(hours=8)))
+        date_str = beijing_time.strftime('%Y%m%d')
+        
+        # 获取当前币价
+        symbols = [
+            'BTC-USDT-SWAP', 'ETH-USDT-SWAP', 'XRP-USDT-SWAP',
+            'BNB-USDT-SWAP', 'SOL-USDT-SWAP', 'LTC-USDT-SWAP',
+            'DOGE-USDT-SWAP', 'SUI-USDT-SWAP', 'TRX-USDT-SWAP',
+            'TON-USDT-SWAP', 'ETC-USDT-SWAP', 'BCH-USDT-SWAP',
+            'HBAR-USDT-SWAP', 'XLM-USDT-SWAP', 'FIL-USDT-SWAP',
+            'LINK-USDT-SWAP', 'CRO-USDT-SWAP', 'DOT-USDT-SWAP',
+            'AAVE-USDT-SWAP', 'UNI-USDT-SWAP', 'NEAR-USDT-SWAP',
+            'APT-USDT-SWAP', 'CFX-USDT-SWAP', 'CRV-USDT-SWAP',
+            'STX-USDT-SWAP', 'LDO-USDT-SWAP', 'TAO-USDT-SWAP'
+        ]
+        
+        # 从OKX获取当前价格
+        url = 'https://www.okx.com/api/v5/market/tickers?instType=SWAP'
+        response = requests.get(url, timeout=10)
+        data = response.json()
+        
+        if data.get('code') != '0':
+            return jsonify({
+                'success': False,
+                'error': f"获取行情失败: {data.get('msg')}"
+            })
+        
+        prices = {}
+        for ticker in data.get('data', []):
+            inst_id = ticker.get('instId')
+            if inst_id in symbols:
+                prices[inst_id] = float(ticker.get('last', 0))
+        
+        if len(prices) < 27:
+            return jsonify({
+                'success': False,
+                'error': f"获取币价不完整，只获取到{len(prices)}个"
+            })
+        
+        # 保存基准价
+        data_dir = Path('data/coin_change_tracker')
+        data_dir.mkdir(parents=True, exist_ok=True)
+        baseline_file = data_dir / f'baseline_{date_str}.json'
+        
+        baseline_data = {
+            'date': date_str,
+            'timestamp': beijing_time.isoformat(),
+            'prices': prices,
+            'note': '手动重置'
+        }
+        
+        with open(baseline_file, 'w') as f:
+            json.dump(baseline_data, f, indent=2)
+        
+        return jsonify({
+            'success': True,
+            'message': '基准价已重置',
+            'date': date_str,
+            'timestamp': beijing_time.isoformat(),
+            'count': len(prices)
+        })
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        })
+
+
 # ==================== Flask App 启动入口 ====================
 if __name__ == '__main__':
+    # 🔥 启动时预热逃顶信号缓存（智能采样：历史15分钟/点，最近3天全量）
+    print('🔥 开始预热逃顶信号缓存...')
+    import time
+    from datetime import datetime, timedelta
+    start_time = time.time()
+    
+    try:
+        sys.path.insert(0, '/home/user/webapp')
+        from escape_signal_jsonl_manager import EscapeSignalJSONLManager
+        
+        manager = EscapeSignalJSONLManager()
+        today = datetime.now().strftime('%Y-%m-%d')
+        three_days_ago = (datetime.now() - timedelta(days=3)).strftime('%Y-%m-%d')
+        
+        # 获取所有数据（从2026-01-03开始）
+        all_data = manager.get_stats_range(start_date='2026-01-03', end_date=today)
+        
+        if not all_data:
+            print('⚠️ 未获取到任何数据，跳过缓存预热')
+        else:
+            # 分离历史数据与最近3天数据
+            historical_data = []
+            recent_data = []
+            three_days_ago_dt = datetime.now() - timedelta(days=3)
+            
+            for record in all_data:
+                try:
+                    stat_time = datetime.fromisoformat(record['stat_time'].replace('Z', '+00:00').replace('+00:00', ''))
+                    if stat_time < three_days_ago_dt:
+                        historical_data.append(record)
+                    else:
+                        recent_data.append(record)
+                except:
+                    pass
+            
+            # 历史数据按15分钟采样
+            sampled_historical = []
+            if historical_data:
+                historical_data.sort(key=lambda x: x['stat_time'])
+                last_sampled_time = None
+                
+                for record in historical_data:
+                    try:
+                        current_time = datetime.fromisoformat(record['stat_time'].replace('Z', '+00:00').replace('+00:00', ''))
+                        
+                        if last_sampled_time is None or (current_time - last_sampled_time).total_seconds() >= 900:  # 15分钟
+                            sampled_historical.append(record)
+                            last_sampled_time = current_time
+                    except:
+                        pass
+            
+            # 合并数据
+            keypoints_data = sampled_historical + recent_data
+            
+            print(f'📊 数据采样统计:')
+            print(f'历史数据: {len(historical_data)} → {len(sampled_historical)} (15分钟/点)')
+            print(f'最近3天: {len(recent_data)} (全量)')
+            print(f'总计: {len(all_data)} → {len(keypoints_data)}')
+            
+            # 计算统计信息
+            max_signal_24h = max((r.get('signal_24h_count', 0) for r in keypoints_data), default=0)
+            max_signal_2h = max((r.get('signal_2h_count', 0) for r in keypoints_data), default=0)
+            
+            # 缓存结果
+            _escape_signal_cache['data'] = {
+                'success': True,
+                'keypoints': keypoints_data,
+                'keypoint_count': len(keypoints_data),
+                'total_records': len(all_data),
+                'max_signal_24h': max_signal_24h,
+                'max_signal_2h': max_signal_2h,
+                'compression_rate': f"{len(keypoints_data) / len(all_data) * 100:.1f}%" if all_data else "0%",
+                'data_range': f"{all_data[0]['stat_time']} ~ {all_data[-1]['stat_time']}" if all_data else "无数据"
+            }
+            _escape_signal_cache['timestamp'] = time.time()
+            
+            elapsed = time.time() - start_time
+            print(f'✅ 缓存预热完成！耗时: {elapsed:.2f}秒, 数据点数量: {len(keypoints_data)}')
+    
+    except Exception as e:
+        print(f'⚠️ 缓存预热失败: {e}')
+    
     app.run(host='0.0.0.0', port=5000, debug=False)

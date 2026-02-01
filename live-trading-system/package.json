@@ -1,0 +1,53 @@
+{
+  "name": "webapp",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:sandbox": "wrangler pages dev dist --d1=webapp-production --local --ip 0.0.0.0 --port 8080",
+    "build": "vite build",
+    "preview": "wrangler pages dev dist",
+    "deploy": "npm run build && wrangler pages deploy dist",
+    "deploy:prod": "npm run build && wrangler pages deploy dist --project-name webapp",
+    "cf-typegen": "wrangler types --env-interface CloudflareBindings",
+    "db:init": "bash init-db.sh",
+    "db:reset": "echo '⚠️  WARNING: This will DELETE ALL DATA! Type YES to continue:' && read confirm && [ \"$confirm\" = \"YES\" ] && npm run db:backup && rm -rf .wrangler && npm run db:migrate:local || echo '❌ Reset cancelled'",
+    "db:migrate:local": "wrangler d1 migrations apply webapp-production --local",
+    "db:migrate:prod": "wrangler d1 migrations apply webapp-production",
+    "db:console:local": "wrangler d1 execute webapp-production --local",
+    "db:console:prod": "wrangler d1 execute webapp-production",
+    "db:backup": "bash scripts/backup_database.sh",
+    "db:backup:list": "bash scripts/backup_database.sh --list",
+    "db:restore": "bash scripts/backup_database.sh --restore",
+    "clean-port": "fuser -k 3000/tcp 2>/dev/null || true",
+    "clean-db": "echo '⚠️  DANGER: This will delete database! Use db:reset instead.'",
+    "restart": "npm run clean-port && pm2 restart crypto-monitor",
+    "stop": "pm2 stop all",
+    "start": "npm run clean-port && npm run build && pm2 start ecosystem.config.cjs",
+    "status": "pm2 status",
+    "logs": "pm2 logs crypto-monitor --nostream --lines 30",
+    "emergency": "bash scripts/emergency-fix.sh",
+    "health": "bash scripts/emergency-fix.sh",
+    "scheduler": "node scheduler.js",
+    "scheduler:start": "pm2 start ecosystem.config.cjs --only kline-scheduler",
+    "scheduler:stop": "pm2 stop kline-scheduler",
+    "scheduler:restart": "pm2 restart kline-scheduler",
+    "scheduler:logs": "pm2 logs kline-scheduler --nostream",
+    "sync": "bash sync-github.sh",
+    "sync:msg": "bash sync-github.sh"
+  },
+  "dependencies": {
+    "axios": "^1.13.0",
+    "better-sqlite3": "^12.4.1",
+    "cors": "^2.8.5",
+    "crypto-js": "^4.2.0",
+    "express": "^5.2.1",
+    "hono": "^4.10.3"
+  },
+  "devDependencies": {
+    "@hono/vite-build": "^1.2.0",
+    "@hono/vite-dev-server": "^0.18.2",
+    "typescript": "^5.9.3",
+    "vite": "^6.3.5",
+    "wrangler": "^4.4.0"
+  }
+}

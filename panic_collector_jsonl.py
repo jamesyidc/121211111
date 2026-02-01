@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 恐慌清洗指数采集器 - JSONL版本
-- 每3分钟采集一次爆仓数据
+- 每1分钟采集一次爆仓数据
 - 计算恐慌清洗指数
 - 存储到JSONL文件
 """
@@ -245,7 +245,7 @@ class PanicWashCollectorJSONL:
             logging.error(traceback.format_exc())
             return False
     
-    def run(self, interval=180):
+    def run(self, interval=60):
         """持续运行采集器"""
         logging.info(f"🔄 采集器已启动，采集间隔: {interval}秒 ({interval/60:.1f}分钟)")
         

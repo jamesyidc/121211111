@@ -1052,6 +1052,69 @@
             transform: translateX(24px);
         }
     </style>
+    
+    <!-- 🔥 最优先级：立即执行的数据加载脚本 -->
+    <script>
+        console.log('🔥 HEAD脚本：立即执行');
+        
+        // 等待DOM加载完成后立即加载数据
+        window.addEventListener('DOMContentLoaded', function() {
+            console.log('🔥 DOMContentLoaded触发，开始加载数据');
+            
+            setTimeout(function() {
+                console.log('🔥 2秒延迟后执行数据加载');
+                
+                fetch('/api/support-resistance/latest?_t=' + Date.now())
+                    .then(function(response) {
+                        console.log('🔥 API响应状态:', response.status);
+                        return response.json();
+                    })
+                    .then(function(result) {
+                        console.log('🔥 数据接收:', {
+                            success: result.success,
+                            coins: result.coins,
+                            dataCount: result.data ? result.data.length : 0
+                        });
+                        
+                        if (result.success && result.data && result.data.length > 0) {
+                            var tbody = document.getElementById('tableBody');
+                            var loading = document.getElementById('loading');
+                            var dataTable = document.getElementById('dataTable');
+                            
+                            if (tbody && loading && dataTable) {
+                                console.log('🔥 元素已找到，开始渲染');
+                                
+                                // 清空并填充
+                                tbody.innerHTML = '';
+                                result.data.forEach(function(coin) {
+                                    var row = tbody.insertRow();
+                                    row.innerHTML = '<td class="symbol-cell">' + coin.symbol + '</td>' +
+                                        '<td class="price-cell">$' + (coin.current_price || 0).toFixed(2) + '</td>' +
+                                        '<td class="support-cell">$' + (coin.support_line_1 || 0).toFixed(2) + '</td>' +
+                                        '<td class="resistance-cell">$' + (coin.resistance_line_1 || 0).toFixed(2) + '</td>' +
+                                        '<td>' + (coin.position_7d || 0).toFixed(1) + '%</td>' +
+                                        '<td class="support-cell">$' + (coin.support_line_2 || 0).toFixed(2) + '</td>' +
+                                        '<td class="resistance-cell">$' + (coin.resistance_line_2 || 0).toFixed(2) + '</td>' +
+                                        '<td>' + (coin.position_48h || 0).toFixed(1) + '%</td>' +
+                                        '<td>-</td>';
+                                });
+                                
+                                // 显示表格
+                                loading.style.display = 'none';
+                                dataTable.style.display = 'table';
+                                
+                                console.log('🔥✅ 表格渲染完成！共', result.data.length, '个币种');
+                            } else {
+                                console.error('🔥❌ 表格元素未找到');
+                            }
+                        }
+                    })
+                    .catch(function(error) {
+                        console.error('🔥❌ 加载失败:', error);
+                    });
+            }, 2000);
+        });
+    </script>
 </head>
 <body>
     <!-- 音效元素 -->
@@ -1988,12 +2051,20 @@
             renderTable();
         }
         
-        function loadData() {
-            fetch('/api/support-resistance/latest')
-                .then(response => response.json())
+        // 全局作用域定义loadData函数
+        window.loadData = function() {
+            console.log('📡 开始加载主表格数据...');
+            const timestamp = new Date().getTime(); // 缓存破坏器
+            fetch('/api/support-resistance/latest?_=' + timestamp)
+                .then(response => {
+                    console.log('📡 API响应状态:', response.status);
+                    return response.json();
+                })
                 .then(result => {
+                    console.log('📊 API返回数据:', {success: result.success, coins: result.coins, dataLength: result.data?.length});
                     if (result.success) {
                         currentData = result.data;
+                        console.log('✅ 主表格数据加载成功:', currentData.length, '个币种');
                         
                         // Apply current sort if any
                         if (currentSortField) {
@@ -2008,13 +2079,15 @@
                         document.getElementById('updateTime').textContent = '最后更新: ' + (result.update_time || '--');
                         document.getElementById('lastUpdateTime').textContent = result.update_time || '--';
                     } else {
+                        console.error('❌ 数据加载失败:', result.message);
                         document.getElementById('loading').textContent = '数据加载失败: ' + result.message;
                     }
                 })
                 .catch(error => {
+                    console.error('❌ 数据加载错误:', error);
                     document.getElementById('loading').textContent = '数据加载错误: ' + error;
                 });
-        }
+        };
         
         // Add click handlers to sortable headers
         document.addEventListener('DOMContentLoaded', function() {
@@ -3148,8 +3221,8 @@
         }
         
         // 加载每日时间轴（选中日期的所有快照）
-        function loadDailyTimeline(date) {
-            console.log('🕐 加载每日时间轴:', date);
+        function loadDailyTimeline(date, retryCount = 0) {
+            console.log('🕐 加载每日时间轴:', date, retryCount > 0 ? `(重试 ${retryCount})` : '');
             
             fetch(`/api/support-resistance/snapshots?date=${date}`)
                 .then(response => response.json())
@@ -3165,7 +3238,19 @@
                         const timelineContainer = document.getElementById('dailyTimeline');
                         
                         if (data.length === 0) {
-                            timelineContainer.innerHTML = '<p style="color: rgba(255,255,255,0.6); text-align: center;">该日期暂无数据</p>';
+                            // 🔄 自动尝试前几天的数据
+                            if (retryCount < 7) {
+                                console.log('⚠️ 该日期无数据，尝试前一天...');
+                                const prevDate = new Date(date);
+                                prevDate.setDate(prevDate.getDate() - 1);
+                                const prevDateStr = prevDate.toISOString().split('T')[0];
+                                setTimeout(() => {
+                                    loadDailyTimeline(prevDateStr, retryCount + 1);
+                                }, 500);
+                                timelineContainer.innerHTML = '<p style="color: rgba(255,255,255,0.6); text-align: center;">该日期暂无数据，正在查找最近数据...</p>';
+                            } else {
+                                timelineContainer.innerHTML = '<p style="color: rgba(255,255,255,0.6); text-align: center;">近7天暂无快照数据</p>';
+                            }
                             return;
                         }
                         
@@ -3184,6 +3269,16 @@
                         
                         timelineContainer.innerHTML = html;
                         console.log('✅ 时间轴渲染完成，共', data.length, '个时间点');
+                        
+                        // 如果是自动回退的日期，更新日期选择器
+                        if (retryCount > 0) {
+                            const datePicker = document.getElementById('datePicker');
+                            if (datePicker) {
+                                datePicker.value = date;
+                                currentDate = date;
+                                console.log('✅ 已自动切换到有数据的日期:', date);
+                            }
+                        }
                     }
                 })
                 .catch(error => {
@@ -3386,10 +3481,14 @@
             
             // 加载主表格数据（27币种）
             console.log('📋 加载主表格数据...');
+            console.log('📋 loadData 函数类型:', typeof window.loadData);
+            console.log('📋 准备调用 loadData()...');
             try {
-                loadData();
+                window.loadData();
+                console.log('📋 loadData() 调用完成');
             } catch (error) {
                 console.error('❌ 加载主表格数据失败:', error);
+                console.error('❌ 错误堆栈:', error.stack);
             }
             
             // 自动刷新主数据
@@ -4147,6 +4246,121 @@
                 alert(`❌ 保存失败: ${error}`);
             });
         }
+        
+        // 🔧 临时测试：5秒后强制加载数据
+        let loadAttempts = 0;
+        const MAX_ATTEMPTS = 5;
+        
+        function retryLoadData() {
+            loadAttempts++;
+            console.log(`🔧 重试加载数据 (${loadAttempts}/${MAX_ATTEMPTS})...`);
+            
+            if (typeof window.loadData === 'function') {
+                console.log('✅ window.loadData 存在，开始调用...');
+                window.loadData();
+            } else {
+                console.error('❌ window.loadData 不存在！');
+                if (loadAttempts < MAX_ATTEMPTS) {
+                    setTimeout(retryLoadData, 2000);
+                }
+            }
+        }
+        
+        // 页面加载后3秒开始重试
+        setTimeout(retryLoadData, 3000);
+    </script>
+    
+    <!-- 🚨 紧急修复：强制立即加载数据 -->
+    <script>
+        (function() {
+            console.log('🚨 紧急修复脚本执行');
+            
+            // 定义全局变量
+            window.supportResistanceData = [];
+            
+            // 立即加载数据函数
+            function forceLoadData() {
+                console.log('🚨 强制加载数据...');
+                
+                fetch('/api/support-resistance/latest?_=' + Date.now())
+                    .then(res => {
+                        console.log('🚨 API响应:', res.status);
+                        return res.json();
+                    })
+                    .then(data => {
+                        console.log('🚨 数据接收成功:', {
+                            success: data.success,
+                            coins: data.coins,
+                            dataLength: data.data ? data.data.length : 0
+                        });
+                        
+                        if (data.success && data.data && data.data.length > 0) {
+                            window.supportResistanceData = data.data;
+                            
+                            // 直接渲染表格
+                            const tbody = document.getElementById('tableBody');
+                            const loading = document.getElementById('loading');
+                            const dataTable = document.getElementById('dataTable');
+                            
+                            if (tbody && loading && dataTable) {
+                                console.log('🚨 开始渲染表格，共', data.data.length, '个币种');
+                                
+                                // 清空并填充表格
+                                tbody.innerHTML = '';
+                                data.data.forEach(coin => {
+                                    const row = document.createElement('tr');
+                                    row.innerHTML = `
+                                        <td class="symbol-cell">${coin.symbol || 'N/A'}</td>
+                                        <td class="price-cell">$${(coin.current_price || 0).toFixed(2)}</td>
+                                        <td class="support-cell">$${(coin.support_line_1 || 0).toFixed(2)}</td>
+                                        <td class="resistance-cell">$${(coin.resistance_line_1 || 0).toFixed(2)}</td>
+                                        <td>${(coin.position_7d || 0).toFixed(1)}%</td>
+                                        <td class="support-cell">$${(coin.support_line_2 || 0).toFixed(2)}</td>
+                                        <td class="resistance-cell">$${(coin.resistance_line_2 || 0).toFixed(2)}</td>
+                                        <td>${(coin.position_48h || 0).toFixed(1)}%</td>
+                                        <td>-</td>
+                                    `;
+                                    tbody.appendChild(row);
+                                });
+                                
+                                // 隐藏loading，显示表格
+                                loading.style.display = 'none';
+                                dataTable.style.display = 'table';
+                                
+                                // 更新时间
+                                const updateTimeEl = document.getElementById('updateTime');
+                                if (updateTimeEl) {
+                                    updateTimeEl.textContent = '最后更新: ' + (data.update_time || '--');
+                                }
+                                
+                                console.log('✅ 表格渲染完成！');
+                            } else {
+                                console.error('❌ 表格元素未找到');
+                            }
+                        } else {
+                            console.error('❌ 数据无效或为空');
+                        }
+                    })
+                    .catch(err => {
+                        console.error('❌ 加载失败:', err);
+                        const loading = document.getElementById('loading');
+                        if (loading) {
+                            loading.textContent = '数据加载失败: ' + err.message;
+                        }
+                    });
+            }
+            
+            // 等待DOM就绪后立即执行
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() {
+                    console.log('🚨 DOMContentLoaded - 开始加载');
+                    setTimeout(forceLoadData, 1000);
+                });
+            } else {
+                console.log('🚨 DOM已就绪 - 立即加载');
+                setTimeout(forceLoadData, 1000);
+            }
+        })();
     </script>
 </body>
 </html>

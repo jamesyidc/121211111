@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>浏览器缓存诊断工具</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px 5px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 浏览器缓存诊断工具</h1>
+    
+    <div class="card">
+        <h2>📊 当前页面信息</h2>
+        <div id="pageInfo" class="status info">加载中...</div>
+    </div>
+
+    <div class="card">
+        <h2>🔗 测试链接</h2>
+        <button onclick="testUrl('/escape-signal-history')">测试旧URL (v1)</button>
+        <button onclick="testUrl('/escape-signal-history-v2')">测试新URL (v2)</button>
+        <button onclick="clearAndTest()">清除缓存并测试</button>
+        <div id="testResult" class="status info" style="margin-top: 10px;">等待测试...</div>
+    </div>
+
+    <div class="card">
+        <h2>💾 浏览器存储信息</h2>
+        <div id="storageInfo" class="status info">检查中...</div>
+    </div>
+
+    <div class="card">
+        <h2>📝 诊断结果</h2>
+        <div id="diagnosis"></div>
+    </div>
+
+    <div class="card">
+        <h2>🔧 解决方案</h2>
+        <div class="status info">
+            <h3>方法1: 硬性刷新</h3>
+            <p>按 <code>Ctrl + Shift + R</code> (Windows/Linux) 或 <code>Cmd + Shift + R</code> (Mac)</p>
+            
+            <h3>方法2: 清除站点数据</h3>
+            <ol>
+                <li>按 F12 打开开发者工具</li>
+                <li>右键点击地址栏左侧的锁图标</li>
+                <li>点击"站点设置"</li>
+                <li>点击"清除数据"</li>
+            </ol>
+            
+            <h3>方法3: 使用下面的按钮</h3>
+            <button onclick="forceRefresh()">强制刷新到v2版本</button>
+        </div>
+    </div>
+
+    <script>
+        // 显示当前页面信息
+        function showPageInfo() {
+            const info = `
+                <strong>当前URL:</strong> ${window.location.href}<br>
+                <strong>页面标题:</strong> ${document.title}<br>
+                <strong>用户代理:</strong> ${navigator.userAgent}<br>
+                <strong>时间戳:</strong> ${new Date().toISOString()}
+            `;
+            document.getElementById('pageInfo').innerHTML = info;
+        }
+
+        // 测试URL
+        async function testUrl(path) {
+            const resultDiv = document.getElementById('testResult');
+            resultDiv.className = 'status info';
+            resultDiv.innerHTML = '正在测试...';
+            
+            try {
+                const url = window.location.origin + path + '?t=' + Date.now();
+                const response = await fetch(url, {
+                    cache: 'no-store',
+                    headers: {
+                        'Cache-Control': 'no-cache',
+                        'Pragma': 'no-cache'
+                    }
+                });
+                
+                const html = await response.text();
+                const titleMatch = html.match(/<title>(.*?)<\/title>/);
+                const title = titleMatch ? titleMatch[1] : '未找到标题';
+                
+                const versionMatch = title.match(/v(\d+\.\d+-\d+-?\w*)/);
+                const version = versionMatch ? versionMatch[1] : '未知版本';
+                
+                let className = 'success';
+                let message = '✅ ';
+                if (version.startsWith('2.2')) {
+                    className = 'error';
+                    message = '❌ ';
+                } else if (version.startsWith('2.3')) {
+                    className = 'success';
+                    message = '✅ ';
+                }
+                
+                resultDiv.className = 'status ' + className;
+                resultDiv.innerHTML = `
+                    ${message}<strong>测试结果:</strong><br>
+                    路径: <code>${path}</code><br>
+                    版本: <code>${version}</code><br>
+                    完整标题: ${title}
+                `;
+                
+                diagnose(version);
+            } catch (error) {
+                resultDiv.className = 'status error';
+                resultDiv.innerHTML = '❌ 测试失败: ' + error.message;
+            }
+        }
+
+        // 清除缓存并测试
+        function clearAndTest() {
+            localStorage.clear();
+            sessionStorage.clear();
+            document.getElementById('diagnosis').innerHTML = '<div class="status success">✅ 已清除 localStorage 和 sessionStorage</div>';
+            setTimeout(() => {
+                testUrl('/escape-signal-history-v2');
+            }, 100);
+        }
+
+        // 检查浏览器存储
+        function checkStorage() {
+            const storageDiv = document.getElementById('storageInfo');
+            const version = localStorage.getItem('escape_signal_history_version');
+            
+            let html = `
+                <strong>LocalStorage版本:</strong> ${version || '未设置'}<br>
+                <strong>LocalStorage大小:</strong> ${localStorage.length} 项<br>
+            `;
+            
+            if (version) {
+                if (version === '2.2-20260122') {
+                    html += '<br><div class="status error">⚠️ 检测到旧版本标记！这可能导致缓存问题。</div>';
+                } else if (version === '2.3-20260125-optimized') {
+                    html += '<br><div class="status success">✅ 版本标记正确。</div>';
+                }
+            }
+            
+            storageDiv.innerHTML = html;
+        }
+
+        // 诊断
+        function diagnose(version) {
+            const diagDiv = document.getElementById('diagnosis');
+            
+            if (version.startsWith('2.3')) {
+                diagDiv.innerHTML = '<div class="status success">✅ 恭喜！您的浏览器已成功加载v2.3版本！</div>';
+            } else if (version.startsWith('2.2')) {
+                diagDiv.innerHTML = `
+                    <div class="status error">
+                        ❌ <strong>问题确认：您的浏览器仍在使用v2.2缓存</strong><br><br>
+                        可能原因：<br>
+                        1. 浏览器HTTP缓存未清除<br>
+                        2. Service Worker缓存<br>
+                        3. 浏览器扩展干扰<br>
+                        4. 代理服务器缓存<br><br>
+                        <strong>建议操作：</strong><br>
+                        1. 尝试无痕模式 (Ctrl+Shift+N)<br>
+                        2. 禁用所有浏览器扩展<br>
+                        3. 使用下方"强制刷新"按钮
+                    </div>
+                `;
+            }
+        }
+
+        // 强制刷新
+        function forceRefresh() {
+            localStorage.clear();
+            sessionStorage.clear();
+            window.location.href = window.location.origin + '/escape-signal-history-v2?force=' + Date.now();
+        }
+
+        // 页面加载时执行
+        window.onload = function() {
+            showPageInfo();
+            checkStorage();
+            
+            // 自动测试当前URL
+            if (window.location.pathname.includes('diagnostic')) {
+                setTimeout(() => {
+                    testUrl('/escape-signal-history-v2');
+                }, 500);
+            }
+        };
+    </script>
+</body>
+</html>

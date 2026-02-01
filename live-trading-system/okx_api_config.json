@@ -1,0 +1,21 @@
+{
+  "apiKey": "8650e46c-059b-431d-93cf-55f8c79babdb",
+  "apiSecret": "4C2BD2AC6A08615EA7F36A6251857FCE",
+  "passphrase": "Wu666666.",
+  "environment": "POIT",
+  "baseUrl": "https://www.okx.com",
+  "enableProxy": false,
+  "timeout": 10000,
+  "rateLimit": {
+    "maxRequests": 20,
+    "perSeconds": 2
+  },
+  "permissions": {
+    "trade": true,
+    "read": true,
+    "withdraw": false
+  },
+  "accountType": "unified",
+  "created": "2026-01-19T13:58:00Z",
+  "status": "active"
+}

@@ -1,0 +1,2181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>重大事件监控系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        .event-card {
+            transition: all 0.3s ease;
+        }
+        .event-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .event-high {
+            border-left: 4px solid #ef4444;
+        }
+        .event-medium {
+            border-left: 4px solid #f59e0b;
+        }
+        .event-low {
+            border-left: 4px solid #10b981;
+        }
+        .action-short {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: #991b1b;
+        }
+        .action-long {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            color: #065f46;
+        }
+        .pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+        .chart-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 24px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <!-- 导航栏 -->
+    <nav class="bg-gradient-to-r from-blue-600 to-blue-800 text-white shadow-lg">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <h1 class="text-2xl font-bold">
+                    <i class="fas fa-bolt mr-2"></i>
+                    重大事件监控系统
+                </h1>
+                <div class="flex items-center space-x-4">
+                    <button onclick="refreshData()" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition">
+                        <i class="fas fa-sync-alt mr-2"></i>刷新
+                    </button>
+                    <a href="/" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition">
+                        <i class="fas fa-home mr-2"></i>返回首页
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-4 py-8">
+        <!-- 实时数据面板 -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-xl font-bold mb-4 flex items-center">
+                <i class="fas fa-chart-line mr-2 text-blue-600"></i>
+                实时监控数据
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <!-- 2h见顶信号 -->
+                <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-6">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-gray-600 font-medium">2h见顶信号</span>
+                        <i class="fas fa-arrow-down text-purple-600 text-xl"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-purple-600" id="topSignalCount">--</div>
+                    <div class="text-sm text-gray-500 mt-2">
+                        <span id="topSignalStatus">等待数据...</span>
+                    </div>
+                </div>
+
+                <!-- 27币涨跌幅和 -->
+                <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-gray-600 font-medium">27币涨跌幅和</span>
+                        <i class="fas fa-percentage text-blue-600 text-xl"></i>
+                    </div>
+                    <div class="text-3xl font-bold" id="coinsChangeSum">--</div>
+                    <div class="text-sm text-gray-500 mt-2">
+                        实时涨跌幅总和
+                    </div>
+                </div>
+
+                <!-- 1h爆仓金额 -->
+                <div class="bg-gradient-to-br from-red-50 to-red-100 rounded-lg p-6">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-gray-600 font-medium">1h爆仓金额</span>
+                        <i class="fas fa-fire text-red-600 text-xl"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-red-600" id="liquidationAmount">--</div>
+                    <div class="text-sm text-gray-500 mt-2">
+                        万美元
+                    </div>
+                </div>
+
+                <!-- 多空盈利标记 - 前一次 -->
+                <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-gray-600 font-medium">前一次标记</span>
+                        <i class="fas fa-history text-blue-600 text-xl"></i>
+                    </div>
+                    <div class="text-xl font-bold" id="profitMarkPrevStatus">--</div>
+                    <div class="text-sm text-gray-500 mt-2">
+                        <span id="profitMarkPrevDetail">等待数据...</span>
+                    </div>
+                </div>
+
+                <!-- 多空盈利标记 - 当前 -->
+                <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-6">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-gray-600 font-medium">当前标记</span>
+                        <i class="fas fa-exchange-alt text-green-600 text-xl"></i>
+                    </div>
+                    <div class="text-xl font-bold" id="profitMarkCurrentStatus">--</div>
+                    <div class="text-sm text-gray-500 mt-2">
+                        <span id="profitMarkCurrentDetail">等待数据...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 峰值检测器 -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-xl font-bold mb-4 flex items-center">
+                <i class="fas fa-chart-line mr-2 text-purple-600"></i>
+                2h见顶信号峰值检测器
+            </h2>
+            <div class="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg p-6">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                    <!-- 检测状态 -->
+                    <div class="text-center">
+                        <div class="text-sm text-gray-600 mb-1">检测状态</div>
+                        <div class="text-2xl font-bold" id="peakDetectionStatus">未触发</div>
+                    </div>
+                    <!-- 峰值1 -->
+                    <div class="text-center">
+                        <div class="text-sm text-gray-600 mb-1">峰值1</div>
+                        <div class="text-2xl font-bold text-orange-600" id="peak1Value">--</div>
+                        <div class="text-xs text-gray-500" id="peak1Time">--</div>
+                    </div>
+                    <!-- 峰值2 -->
+                    <div class="text-center">
+                        <div class="text-sm text-gray-600 mb-1">峰值2</div>
+                        <div class="text-2xl font-bold text-blue-600" id="peak2Value">--</div>
+                        <div class="text-xs text-gray-500" id="peak2Time">--</div>
+                    </div>
+                    <!-- 当前值 -->
+                    <div class="text-center">
+                        <div class="text-sm text-gray-600 mb-1">当前值</div>
+                        <div class="text-2xl font-bold text-green-600" id="currentPeakValue">--</div>
+                        <div class="text-xs text-gray-500" id="currentPeakTime">--</div>
+                    </div>
+                </div>
+                
+                <!-- 检测规则说明 -->
+                <div class="bg-white rounded-lg p-4 text-sm">
+                    <div class="font-semibold mb-2 text-purple-700">📊 检测规则：</div>
+                    <ol class="list-decimal list-inside space-y-1 text-gray-700">
+                        <li><strong>触发条件</strong>：2h见顶信号 &gt; 10 时开始检测</li>
+                        <li><strong>峰值1</strong>：触发后的最大值记录为峰值1</li>
+                        <li><strong>寻找峰值2</strong>：当前值 &lt; 峰值1 × 50% 时，开始寻找峰值2</li>
+                        <li><strong>事件触发</strong>：
+                            <span class="ml-2">峰值1 = 120 → 🔴 触发<strong>事件1</strong>（高强度见顶）</span><br/>
+                            <span class="ml-8">峰值1 &lt; 120 → 🟠 触发<strong>事件2</strong>（一般强度见顶）</span>
+                        </li>
+                        <li><strong>时间限制</strong>：⏰ 峰值1确定后，必须在<strong>10小时内</strong>找到峰值2，否则检测失败</li>
+                        <li><strong>峰值2</strong>：在寻找阶段的最大值记录为峰值2</li>
+                        <li><strong>结束检测</strong>：当前值 &lt; 峰值2 × 50% 时，检测周期成功结束</li>
+                    </ol>
+                </div>
+                
+                <!-- 历史峰值记录 -->
+                <div class="mt-4">
+                    <div class="font-semibold mb-2 text-purple-700">📈 最近峰值记录：</div>
+                    <div id="peakHistory" class="space-y-2 max-h-40 overflow-y-auto">
+                        <div class="text-sm text-gray-500 text-center py-2">暂无历史记录</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 6个重大事件规则 -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-xl font-bold mb-6 flex items-center">
+                <i class="fas fa-exclamation-triangle mr-2 text-orange-600"></i>
+                六大重大事件监控规则
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- 事件一：高强度见顶诱多 -->
+                <div class="event-card event-high bg-red-50 p-4 rounded-lg">
+                    <div class="flex items-center mb-2">
+                        <div class="w-8 h-8 bg-red-600 text-white rounded-full flex items-center justify-center font-bold mr-3">1</div>
+                        <h3 class="font-bold text-red-900">高强度见顶诱多</h3>
+                    </div>
+                    <p class="text-sm text-gray-700 mb-2">
+                        触发条件：<br/>
+                        1️⃣ 2h见顶信号 = 120（精确匹配）<br/>
+                        2️⃣ 10小时内再次出现 10-120 信号<br/>
+                        3️⃣ 27币涨跌幅和 > 0
+                    </p>
+                    <div class="action-short px-3 py-1 rounded text-sm font-bold">
+                        <i class="fas fa-arrow-down mr-1"></i>操作：开空
+                    </div>
+                </div>
+
+                <!-- 事件二：一般强度见顶诱多 -->
+                <div class="event-card event-medium bg-orange-50 p-4 rounded-lg">
+                    <div class="flex items-center mb-2">
+                        <div class="w-8 h-8 bg-orange-600 text-white rounded-full flex items-center justify-center font-bold mr-3">2</div>
+                        <h3 class="font-bold text-orange-900">一般强度见顶诱多</h3>
+                    </div>
+                    <p class="text-sm text-gray-700 mb-2">
+                        触发条件：<br/>
+                        1️⃣ 2h见顶信号 > 10 且 < 120<br/>
+                        2️⃣ 10小时内再次出现信号<br/>
+                        3️⃣ 第二次信号 < 第一次
+                    </p>
+                    <div class="action-short px-3 py-1 rounded text-sm font-bold">
+                        <i class="fas fa-arrow-down mr-1"></i>操作：开空
+                    </div>
+                </div>
+
+                <!-- 事件三：强空头爆仓 -->
+                <div class="event-card event-high bg-red-50 p-4 rounded-lg">
+                    <div class="flex items-center mb-2">
+                        <div class="w-8 h-8 bg-red-700 text-white rounded-full flex items-center justify-center font-bold mr-3">3</div>
+                        <h3 class="font-bold text-red-900">强空头爆仓</h3>
+                    </div>
+                    <p class="text-sm text-gray-700 mb-2">
+                        触发条件：<br/>
+                        1️⃣ 1h爆仓金额 ≥ 3000万美元<br/>
+                        2️⃣ 持续创新高 10分钟以上
+                    </p>
+                    <div class="action-short px-3 py-1 rounded text-sm font-bold">
+                        <i class="fas fa-arrow-down mr-1"></i>操作：开空
+                    </div>
+                </div>
+
+                <!-- 事件四：弱空头爆仓 -->
+                <div class="event-card event-medium bg-yellow-50 p-4 rounded-lg">
+                    <div class="flex items-center mb-2">
+                        <div class="w-8 h-8 bg-yellow-600 text-white rounded-full flex items-center justify-center font-bold mr-3">4</div>
+                        <h3 class="font-bold text-yellow-900">弱空头爆仓</h3>
+                    </div>
+                    <p class="text-sm text-gray-700 mb-2">
+                        触发条件：<br/>
+                        1️⃣ 1h爆仓金额 ≥ 3000万美元<br/>
+                        2️⃣ 10分钟未创新高
+                    </p>
+                    <div class="action-short px-3 py-1 rounded text-sm font-bold">
+                        <i class="fas fa-arrow-down mr-1"></i>操作：开空（谨慎）
+                    </div>
+                </div>
+
+                <!-- 事件五：绿色信号转红色信号 -->
+                <div class="event-card event-high bg-red-50 p-4 rounded-lg">
+                    <div class="flex items-center mb-2">
+                        <div class="w-8 h-8 bg-red-600 text-white rounded-full flex items-center justify-center font-bold mr-3">5</div>
+                        <h3 class="font-bold text-red-900">绿色信号转红色信号</h3>
+                    </div>
+                    <p class="text-sm text-gray-700 mb-2">
+                        触发条件：<br/>
+                        1️⃣ 前一次标记为绿色（空单亏损≥3）<br/>
+                        2️⃣ 当前标记转为红色（空单盈利≥120%的≥3个）
+                    </p>
+                    <div class="action-short px-3 py-1 rounded text-sm font-bold">
+                        <i class="fas fa-arrow-down mr-1"></i>操作：开空
+                    </div>
+                </div>
+
+                <!-- 事件六：红色信号转绿色信号 -->
+                <div class="event-card event-low bg-green-50 p-4 rounded-lg">
+                    <div class="flex items-center mb-2">
+                        <div class="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center font-bold mr-3">6</div>
+                        <h3 class="font-bold text-green-900">红色信号转绿色信号</h3>
+                    </div>
+                    <p class="text-sm text-gray-700 mb-2">
+                        触发条件：<br/>
+                        1️⃣ 前一次标记为红色（空单盈利≥120%的≥3个）<br/>
+                        2️⃣ 当前标记转为绿色（空单亏损≥3）
+                    </p>
+                    <div class="action-long px-3 py-1 rounded text-sm font-bold">
+                        <i class="fas fa-arrow-up mr-1"></i>操作：开多
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 重大事件列表 - 移到最上面 -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-xl font-bold mb-4 flex items-center">
+                <i class="fas fa-list mr-2 text-blue-600"></i>
+                📋 最近触发的重大事件
+            </h2>
+            <div id="eventsList" class="space-y-4">
+                <div class="text-center text-gray-500 py-8">
+                    <i class="fas fa-spinner fa-spin text-3xl mb-2"></i>
+                    <p>加载中...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 空单盈利统计图表 -->
+        <div class="card" style="margin-bottom: 30px;">
+            <div class="card-header">
+                <div class="card-title">
+                    <span>💰</span>
+                    多空单盈利统计
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="update-time" id="profitStatsUpdateTime" style="font-size: 14px; color: #718096;">
+                        最后更新: --
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button onclick="changeProfitStatsPage(-1)" 
+                                style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                                       color: white; border: none; padding: 8px 16px; 
+                                       border-radius: 8px; cursor: pointer; font-size: 14px; 
+                                       font-weight: 600; transition: all 0.3s; display: flex; 
+                                       align-items: center; gap: 5px;">
+                            ← 前一天
+                        </button>
+                        <button onclick="changeProfitStatsPage(1)" 
+                                style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                                       color: white; border: none; padding: 8px 16px; 
+                                       border-radius: 8px; cursor: pointer; font-size: 14px; 
+                                       font-weight: 600; transition: all 0.3s; display: flex; 
+                                       align-items: center; gap: 5px;">
+                            后一天 →
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="chart-container" id="profitStatsChart" style="height: 400px; background: white; border-radius: 0 0 15px 15px;"></div>
+        </div>
+
+        <!-- 1小时爆仓金额曲线图 -->
+        <div class="chart-container mb-8">
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 class="text-xl font-bold flex items-center">
+                        <i class="fas fa-fire mr-2 text-red-600"></i>
+                        💥 1小时爆仓金额曲线图 
+                        <span style="font-size: 12px; color: #fbbf24; margin-left: 10px;">[实时追踪]</span>
+                    </h2>
+                    
+                    <!-- 分页控制器 -->
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <button 
+                            style="padding: 8px 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.3s;"
+                            id="liqPrevPageBtn" 
+                            onclick="loadLiquidationPreviousPage()" 
+                            title="查看更早的数据"
+                            onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.4)';"
+                            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
+                            <span>◀ 更早</span>
+                        </button>
+                        <div style="padding: 8px 16px; background: rgba(102, 126, 234, 0.1); border-radius: 8px; font-weight: 600; color: #667eea; min-width: 200px; text-align: center;" id="liqPageInfo">加载中...</div>
+                        <button 
+                            style="padding: 8px 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.3s;"
+                            id="liqNextPageBtn" 
+                            onclick="loadLiquidationNextPage()" 
+                            title="查看更新的数据"
+                            onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.4)';"
+                            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
+                            <span>更新 ▶</span>
+                        </button>
+                    </div>
+                </div>
+                <div id="liquidation1hChart" style="width: 100%; height: 400px; background: rgba(30, 27, 75, 0.95); border-radius: 15px; border: 1px solid rgba(245, 158, 11, 0.2);"></div>
+                <div style="font-size: 11px; color: #9ca3af; margin-top: 10px; text-align: center;">
+                    数据采集频率: 每分钟一次 | 数据来源: OKX API | 单位: 万美元 | 每页显示12小时
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPage = 0;
+        let allHistoryData = [];
+        let profitStatsChart = null;
+        let liquidation1hChart = null;  // 爆仓图表
+        let liqCurrentPage = 0;  // 当前页码（0=最新12小时）
+        let liqAllData = [];     // 所有历史数据
+        let isLoadingData = false;  // 防止重复加载
+        const LIQ_HOURS_PER_PAGE = 12;  // 每页显示12小时
+        const LIQ_RECORDS_PER_HOUR = 60;  // 每小时60条记录（1分钟一次）
+        const LIQ_RECORDS_PER_PAGE = LIQ_HOURS_PER_PAGE * LIQ_RECORDS_PER_HOUR;  // 每页720条记录
+
+        // 峰值检测器状态
+        let peakDetector = {
+            status: 'idle',  // idle, triggered, seeking_peak2, completed, timeout
+            peak1: { value: null, time: null },
+            peak1ConfirmedTime: null,  // 峰值1确定的时间（开始寻找峰值2的时间）
+            peak2: { value: null, time: null },
+            current: { value: null, time: null },
+            triggeredEvent: null,  // event1, event2, null
+            history: []  // 历史峰值记录
+        };
+
+        // 计算时间差（小时）
+        function getHoursDiff(time1, time2) {
+            const t1 = new Date(time1);
+            const t2 = new Date(time2);
+            return Math.abs(t2 - t1) / (1000 * 60 * 60);
+        }
+
+        // 峰值检测逻辑
+        function updatePeakDetection(currentValue, currentTime) {
+            peakDetector.current = { value: currentValue, time: currentTime };
+            
+            switch (peakDetector.status) {
+                case 'idle':
+                    // 触发条件：> 10
+                    if (currentValue > 10) {
+                        peakDetector.status = 'triggered';
+                        peakDetector.peak1 = { value: currentValue, time: currentTime };
+                        console.log(`🔔 峰值检测触发！峰值1: ${currentValue}`);
+                    }
+                    break;
+                    
+                case 'triggered':
+                    // 更新峰值1为最大值
+                    if (currentValue > peakDetector.peak1.value) {
+                        peakDetector.peak1 = { value: currentValue, time: currentTime };
+                        console.log(`📈 更新峰值1: ${currentValue}`);
+                    }
+                    // 检查是否跌破峰值1的50%
+                    if (currentValue < peakDetector.peak1.value * 0.5) {
+                        peakDetector.status = 'seeking_peak2';
+                        peakDetector.peak1ConfirmedTime = currentTime;  // 记录峰值1确定的时间
+                        peakDetector.peak2 = { value: currentValue, time: currentTime };
+                        console.log(`🔍 开始寻找峰值2，当前值: ${currentValue} (< ${peakDetector.peak1.value * 0.5})`);
+                        console.log(`⏰ 峰值1确定时间: ${currentTime}，10小时内必须找到峰值2`);
+                        
+                        // 根据峰值1的值触发对应事件
+                        if (peakDetector.peak1.value === 120) {
+                            console.log(`🔴 触发事件1：高强度见顶诱多（峰值1 = 120）`);
+                            peakDetector.triggeredEvent = 'event1';
+                        } else if (peakDetector.peak1.value < 120) {
+                            console.log(`🟠 触发事件2：一般强度见顶诱多（峰值1 = ${peakDetector.peak1.value} < 120）`);
+                            peakDetector.triggeredEvent = 'event2';
+                        }
+                    }
+                    break;
+                    
+                case 'seeking_peak2':
+                    // 检查是否超过10小时
+                    const hoursPassed = getHoursDiff(peakDetector.peak1ConfirmedTime, currentTime);
+                    if (hoursPassed > 10) {
+                        peakDetector.status = 'timeout';
+                        console.log(`⏰ 超时！峰值1确定后已过${hoursPassed.toFixed(1)}小时，超过10小时限制`);
+                        
+                        // 保存到历史记录（标记为超时）
+                        peakDetector.history.unshift({
+                            peak1: {...peakDetector.peak1},
+                            peak2: {...peakDetector.peak2},
+                            triggeredEvent: peakDetector.triggeredEvent,
+                            status: 'timeout',
+                            completedAt: currentTime
+                        });
+                        
+                        // 只保留最近10条记录
+                        if (peakDetector.history.length > 10) {
+                            peakDetector.history = peakDetector.history.slice(0, 10);
+                        }
+                        
+                        // 3秒后重置
+                        setTimeout(() => {
+                            peakDetector.status = 'idle';
+                            peakDetector.peak1 = { value: null, time: null };
+                            peakDetector.peak1ConfirmedTime = null;
+                            peakDetector.peak2 = { value: null, time: null };
+                            peakDetector.triggeredEvent = null;
+                            updatePeakDetectionUI();
+                        }, 3000);
+                        
+                        updatePeakDetectionUI();
+                        return;  // 停止继续处理
+                    }
+                    
+                    // 更新峰值2为最大值
+                    if (currentValue > peakDetector.peak2.value) {
+                        peakDetector.peak2 = { value: currentValue, time: currentTime };
+                        console.log(`📈 更新峰值2: ${currentValue}`);
+                    }
+                    // 检查是否跌破峰值2的50%
+                    if (currentValue < peakDetector.peak2.value * 0.5) {
+                        peakDetector.status = 'completed';
+                        const hoursPassed = getHoursDiff(peakDetector.peak1ConfirmedTime, currentTime);
+                        console.log(`✅ 峰值检测完成！峰值1: ${peakDetector.peak1.value}, 峰值2: ${peakDetector.peak2.value}, 用时: ${hoursPassed.toFixed(1)}小时`);
+                        
+                        // 保存到历史记录
+                        peakDetector.history.unshift({
+                            peak1: {...peakDetector.peak1},
+                            peak2: {...peakDetector.peak2},
+                            triggeredEvent: peakDetector.triggeredEvent,
+                            status: 'completed',
+                            duration: hoursPassed,
+                            completedAt: currentTime
+                        });
+                        
+                        // 只保留最近10条记录
+                        if (peakDetector.history.length > 10) {
+                            peakDetector.history = peakDetector.history.slice(0, 10);
+                        }
+                        
+                        // 重置状态，准备下一次检测
+                        setTimeout(() => {
+                            peakDetector.status = 'idle';
+                            peakDetector.peak1 = { value: null, time: null };
+                            peakDetector.peak1ConfirmedTime = null;
+                            peakDetector.peak2 = { value: null, time: null };
+                            peakDetector.triggeredEvent = null;
+                            updatePeakDetectionUI();
+                        }, 3000); // 3秒后重置
+                    }
+                    break;
+                    
+                case 'completed':
+                case 'timeout':
+                    // 等待重置
+                    break;
+            }
+            
+            updatePeakDetectionUI();
+        }
+
+        // 更新峰值检测UI
+        function updatePeakDetectionUI() {
+            // 状态
+            let statusText = '';
+            if (peakDetector.status === 'idle') {
+                statusText = '⚪ 未触发';
+            } else if (peakDetector.status === 'triggered') {
+                statusText = '🟡 已触发，记录峰值1';
+            } else if (peakDetector.status === 'seeking_peak2') {
+                // 计算已过时间
+                let timeInfo = '';
+                if (peakDetector.peak1ConfirmedTime) {
+                    const hoursPassed = getHoursDiff(peakDetector.peak1ConfirmedTime, peakDetector.current.time);
+                    const hoursLeft = 10 - hoursPassed;
+                    timeInfo = ` (${hoursPassed.toFixed(1)}h/${hoursLeft.toFixed(1)}h剩余)`;
+                }
+                
+                if (peakDetector.triggeredEvent === 'event1') {
+                    statusText = `🟠 寻找峰值2 | 🔴 事件1已触发${timeInfo}`;
+                } else if (peakDetector.triggeredEvent === 'event2') {
+                    statusText = `🟠 寻找峰值2 | 🟠 事件2已触发${timeInfo}`;
+                } else {
+                    statusText = `🟠 寻找峰值2${timeInfo}`;
+                }
+            } else if (peakDetector.status === 'completed') {
+                if (peakDetector.triggeredEvent === 'event1') {
+                    statusText = '🟢 检测完成 | 🔴 事件1';
+                } else if (peakDetector.triggeredEvent === 'event2') {
+                    statusText = '🟢 检测完成 | 🟠 事件2';
+                } else {
+                    statusText = '🟢 检测完成';
+                }
+            } else if (peakDetector.status === 'timeout') {
+                if (peakDetector.triggeredEvent === 'event1') {
+                    statusText = '⏰ 超时失败 | 🔴 事件1';
+                } else if (peakDetector.triggeredEvent === 'event2') {
+                    statusText = '⏰ 超时失败 | 🟠 事件2';
+                } else {
+                    statusText = '⏰ 超时失败';
+                }
+            } else {
+                statusText = '未知';
+            }
+            document.getElementById('peakDetectionStatus').textContent = statusText;
+            
+            // 峰值1
+            if (peakDetector.peak1.value !== null) {
+                document.getElementById('peak1Value').textContent = peakDetector.peak1.value;
+                document.getElementById('peak1Time').textContent = formatTime(peakDetector.peak1.time);
+            } else {
+                document.getElementById('peak1Value').textContent = '--';
+                document.getElementById('peak1Time').textContent = '--';
+            }
+            
+            // 峰值2
+            if (peakDetector.peak2.value !== null) {
+                document.getElementById('peak2Value').textContent = peakDetector.peak2.value;
+                document.getElementById('peak2Time').textContent = formatTime(peakDetector.peak2.time);
+            } else {
+                document.getElementById('peak2Value').textContent = '--';
+                document.getElementById('peak2Time').textContent = '--';
+            }
+            
+            // 当前值
+            if (peakDetector.current.value !== null) {
+                document.getElementById('currentPeakValue').textContent = peakDetector.current.value;
+                document.getElementById('currentPeakTime').textContent = formatTime(peakDetector.current.time);
+            } else {
+                document.getElementById('currentPeakValue').textContent = '--';
+                document.getElementById('currentPeakTime').textContent = '--';
+            }
+            
+            // 历史记录
+            const historyHTML = peakDetector.history.length > 0 
+                ? peakDetector.history.map((record, idx) => {
+                    let eventBadge = '';
+                    if (record.triggeredEvent === 'event1') {
+                        eventBadge = '<span class="bg-red-500 text-white px-2 py-0.5 rounded text-xs ml-1">事件1</span>';
+                    } else if (record.triggeredEvent === 'event2') {
+                        eventBadge = '<span class="bg-orange-500 text-white px-2 py-0.5 rounded text-xs ml-1">事件2</span>';
+                    }
+                    
+                    let statusBadge = '';
+                    if (record.status === 'timeout') {
+                        statusBadge = '<span class="bg-gray-500 text-white px-2 py-0.5 rounded text-xs ml-1">⏰超时</span>';
+                    } else if (record.status === 'completed' && record.duration) {
+                        statusBadge = `<span class="bg-green-500 text-white px-2 py-0.5 rounded text-xs ml-1">✓${record.duration.toFixed(1)}h</span>`;
+                    }
+                    
+                    return `
+                    <div class="bg-gray-50 rounded p-2 text-xs">
+                        <span class="font-semibold">#${idx + 1}</span> 
+                        峰值1: <span class="text-orange-600 font-bold">${record.peak1.value}</span> → 
+                        峰值2: <span class="text-blue-600 font-bold">${record.peak2.value}</span>
+                        ${eventBadge}
+                        ${statusBadge}
+                        <span class="text-gray-500 ml-2">${formatTime(record.completedAt)}</span>
+                    </div>
+                    `;
+                }).join('')
+                : '<div class="text-sm text-gray-500 text-center py-2">暂无历史记录</div>';
+            
+            document.getElementById('peakHistory').innerHTML = historyHTML;
+        }
+
+        // 时间格式化辅助函数
+        function formatTime(timeStr) {
+            if (!timeStr) return '--';
+            if (timeStr.length > 16) {
+                return timeStr.substring(5, 16);  // 从 "YYYY-MM-DD HH:MM:SS" 提取 "MM-DD HH:MM"
+            }
+            return timeStr;
+        }
+
+        // 初始化图表
+        function initCharts() {
+            console.log('🔧 开始初始化图表...');
+            
+            // 检查ECharts是否加载
+            if (typeof echarts === 'undefined') {
+                console.error('❌ ECharts库未加载');
+                return;
+            }
+            
+            // 检查图表容器是否存在
+            const profitContainer = document.getElementById('profitStatsChart');
+            if (!profitContainer) {
+                console.error('❌ 找不到profitStatsChart容器');
+                return;
+            }
+            
+            console.log('✅ profitStatsChart容器存在，尺寸:', profitContainer.offsetWidth, 'x', profitContainer.offsetHeight);
+            
+            // 初始化多空单盈利图表
+            try {
+                profitStatsChart = echarts.init(profitContainer);
+                console.log('✅ profitStatsChart初始化成功');
+            } catch (error) {
+                console.error('❌ profitStatsChart初始化失败:', error);
+            }
+            
+            // 初始化爆仓图表
+            initLiquidation1hChart();
+        }
+
+        // 刷新数据
+        async function refreshData() {
+            try {
+                // 获取当前状态
+                const statusResponse = await fetch('/api/major-events/current-status');
+                const statusData = await statusResponse.json();
+                
+                if (statusData.success) {
+                    updateCurrentData(statusData);
+                }
+
+                // 获取历史事件
+                const eventsResponse = await fetch('/api/major-events/recent?hours=24');
+                const eventsData = await eventsResponse.json();
+                
+                if (eventsData.success) {
+                    updateEventsList(eventsData.events || []);
+                }
+
+                // 获取锚定系统历史数据
+                await loadAnchorHistoryData();
+                
+                // 获取其他曲线数据
+                await loadChartData();
+
+            } catch (error) {
+                console.error('刷新数据失败:', error);
+            }
+        }
+
+        // 更新当前数据显示
+        function updateCurrentData(data) {
+            const current = data.current_data || {};
+            
+            // 2h见顶信号
+            document.getElementById('topSignalCount').textContent = current.top_signal_2h || 0;
+            const topSignal = current.top_signal_2h || 0;
+            let topSignalStatus = '正常';
+            if (topSignal >= 120) topSignalStatus = '⚠️ 高强度见顶';
+            else if (topSignal >= 20) topSignalStatus = '⚠️ 一般强度见顶';
+            document.getElementById('topSignalStatus').textContent = topSignalStatus;
+            
+            // 27币涨跌幅和
+            const coinsChange = current.coins_change_sum || 0;
+            document.getElementById('coinsChangeSum').textContent = coinsChange.toFixed(2) + '%';
+            const changeElement = document.getElementById('coinsChangeSum');
+            if (coinsChange > 0) {
+                changeElement.classList.add('text-green-600');
+                changeElement.classList.remove('text-red-600', 'text-blue-600');
+            } else if (coinsChange < 0) {
+                changeElement.classList.add('text-red-600');
+                changeElement.classList.remove('text-green-600', 'text-blue-600');
+            } else {
+                changeElement.classList.add('text-blue-600');
+                changeElement.classList.remove('text-green-600', 'text-red-600');
+            }
+            
+            // 1h爆仓金额
+            document.getElementById('liquidationAmount').textContent = 
+                (current.liquidation_1h || 0).toFixed(2);
+            
+            // 多空盈利标记 - 显示最近两次
+            const profitMarks = data.event_states?.profit_marks_history || [];
+            if (profitMarks.length >= 2) {
+                // 前一次标记（倒数第二个）
+                const prevMark = profitMarks[profitMarks.length - 2];
+                const prevColor = prevMark.mark === 'red' ? '🔴 红色标记' : '🟢 绿色标记';
+                document.getElementById('profitMarkPrevStatus').textContent = prevColor;
+                document.getElementById('profitMarkPrevDetail').textContent = 
+                    `时间: ${prevMark.datetime || '未知'}`;
+                
+                // 当前标记（最后一个）
+                const currentMark = profitMarks[profitMarks.length - 1];
+                const currentColor = currentMark.mark === 'red' ? '🔴 红色标记' : '🟢 绿色标记';
+                document.getElementById('profitMarkCurrentStatus').textContent = currentColor;
+                document.getElementById('profitMarkCurrentDetail').textContent = 
+                    `时间: ${currentMark.datetime || '未知'}`;
+            } else if (profitMarks.length === 1) {
+                // 只有一个标记
+                document.getElementById('profitMarkPrevStatus').textContent = '暂无';
+                document.getElementById('profitMarkPrevDetail').textContent = '等待数据...';
+                
+                const currentMark = profitMarks[0];
+                const currentColor = currentMark.mark === 'red' ? '🔴 红色标记' : '🟢 绿色标记';
+                document.getElementById('profitMarkCurrentStatus').textContent = currentColor;
+                document.getElementById('profitMarkCurrentDetail').textContent = 
+                    `时间: ${currentMark.datetime || '未知'}`;
+            } else {
+                // 没有标记
+                document.getElementById('profitMarkPrevStatus').textContent = '暂无标记';
+                document.getElementById('profitMarkPrevDetail').textContent = '等待数据...';
+                document.getElementById('profitMarkCurrentStatus').textContent = '暂无标记';
+                document.getElementById('profitMarkCurrentDetail').textContent = '等待数据...';
+            }
+            
+            // 峰值检测
+            const currentTime = new Date().toLocaleString('zh-CN', { 
+                year: 'numeric', 
+                month: '2-digit', 
+                day: '2-digit', 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit',
+                hour12: false 
+            }).replace(/\//g, '-');
+            updatePeakDetection(topSignal, currentTime);
+        }
+
+        // 加载锚定系统历史数据（按日期加载）
+        async function loadAnchorHistoryData(dateStr = null) {
+            // 防止重复加载
+            if (isLoadingData) {
+                console.log('⚠️ 数据正在加载中，跳过重复请求');
+                return;
+            }
+            
+            // 如果数据已经加载过，直接使用缓存
+            if (allHistoryData.length > 0 && !dateStr) {
+                console.log('✅ 使用缓存数据，跳过网络请求');
+                renderProfitStatsChart(currentPage);
+                return;
+            }
+            
+            isLoadingData = true;
+            
+            try {
+                // 如果没有指定日期，加载最近2天的数据（以支持"昨天"和"今天"）
+                const limit = dateStr ? 1440 : 2880;  // 1天=1440分钟，2天=2880分钟
+                
+                console.log(`🔄 加载数据: limit=${limit}条（约${limit/1440}天）`);
+                const startTime = performance.now();
+                
+                const response = await fetch(`/api/anchor-profit/history?limit=${limit}`);
+                const data = await response.json();
+                
+                const loadTime = ((performance.now() - startTime) / 1000).toFixed(2);
+                console.log(`✅ 数据加载完成: ${data.data?.length || 0}条，耗时${loadTime}秒`);
+                
+                if (data.success && data.data) {
+                    allHistoryData = data.data;
+                    renderProfitStatsChart(currentPage);
+                } else {
+                    console.error('加载数据失败:', data);
+                }
+            } catch (error) {
+                console.error('加载锚定系统历史数据失败:', error);
+            } finally {
+                isLoadingData = false;
+            }
+        }
+
+        // UTC时间转北京时间的辅助函数
+        function utcToBeijing(utcDatetimeStr) {
+            // 输入格式：YYYY-MM-DD HH:MM:SS (UTC)
+            // 输出格式：YYYY-MM-DD HH:MM:SS (北京时间 UTC+8)
+            const utcDate = new Date(utcDatetimeStr + ' UTC');
+            const beijingDate = new Date(utcDate.getTime() + 8 * 60 * 60 * 1000);
+            const year = beijingDate.getUTCFullYear();
+            const month = String(beijingDate.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(beijingDate.getUTCDate()).padStart(2, '0');
+            const hours = String(beijingDate.getUTCHours()).padStart(2, '0');
+            const minutes = String(beijingDate.getUTCMinutes()).padStart(2, '0');
+            const seconds = String(beijingDate.getUTCSeconds()).padStart(2, '0');
+            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        }
+
+        // 渲染多空单盈利统计图表
+        function renderProfitStatsChart(pageOffset) {
+            console.log(`📈 渲染图表，页码偏移: ${pageOffset}天`);
+            
+            // 检查图表是否已初始化
+            if (!profitStatsChart) {
+                console.error('❌ profitStatsChart未初始化，尝试重新初始化...');
+                const profitContainer = document.getElementById('profitStatsChart');
+                if (profitContainer) {
+                    profitStatsChart = echarts.init(profitContainer);
+                    console.log('✅ profitStatsChart重新初始化成功');
+                } else {
+                    console.error('❌ 找不到profitStatsChart容器');
+                    return;
+                }
+            }
+            
+            // 计算日期范围（显示24小时数据）
+            const now = new Date();
+            const targetDate = new Date(now);
+            targetDate.setDate(targetDate.getDate() + pageOffset);
+            
+            // 格式化目标日期为 YYYY-MM-DD
+            const year = targetDate.getFullYear();
+            const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+            const day = String(targetDate.getDate()).padStart(2, '0');
+            const datePrefix = `${year}-${month}-${day}`;
+            
+            // 使用datetime字符串过滤，转换为北京时间后比较
+            const dataList = allHistoryData.filter(d => {
+                if (!d.datetime) return false;
+                // 将UTC时间转换为北京时间后再比较日期
+                const beijingDatetime = utcToBeijing(d.datetime);
+                return beijingDatetime.startsWith(datePrefix);
+            });
+            
+            console.log(`📊 ${targetDate.toLocaleDateString()} 的数据条数:`, dataList.length);
+            
+            if (dataList.length === 0) {
+                console.warn('⚠️ 该日期暂无数据');
+                // 显示空白图表并提示
+                profitStatsChart.setOption({
+                    title: {
+                        text: `⚠️ ${targetDate.toLocaleDateString()} 暂无数据`,
+                        left: 'center',
+                        top: 'middle',
+                        textStyle: {
+                            color: '#999',
+                            fontSize: 20
+                        }
+                    },
+                    xAxis: { data: [] },
+                    yAxis: {},
+                    series: []
+                });
+                return;
+            }
+            
+            const times = dataList.map(d => {
+                // 将UTC时间转换为北京时间（UTC+8）
+                // 格式：YYYY-MM-DD HH:MM:SS
+                const utcDate = new Date(d.datetime + ' UTC'); // 明确指定为UTC时间
+                const beijingDate = new Date(utcDate.getTime() + 8 * 60 * 60 * 1000); // 加8小时
+                const hours = String(beijingDate.getUTCHours()).padStart(2, '0');
+                const minutes = String(beijingDate.getUTCMinutes()).padStart(2, '0');
+                return `${hours}:${minutes}`;  // HH:MM（北京时间）
+            });
+            
+            // 多头数据（绿色系）
+            const long_lte40Data = dataList.map(d => d.stats?.long?.lte_40 || 0);
+            const long_lossData = dataList.map(d => d.stats?.long?.loss || 0);
+            const long_gte80Data = dataList.map(d => d.stats?.long?.gte_80 || 0);
+            const long_gte120Data = dataList.map(d => d.stats?.long?.gte_120 || 0);
+            
+            // 空单数据（红色系）
+            const short_lte40Data = dataList.map(d => d.stats?.short?.lte_40 || d.stats?.lte_40 || 0);
+            const short_lossData = dataList.map(d => d.stats?.short?.loss || d.stats?.loss || 0);
+            const short_gte80Data = dataList.map(d => d.stats?.short?.gte_80 || d.stats?.gte_80 || 0);
+            const short_gte120Data = dataList.map(d => d.stats?.short?.gte_120 || d.stats?.gte_120 || 0);
+            
+            // 2小时逃顶信号（橙色）
+            const escape2hData = dataList.map(d => d.escape_signal_2h || 0);
+            
+            console.log('📊 图表数据:', {
+                times: times.slice(0, 3),
+                long: {
+                    lte40: long_lte40Data.slice(0, 3),
+                    loss: long_lossData.slice(0, 3),
+                    gte80: long_gte80Data.slice(0, 3),
+                    gte120: long_gte120Data.slice(0, 3)
+                },
+                short: {
+                    lte40: short_lte40Data.slice(0, 3),
+                    loss: short_lossData.slice(0, 3),
+                    gte80: short_gte80Data.slice(0, 3),
+                    gte120: short_gte120Data.slice(0, 3)
+                },
+                escape2h: escape2hData.slice(0, 3)
+            });
+            
+            // 计算空单盈利≥120%和空单亏损的标记点
+            const shortProfitMarks = [];
+            const shortLossMarks = [];
+            let lastShortProfitHour = null;
+            let lastShortLossHour = null;
+            
+            dataList.forEach((d, index) => {
+                // 直接从datetime字符串解析（格式：YYYY-MM-DD HH:MM:SS）
+                const datetimeParts = d.datetime.split(' ');
+                if (datetimeParts.length < 2) return;
+                
+                const datePart = datetimeParts[0];  // YYYY-MM-DD
+                const timeParts = datetimeParts[1].split(':');
+                if (timeParts.length < 2) return;
+                
+                const hour = `${datePart} ${timeParts[0]}`;  // YYYY-MM-DD HH
+                
+                const shortProfit120 = d.stats?.short?.gte_120 || 0;
+                const shortLoss = d.stats?.short?.loss || 0;
+                
+                // 空单盈利≥120%数量≥3，每小时只标记一次
+                if (shortProfit120 >= 3 && hour !== lastShortProfitHour) {
+                    shortProfitMarks.push({
+                        coord: [index, shortProfit120],
+                        value: shortProfit120,
+                        itemStyle: {
+                            color: '#dc2626',  // 红色
+                            borderColor: '#fff',
+                            borderWidth: 3
+                        },
+                        label: {
+                            show: true,
+                            formatter: '🔴 ' + shortProfit120,
+                            position: 'top',
+                            color: '#dc2626',
+                            fontSize: 14,
+                            fontWeight: 'bold'
+                        }
+                    });
+                    lastShortProfitHour = hour;
+                    console.log(`🔴 标记空单盈利≥120%: ${utcToBeijing(d.datetime)} (北京时间) - ${shortProfit120}个`);
+                }
+                
+                // 空单亏损数量≥3，每小时只标记一次
+                if (shortLoss >= 3 && hour !== lastShortLossHour) {
+                    shortLossMarks.push({
+                        coord: [index, shortLoss],
+                        value: shortLoss,
+                        itemStyle: {
+                            color: '#10b981',  // 绿色
+                            borderColor: '#fff',
+                            borderWidth: 3
+                        },
+                        label: {
+                            show: true,
+                            formatter: '🟢 ' + shortLoss,
+                            position: 'top',
+                            color: '#10b981',
+                            fontSize: 14,
+                            fontWeight: 'bold'
+                        }
+                    });
+                    lastShortLossHour = hour;
+                    console.log(`🟢 标记空单亏损: ${utcToBeijing(d.datetime)} (北京时间) - ${shortLoss}个`);
+                }
+            });
+            
+            console.log(`📍 空单盈利≥120%标记数: ${shortProfitMarks.length}, 空单亏损标记数: ${shortLossMarks.length}`);
+            
+            // 计算2h见顶信号的峰值标记和事件触发
+            // 新算法：基于50%下降的峰值区域检测
+            // 规则：
+            // 1. 峰值1必须>10
+            // 2. 当下降到峰值1的50%时，峰值1区域结束，开始寻找峰值2
+            // 3. 峰值2可以是任意值（包括<10）
+            // 4. 当下降到峰值2的50%时，事件完成
+            const escape2hMarks = [];
+            const TEN_HOURS_IN_MINUTES = 600; // 10小时 = 600分钟
+            
+            // 使用状态机检测峰值区域
+            const detectedPeaks = [];
+            let inPeakRegion = false;
+            let currentPeakMax = 0;
+            let currentPeakMaxIndex = -1;
+            let currentPeakStartIndex = -1;
+            
+            for (let i = 0; i < dataList.length; i++) {
+                const currentValue = escape2hData[i];
+                
+                if (!inPeakRegion) {
+                    // 不在峰值区域，寻找峰值开始（>10）
+                    if (currentValue > 10) {
+                        inPeakRegion = true;
+                        currentPeakMax = currentValue;
+                        currentPeakMaxIndex = i;
+                        currentPeakStartIndex = i;
+                        console.log(`🆕 峰值区域开始: 值=${currentValue}, 时间=${utcToBeijing(dataList[i].datetime)}`);
+                    }
+                } else {
+                    // 在峰值区域内
+                    
+                    // 更新峰值最大值
+                    if (currentValue > currentPeakMax) {
+                        currentPeakMax = currentValue;
+                        currentPeakMaxIndex = i;
+                        console.log(`⬆️ 峰值更新: ${currentPeakMax}, 时间=${utcToBeijing(dataList[i].datetime)}`);
+                    }
+                    
+                    // 检查是否下降到峰值的50%
+                    const peakHalf = currentPeakMax * 0.5;
+                    if (currentValue < peakHalf) {
+                        // 峰值区域结束，保存峰值
+                        detectedPeaks.push({
+                            index: currentPeakMaxIndex,
+                            value: currentPeakMax,
+                            datetime: dataList[currentPeakMaxIndex].datetime,
+                            startIndex: currentPeakStartIndex,
+                            endIndex: i,
+                            endValue: currentValue
+                        });
+                        
+                        console.log(`📍 峰值区域结束: 值=${currentPeakMax}, 时间=${utcToBeijing(dataList[currentPeakMaxIndex].datetime)}, 原因=下降到 ${currentValue} < ${peakHalf.toFixed(2)} (50%)`);
+                        
+                        // 重置状态，但保持检查当前值是否>10（可能立即开始新峰值）
+                        inPeakRegion = false;
+                        currentPeakMax = 0;
+                        currentPeakMaxIndex = -1;
+                        currentPeakStartIndex = -1;
+                        
+                        // 如果当前值>10，立即开始新的峰值区域
+                        if (currentValue > 10) {
+                            inPeakRegion = true;
+                            currentPeakMax = currentValue;
+                            currentPeakMaxIndex = i;
+                            currentPeakStartIndex = i;
+                            console.log(`🆕 新峰值区域立即开始: 值=${currentValue}, 时间=${utcToBeijing(dataList[i].datetime)}`);
+                        }
+                    }
+                }
+            }
+            
+            // 处理最后一个未结束的峰值区域
+            if (inPeakRegion && currentPeakMax > 10) {
+                detectedPeaks.push({
+                    index: currentPeakMaxIndex,
+                    value: currentPeakMax,
+                    datetime: dataList[currentPeakMaxIndex].datetime,
+                    startIndex: currentPeakStartIndex,
+                    endIndex: dataList.length - 1,
+                    endValue: escape2hData[dataList.length - 1]
+                });
+                console.log(`📍 峰值区域结束: 值=${currentPeakMax}, 时间=${utcToBeijing(dataList[currentPeakMaxIndex].datetime)}, 原因=数据结束`);
+            }
+            
+            console.log(`✅ 检测到 ${detectedPeaks.length} 个峰值区域`);
+            
+            // 阶段2：检测事件（两个连续的峰值区域）
+            const triggeredEvents = [];
+            
+            for (let i = 0; i < detectedPeaks.length - 1; i++) {
+                const firstPeak = detectedPeaks[i];
+                const secondPeak = detectedPeaks[i + 1];
+                
+                // 检查时间间隔（10小时内）
+                const timeDiff = secondPeak.index - firstPeak.index;
+                if (timeDiff > TEN_HOURS_IN_MINUTES) continue;
+                
+                // 判断事件类型
+                const eventType = firstPeak.value === 120 ? '事件1' : '事件2';
+                
+                // 事件已经完成（第二峰值区域已经结束，意味着已经下降到第二峰值的50%）
+                const completionIndex = secondPeak.endIndex;
+                const completionValue = secondPeak.endValue;
+                
+                triggeredEvents.push({
+                    firstPeak,
+                    secondPeak,
+                    eventType,
+                    timeDiff: Math.round(timeDiff / 60 * 10) / 10,
+                    completionIndex,
+                    completionValue
+                });
+                
+                console.log(`🚨 事件完成！${eventType}`);
+                console.log(`   峰值1: ${firstPeak.value} (${utcToBeijing(firstPeak.datetime)})`);
+                console.log(`   峰值2: ${secondPeak.value} (${utcToBeijing(secondPeak.datetime)})`);
+                console.log(`   完成点: ${completionValue} < ${(secondPeak.value * 0.5).toFixed(2)} (${utcToBeijing(dataList[completionIndex].datetime)})`);
+                console.log(`   总耗时: ${Math.round((completionIndex - firstPeak.index) / 60 * 10) / 10} 小时`);
+            }
+            
+            // 阶段3：标记峰值和完成点
+            // 标记所有检测到的峰值
+            for (let i = 0; i < detectedPeaks.length; i++) {
+                const peak = detectedPeaks[i];
+                
+                // 检查这个峰值是否参与了某个事件
+                let isFirstPeakInEvent = false;
+                let isSecondPeakInEvent = false;
+                let relatedEvent = null;
+                
+                for (const event of triggeredEvents) {
+                    if (event.firstPeak.index === peak.index) {
+                        isFirstPeakInEvent = true;
+                        relatedEvent = event;
+                        break;
+                    }
+                    if (event.secondPeak.index === peak.index) {
+                        isSecondPeakInEvent = true;
+                        relatedEvent = event;
+                        break;
+                    }
+                }
+                
+                // 确定标记样式
+                let markColor, markSymbol, markLabel;
+                
+                if (isFirstPeakInEvent) {
+                    // 第一峰值（触发事件的）
+                    const isEvent1 = (peak.value === 120);
+                    markColor = isEvent1 ? '#dc2626' : '#f97316';
+                    markSymbol = isEvent1 ? '⭐' : '🔥';
+                    markLabel = `${markSymbol} ${peak.value}`;
+                } else if (isSecondPeakInEvent) {
+                    // 第二峰值（事件中的）
+                    markColor = '#9333ea'; // 紫色
+                    markSymbol = '⚡';
+                    markLabel = `${markSymbol} ${peak.value}`;
+                } else {
+                    // 普通峰值（未触发事件）
+                    markColor = '#64748b'; // 灰色
+                    markSymbol = '📌';
+                    markLabel = `${markSymbol} ${peak.value}`;
+                }
+                
+                escape2hMarks.push({
+                    coord: [peak.index, peak.value],
+                    value: peak.value,
+                    itemStyle: {
+                        color: markColor,
+                        borderColor: '#fff',
+                        borderWidth: 3
+                    },
+                    label: {
+                        show: true,
+                        formatter: markLabel,
+                        position: 'top',
+                        color: markColor,
+                        fontSize: 14,
+                        fontWeight: 'bold',
+                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                        padding: [4, 8],
+                        borderRadius: 4
+                    }
+                });
+            }
+            
+            // 标记所有事件的完成点
+            for (const event of triggeredEvents) {
+                // 添加完成点标记（红色心形）
+                escape2hMarks.push({
+                    coord: [event.completionIndex, event.completionValue],
+                    value: event.completionValue,
+                    symbol: 'pin', // 大头针样式
+                    symbolSize: 50,
+                    itemStyle: {
+                        color: '#ef4444', // 红色
+                        borderColor: '#fff',
+                        borderWidth: 3
+                    },
+                    label: {
+                        show: true,
+                        formatter: `✓ ${event.completionValue}`,
+                        position: 'bottom',
+                        color: '#ef4444',
+                        fontSize: 14,
+                        fontWeight: 'bold',
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        padding: [4, 8],
+                        borderRadius: 4
+                    }
+                });
+                
+                console.log(`✓ 标记完成点: 值=${event.completionValue}, 索引=${event.completionIndex}`);
+            }
+            
+            console.log(`📍 2h见顶信号标记数: ${escape2hMarks.length}`);
+            console.log(`🚨 触发事件数: ${triggeredEvents.length}`);
+            
+            // 格式化日期显示
+            const dateStr = targetDate.toLocaleDateString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            });
+            const dayLabel = pageOffset === 0 ? '今天' : 
+                           pageOffset === -1 ? '昨天' : 
+                           pageOffset === -2 ? '前天' : 
+                           `${Math.abs(pageOffset)}天前`;
+            
+            const option = {
+                title: {
+                    text: `多空单盈利分布趋势（${dateStr} ${dayLabel} - 北京时间 UTC+8）`,
+                    left: 'center',
+                    textStyle: {
+                        color: '#2d3748',
+                        fontSize: 16
+                    }
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    formatter: function(params) {
+                        let result = params[0].axisValue + '<br/>';
+                        params.forEach(param => {
+                            result += `${param.marker} ${param.seriesName}: ${param.value} 个<br/>`;
+                        });
+                        return result;
+                    }
+                },
+                legend: {
+                    data: [
+                        {name: '【多头指标】', textStyle: {fontWeight: 'bold', color: '#10b981'}},
+                        '🟢 空单盈利≤40%',
+                        '🟢 空单亏损',
+                        {name: '【空头指标】', textStyle: {fontWeight: 'bold', color: '#ef4444'}},
+                        '🔴 空单盈利≥80%',
+                        '🔴 空单盈利≥120%',
+                        {name: '【逃顶信号】', textStyle: {fontWeight: 'bold', color: '#f97316'}},
+                        '⚡ 2h逃顶信号'
+                    ],
+                    top: 35,
+                    textStyle: {
+                        color: '#2d3748',
+                        fontSize: 11
+                    }
+                },
+                grid: {
+                    left: '5%',
+                    right: '5%',
+                    bottom: '3%',
+                    top: 95,
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    boundaryGap: false,
+                    data: times,
+                    axisLabel: {
+                        rotate: 45,
+                        color: '#718096',
+                        fontSize: 10
+                    }
+                },
+                yAxis: [
+                    {
+                        // 左Y轴：2小时逃顶信号数量（橙色）
+                        type: 'value',
+                        name: '2h逃顶信号',
+                        position: 'left',
+                        minInterval: 1,
+                        axisLabel: {
+                            color: '#f97316',
+                            formatter: '{value}'
+                        },
+                        axisLine: {
+                            show: true,
+                            lineStyle: {
+                                color: '#f97316'
+                            }
+                        },
+                        splitLine: {
+                            show: true,
+                            lineStyle: {
+                                color: '#e5e7eb',
+                                type: 'dashed'
+                            }
+                        }
+                    },
+                    {
+                        // 右Y轴：空单数量（多头+空头指标）
+                        type: 'value',
+                        name: '空单数量',
+                        position: 'right',
+                        minInterval: 1,
+                        axisLabel: {
+                            color: '#4b5563',
+                            formatter: '{value}'
+                        },
+                        axisLine: {
+                            show: true,
+                            lineStyle: {
+                                color: '#4b5563'
+                            }
+                        },
+                        splitLine: {
+                            show: false
+                        }
+                    }
+                ],
+                series: [
+                    // 2小时逃顶信号（橙色）- 使用左Y轴
+                    {
+                        name: '⚡ 2h逃顶信号',
+                        type: 'line',
+                        yAxisIndex: 0,  // 使用左Y轴
+                        data: escape2hData,
+                        smooth: true,
+                        itemStyle: { color: '#f97316' },
+                        lineStyle: { width: 3, color: '#f97316', type: 'solid' },
+                        symbol: 'diamond',
+                        symbolSize: 7,
+                        emphasis: {
+                            focus: 'series',
+                            itemStyle: {
+                                borderColor: '#f97316',
+                                borderWidth: 2
+                            }
+                        },
+                        markPoint: {
+                            symbol: 'pin',
+                            symbolSize: 70,
+                            data: escape2hMarks
+                        }
+                    },
+                    // 多头指标（绿色系）- 空单盈利低的情况 - 使用右Y轴
+                    {
+                        name: '🟢 空单盈利≤40%',
+                        type: 'line',
+                        yAxisIndex: 1,  // 使用右Y轴
+                        data: short_lte40Data,
+                        smooth: true,
+                        itemStyle: { color: '#10b981' },
+                        lineStyle: { width: 3, color: '#10b981' },
+                        symbol: 'circle',
+                        symbolSize: 6
+                    },
+                    {
+                        name: '🟢 空单亏损',
+                        type: 'line',
+                        yAxisIndex: 1,  // 使用右Y轴
+                        data: short_lossData,
+                        smooth: true,
+                        itemStyle: { color: '#059669' },
+                        lineStyle: { width: 3, color: '#059669' },
+                        symbol: 'circle',
+                        symbolSize: 6,
+                        markPoint: {
+                            symbol: 'pin',
+                            symbolSize: 60,
+                            data: shortLossMarks
+                        }
+                    },
+                    // 空头指标（红色系）- 空单盈利高的情况 - 使用右Y轴
+                    {
+                        name: '🔴 空单盈利≥80%',
+                        type: 'line',
+                        yAxisIndex: 1,  // 使用右Y轴
+                        data: short_gte80Data,
+                        smooth: true,
+                        itemStyle: { color: '#ef4444' },
+                        lineStyle: { width: 3, color: '#ef4444' },
+                        symbol: 'circle',
+                        symbolSize: 6
+                    },
+                    {
+                        name: '🔴 空单盈利≥120%',
+                        type: 'line',
+                        yAxisIndex: 1,  // 使用右Y轴
+                        data: short_gte120Data,
+                        smooth: true,
+                        itemStyle: { color: '#991b1b' },
+                        lineStyle: { width: 3, color: '#991b1b' },
+                        symbol: 'circle',
+                        symbolSize: 6,
+                        markPoint: {
+                            symbol: 'pin',
+                            symbolSize: 60,
+                            data: shortProfitMarks
+                        }
+                    }
+                ]
+            };
+            
+            profitStatsChart.setOption(option);
+            
+            // 强制刷新图表尺寸
+            setTimeout(() => {
+                profitStatsChart.resize();
+                console.log('🔄 图表尺寸已刷新');
+            }, 100);
+            
+            console.log('✅ 多空单盈利统计图表渲染完成');
+        }
+
+        // 加载其他图表数据
+        async function loadChartData() {
+            try {
+                // 获取爆仓数据 - 从JSONL读取
+                await renderLiquidationChartFromData();
+
+            } catch (error) {
+                console.error('加载图表数据失败:', error);
+            }
+        }
+
+        
+        function initLiquidation1hChart() {
+            const chartDom = document.getElementById('liquidation1hChart');
+            if (!chartDom) {
+                console.error('❌ 找不到liquidation1hChart容器');
+                return;
+            }
+            liquidation1hChart = echarts.init(chartDom);
+            loadAllLiquidationData();
+        }
+
+        // 加载所有数据
+        async function loadAllLiquidationData() {
+            try {
+                console.log('📊 加载1小时爆仓金额全部数据...');
+                
+                const response = await fetch('/api/liquidation-1h/history?limit=10000');
+                const result = await response.json();
+                
+                if (!result.success || !result.data || result.data.length === 0) {
+                    console.warn('⚠️ 暂无1小时爆仓金额数据');
+                    if (liquidation1hChart) {
+                        liquidation1hChart.setOption({
+                            title: {
+                                text: '⚠️ 暂无数据',
+                                left: 'center',
+                                top: 'middle',
+                                textStyle: {
+                                    color: 'rgba(255, 255, 255, 0.6)',
+                                    fontSize: 16
+                                }
+                            }
+                        });
+                    }
+                    return;
+                }
+                
+                liqAllData = result.data;
+                console.log(`✅ 加载成功: ${liqAllData.length}条记录`);
+                
+                // 显示最新一页
+                liqCurrentPage = 0;
+                updateLiquidationChartForCurrentPage();
+                updateLiquidationPageInfo();
+                
+            } catch (error) {
+                console.error('❌ 加载1小时爆仓金额数据失败:', error);
+            }
+        }
+
+        // 更新当前页的图表
+        function updateLiquidationChartForCurrentPage() {
+            if (!liqAllData || liqAllData.length === 0) {
+                console.warn('⚠️ 没有数据可显示');
+                return;
+            }
+            
+            // 计算当前页的数据范围
+            const totalRecords = liqAllData.length;
+            const startIndex = Math.max(0, totalRecords - (liqCurrentPage + 1) * LIQ_RECORDS_PER_PAGE);
+            const endIndex = Math.max(0, totalRecords - liqCurrentPage * LIQ_RECORDS_PER_PAGE);
+            
+            const pageData = liqAllData.slice(startIndex, endIndex);
+            console.log(`📄 显示第${liqCurrentPage + 1}页: ${pageData.length}条数据 (${startIndex}-${endIndex})`);
+            
+            if (pageData.length === 0) {
+                console.warn('⚠️ 当前页无数据');
+                return;
+            }
+            
+            // 提取时间和金额
+            const times = pageData.map(d => {
+                const dt = new Date(d.timestamp * 1000);
+                return `${dt.getMonth()+1}/${dt.getDate()} ${dt.getHours().toString().padStart(2, '0')}:${dt.getMinutes().toString().padStart(2, '0')}`;
+            });
+            
+            const amounts = pageData.map(d => d.hour_1_amount);
+            
+            // 计算平均值
+            const avgAmount = (amounts.reduce((a, b) => a + b, 0) / amounts.length).toFixed(2);
+            
+            // 找到24小时范围内1小时爆仓金额的最大值
+            const maxAmount = Math.max(...amounts);
+            const maxIndex = amounts.indexOf(maxAmount);
+            const maxTime = times[maxIndex];
+            
+            // 获取时间范围
+            const startTime = pageData[0].datetime.substring(5, 16);  // MM-DD HH:MM
+            const endTime = pageData[pageData.length - 1].datetime.substring(5, 16);
+            
+            // 配置图表
+            const option = {
+                backgroundColor: 'rgba(30, 27, 75, 0.95)',  // 深色背景
+                title: {
+                    text: `1小时爆仓金额走势（${startTime} ~ ${endTime}）`,
+                    left: 'center',
+                    top: 10,
+                    textStyle: {
+                        color: 'rgba(255, 255, 255, 0.9)',
+                        fontSize: 14
+                    }
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    borderColor: 'rgba(255, 255, 255, 0.2)',
+                    textStyle: {
+                        color: '#fff'
+                    },
+                    formatter: function(params) {
+                        const p = params[0];
+                        const amount = p.value;
+                        const color = amount > avgAmount ? '#ef4444' : amount < avgAmount * 0.8 ? '#10b981' : '#fbbf24';
+                        const currentIndex = p.dataIndex;
+                        const isMax = currentIndex === maxIndex;
+                        return `<div style="padding: 8px;">
+                            <div style="font-weight: 600; margin-bottom: 5px;">${p.name}</div>
+                            <div style="color: ${color}; font-size: 16px; font-weight: 600;">
+                                💥 1H爆仓: ${amount} 万美元${isMax ? ' 🔥' : ''}
+                            </div>
+                            <div style="font-size: 11px; color: #9ca3af; margin-top: 5px;">
+                                平均值: ${avgAmount} 万美元
+                            </div>
+                            ${isMax ? '<div style="font-size: 12px; color: #ef4444; margin-top: 5px; font-weight: 700; background: rgba(239, 68, 68, 0.2); padding: 3px 6px; border-radius: 3px;">🔥 24小时内1H爆仓最大值！</div>' : ''}
+                        </div>`;
+                    }
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '10%',
+                    top: '15%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: times,
+                    axisLabel: {
+                        color: 'rgba(255, 255, 255, 0.6)',
+                        fontSize: 10,
+                        rotate: 45,
+                        interval: Math.floor(times.length / 20)  // 显示约20个标签
+                    },
+                    axisLine: {
+                        lineStyle: {
+                            color: 'rgba(255, 255, 255, 0.2)'
+                        }
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    name: '万美元',
+                    nameTextStyle: {
+                        color: 'rgba(255, 255, 255, 0.6)',
+                        fontSize: 11
+                    },
+                    axisLabel: {
+                        color: 'rgba(255, 255, 255, 0.6)',
+                        fontSize: 11
+                    },
+                    axisLine: {
+                        lineStyle: {
+                            color: 'rgba(255, 255, 255, 0.2)'
+                        }
+                    },
+                    splitLine: {
+                        lineStyle: {
+                            color: 'rgba(255, 255, 255, 0.1)',
+                            type: 'dashed'
+                        }
+                    }
+                },
+                series: [
+                    {
+                        name: '1小时爆仓金额',
+                        type: 'line',
+                        data: amounts,
+                        smooth: true,
+                        symbol: 'circle',
+                        symbolSize: 4,
+                        lineStyle: {
+                            color: '#f59e0b',
+                            width: 2
+                        },
+                        itemStyle: {
+                            color: '#f59e0b'
+                        },
+                        areaStyle: {
+                            color: {
+                                type: 'linear',
+                                x: 0,
+                                y: 0,
+                                x2: 0,
+                                y2: 1,
+                                colorStops: [
+                                    { offset: 0, color: 'rgba(245, 158, 11, 0.3)' },
+                                    { offset: 1, color: 'rgba(245, 158, 11, 0.05)' }
+                                ]
+                            }
+                        },
+                        markLine: {
+                            silent: true,
+                            symbol: 'none',
+                            label: {
+                                position: 'end',
+                                formatter: '平均: {c}万'
+                            },
+                            lineStyle: {
+                                color: 'rgba(255, 255, 255, 0.4)',
+                                type: 'dashed',
+                                width: 1
+                            },
+                            data: [
+                                { yAxis: avgAmount }
+                            ]
+                        },
+                        markPoint: {
+                            symbol: 'pin',
+                            symbolSize: 60,
+                            label: {
+                                show: true,
+                                formatter: function(params) {
+                                    return `${params.value}万`;
+                                },
+                                color: '#fff',
+                                fontSize: 16,
+                                fontWeight: 'bold'
+                            },
+                            itemStyle: {
+                                color: '#ef4444'
+                            },
+                            data: [
+                                {
+                                    coord: [maxIndex, maxAmount],
+                                    value: maxAmount.toFixed(2),
+                                    name: '24小时内1H爆仓最大值'
+                                }
+                            ]
+                        }
+                    }
+                ]
+            };
+            
+            liquidation1hChart.setOption(option);
+        }
+
+        // 渲染2h见顶信号图表（旧方法，保留作为备用）
+        function renderTopSignalChart(data) {
+            if (!topSignalChart) return;
+            
+            const option = {
+                title: {
+                    text: '2h见顶信号数量趋势',
+                    left: 'center'
+                },
+                tooltip: {
+                    trigger: 'axis'
+                },
+                xAxis: {
+                    type: 'category',
+                    data: ['1h前', '50min前', '40min前', '30min前', '20min前', '10min前', '现在']
+                },
+                yAxis: {
+                    type: 'value',
+                    name: '信号数量'
+                },
+                series: [{
+                    name: '见顶信号',
+                    type: 'line',
+                    data: [0, 0, 0, 0, 0, 0, data.data?.length || 0],
+                    smooth: true,
+                    lineStyle: { color: '#8b5cf6', width: 2 },
+                    itemStyle: { color: '#8b5cf6' },
+                    areaStyle: {
+                        color: {
+                            type: 'linear',
+                            x: 0, y: 0, x2: 0, y2: 1,
+                            colorStops: [
+                                { offset: 0, color: 'rgba(139, 92, 246, 0.3)' },
+                                { offset: 1, color: 'rgba(139, 92, 246, 0.05)' }
+                            ]
+                        }
+                    }
+                }]
+            };
+            
+            topSignalChart.setOption(option);
+        }
+
+        // 更新事件列表
+        function updateEventsList(events) {
+            const container = document.getElementById('eventsList');
+            
+            console.log('📊 updateEventsList 被调用，事件数量:', events.length);
+            
+            if (events.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-gray-500 py-8">
+                        <i class="fas fa-inbox text-3xl mb-2"></i>
+                        <p>暂无重大事件触发</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const html = events.map(event => {
+                const confidenceClass = event.confidence === '高' ? 'event-high' : 
+                                       event.confidence === '中' ? 'event-medium' : 'event-low';
+                const actionClass = event.action?.includes('开空') ? 'action-short' : 'action-long';
+                
+                // 处理时间戳：可能是ISO字符串或Unix时间戳（秒）
+                let timeStr = '';
+                try {
+                    if (typeof event.timestamp === 'string') {
+                        // ISO格式字符串
+                        timeStr = new Date(event.timestamp).toLocaleString('zh-CN', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: false
+                        });
+                    } else {
+                        // Unix时间戳（秒）
+                        timeStr = new Date(event.timestamp * 1000).toLocaleString('zh-CN', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: false
+                        });
+                    }
+                } catch (e) {
+                    timeStr = event.timestamp;
+                }
+                
+                // 生成批量操作按钮组
+                let actionButtons = '';
+                
+                console.log(`🔍 处理事件: ${event.event_name}, action: "${event.action}"`);
+                
+                // 根据事件类型和操作建议，显示相应的按钮组
+                if (event.action) {
+                    const action = event.action;
+                    let buttons = [];
+                    
+                    // 如果是开空操作，显示空单策略按钮
+                    if (action.includes('开空')) {
+                        console.log(`✅ 匹配到"开空"，生成3个按钮`);
+                        buttons.push(`
+                            <button onclick="executeBatchOrder('short', 5)" 
+                               class="inline-flex items-center px-5 py-3 bg-gradient-to-r from-red-400 to-red-500 text-white rounded-xl text-base font-bold hover:from-red-500 hover:to-red-600 transition-all transform hover:scale-105 shadow-lg border-0 cursor-pointer">
+                                <i class="fas fa-arrow-down mr-2 text-lg"></i>
+                                空单策略 A
+                                <span class="ml-3 text-sm opacity-90">5%保证金·10x</span>
+                            </button>
+                        `);
+                        buttons.push(`
+                            <button onclick="executeBatchOrder('short', 8)" 
+                               class="inline-flex items-center px-5 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl text-base font-bold hover:from-red-600 hover:to-red-700 transition-all transform hover:scale-105 shadow-lg border-0 cursor-pointer">
+                                <i class="fas fa-arrow-down mr-2 text-lg"></i>
+                                空单策略 B
+                                <span class="ml-3 text-sm opacity-90">8%保证金·10x</span>
+                            </button>
+                        `);
+                        buttons.push(`
+                            <button onclick="executeHedgeOrder('long')" 
+                               class="inline-flex items-center px-5 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl text-base font-bold hover:from-orange-600 hover:to-orange-700 transition-all transform hover:scale-105 shadow-lg border-0 cursor-pointer">
+                                <i class="fas fa-balance-scale mr-2 text-lg"></i>
+                                多单配空单
+                                <span class="ml-3 text-sm opacity-90">1:1对冲</span>
+                            </button>
+                        `);
+                    }
+                    // 如果是开多操作，显示多单策略按钮
+                    else if (action.includes('开多')) {
+                        buttons.push(`
+                            <button onclick="executeBatchOrder('long', 3)" 
+                               class="inline-flex items-center px-5 py-3 bg-gradient-to-r from-green-400 to-green-500 text-white rounded-xl text-base font-bold hover:from-green-500 hover:to-green-600 transition-all transform hover:scale-105 shadow-lg border-0 cursor-pointer">
+                                <i class="fas fa-arrow-up mr-2 text-lg"></i>
+                                多单策略 A
+                                <span class="ml-3 text-sm opacity-90">3%保证金·10x</span>
+                            </button>
+                        `);
+                        buttons.push(`
+                            <button onclick="executeBatchOrder('long', 5)" 
+                               class="inline-flex items-center px-5 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl text-base font-bold hover:from-green-600 hover:to-green-700 transition-all transform hover:scale-105 shadow-lg border-0 cursor-pointer">
+                                <i class="fas fa-arrow-up mr-2 text-lg"></i>
+                                多单策略 B
+                                <span class="ml-3 text-sm opacity-90">5%保证金·10x</span>
+                            </button>
+                        `);
+                        buttons.push(`
+                            <button onclick="executeHedgeOrder('short')" 
+                               class="inline-flex items-center px-5 py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl text-base font-bold hover:from-purple-600 hover:to-purple-700 transition-all transform hover:scale-105 shadow-lg border-0 cursor-pointer">
+                                <i class="fas fa-balance-scale mr-2 text-lg"></i>
+                                空单配多单
+                                <span class="ml-3 text-sm opacity-90">1:1对冲</span>
+                            </button>
+                        `);
+                    }
+                    // 如果是对冲操作
+                    else if (action.includes('空单配多单')) {
+                        buttons.push(`
+                            <button onclick="executeHedgeOrder('short')" 
+                               class="inline-flex items-center px-5 py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl text-base font-bold hover:from-purple-600 hover:to-purple-700 transition-all transform hover:scale-105 shadow-lg border-0 cursor-pointer">
+                                <i class="fas fa-balance-scale mr-2 text-lg"></i>
+                                空单配多单
+                                <span class="ml-3 text-sm opacity-90">1:1对冲</span>
+                            </button>
+                        `);
+                    }
+                    else if (action.includes('多单配空单')) {
+                        buttons.push(`
+                            <button onclick="executeHedgeOrder('long')" 
+                               class="inline-flex items-center px-5 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl text-base font-bold hover:from-orange-600 hover:to-orange-700 transition-all transform hover:scale-105 shadow-lg border-0 cursor-pointer">
+                                <i class="fas fa-balance-scale mr-2 text-lg"></i>
+                                多单配空单
+                                <span class="ml-3 text-sm opacity-90">1:1对冲</span>
+                            </button>
+                        `);
+                    }
+                    
+                    // 将所有按钮组合
+                    console.log(`📝 buttons数组长度: ${buttons.length}`);
+                    if (buttons.length > 0) {
+                        console.log(`✅ 生成actionButtons HTML`);
+                        actionButtons = `
+                            <div class="mt-4 pt-4 border-t border-gray-200">
+                                <div class="flex items-center justify-between mb-3">
+                                    <span class="text-sm font-semibold text-gray-700">
+                                        <i class="fas fa-bolt mr-1 text-yellow-500"></i>
+                                        批量开仓策略
+                                    </span>
+                                </div>
+                                <div class="flex flex-wrap gap-3">
+                                    ${buttons.join('')}
+                                </div>
+                            </div>
+                        `;
+                        console.log(`📋 actionButtons长度: ${actionButtons.length}字符`);
+                    }
+                }
+                console.log(`📤 返回的actionButtons: ${actionButtons.substring(0, 100)}...`);
+                
+                const cardHTML = `
+                    <div class="event-card bg-white rounded-lg p-6 border-l-4 ${confidenceClass}">
+                        <div class="flex justify-between items-start mb-3">
+                            <div class="flex-1">
+                                <h3 class="text-lg font-bold mb-2">🔴 ${event.event_name || event.event_type}</h3>
+                                <p class="text-gray-600 mb-2">📊 ${event.description || ''}</p>
+                            </div>
+                            <span class="px-3 py-1 rounded-full text-sm font-medium ${actionClass}">
+                                ⚡ ${event.action}
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between text-sm mb-3">
+                            <span class="text-gray-500">
+                                <i class="fas fa-clock mr-1"></i>
+                                ⏰ ${timeStr}
+                            </span>
+                            <span class="px-2 py-1 rounded bg-gray-100 text-gray-700">
+                                🎯 置信度: ${event.confidence}
+                            </span>
+                        </div>
+                        ${actionButtons}
+                    </div>
+                `;
+                console.log(`🎨 最终cardHTML包含actionButtons: ${cardHTML.includes('批量开仓策略')}`);
+                return cardHTML;
+            }).join('');
+            
+            console.log(`📝 HTML总长度: ${html.length}字符`);
+            console.log(`📝 HTML包含"批量开仓策略": ${html.includes('批量开仓策略')}`);
+            console.log(`📝 HTML包含"空单策略 A": ${html.includes('空单策略 A')}`);
+            console.log(`📝 HTML包含"inline-flex": ${html.includes('inline-flex')}`);
+            console.log(`📝 HTML包含第一个<a>标签: ${html.includes('<a href')}`);
+            
+            // 查找按钮区域的HTML
+            const buttonSectionIndex = html.indexOf('批量开仓策略');
+            if (buttonSectionIndex !== -1) {
+                console.log(`📍 找到"批量开仓策略"在位置: ${buttonSectionIndex}`);
+                console.log(`📋 按钮区域HTML片段: ${html.substring(buttonSectionIndex, buttonSectionIndex + 600)}`);
+            }
+            
+            container.innerHTML = html;
+            console.log(`✅ DOM已更新完成`);
+            
+            // 验证DOM插入后的内容
+            setTimeout(() => {
+                const buttons = container.querySelectorAll('a[href*="okx-trading"]');
+                console.log(`🔍 在DOM中找到 ${buttons.length} 个交易按钮`);
+                if (buttons.length > 0) {
+                    console.log(`✅ 第一个按钮文本: "${buttons[0].textContent.trim()}"`);
+                    console.log(`✅ 第一个按钮classList: ${buttons[0].classList}`);
+                    console.log(`✅ 第一个按钮display: ${window.getComputedStyle(buttons[0]).display}`);
+                    console.log(`✅ 第一个按钮visibility: ${window.getComputedStyle(buttons[0]).visibility}`);
+                } else {
+                    console.log(`❌ 未在DOM中找到交易按钮！`);
+                    console.log(`❌ eventsList内容: ${container.innerHTML.substring(0, 500)}`);
+                }
+            }, 100);
+        }
+
+        // 切换多空单盈利统计图表页面
+        function changeProfitStatsPage(offset) {
+            currentPage += offset;
+            if (currentPage > 0) {
+                currentPage = 0;
+                alert('⚠️ 已经是最新数据了');
+                return;
+            }
+            renderProfitStatsChart(currentPage);
+        }
+
+        // 更新爆仓数据分页信息（显示当前页码等）
+        function updateLiquidationPageInfo() {
+            // 这个函数用于更新分页信息显示
+            // 如果有分页信息元素，可以在这里更新
+            const totalPages = Math.ceil(liqAllData.length / LIQ_RECORDS_PER_PAGE);
+            const currentPageNum = liqCurrentPage + 1;
+            console.log(`📄 当前页: ${currentPageNum}/${totalPages}`);
+            
+            // 更新按钮状态
+            const prevBtn = document.getElementById('liqPrevPageBtn');
+            const nextBtn = document.getElementById('liqNextPageBtn');
+            
+            if (prevBtn) {
+                const maxPage = Math.floor((liqAllData.length - 1) / LIQ_RECORDS_PER_PAGE);
+                prevBtn.disabled = (liqCurrentPage >= maxPage);
+            }
+            
+            if (nextBtn) {
+                nextBtn.disabled = (liqCurrentPage <= 0);
+            }
+        }
+
+        // 从数据渲染爆仓图表（占位函数，实际由loadAllLiquidationData处理）
+        async function renderLiquidationChartFromData() {
+            // 这个函数的功能已经由 loadAllLiquidationData 和 updateLiquidationChartForCurrentPage 处理
+            // 保留作为兼容性占位
+            console.log('📊 爆仓图表渲染由其他函数处理');
+        }
+
+        // 加载爆仓数据的前一页
+        function loadLiquidationPreviousPage() {
+            const maxPage = Math.floor((liqAllData.length - 1) / LIQ_RECORDS_PER_PAGE);
+            if (liqCurrentPage >= maxPage) {
+                alert('⚠️ 已经是最早的数据了');
+                return;
+            }
+            liqCurrentPage++;
+            updateLiquidationChartForCurrentPage();
+        }
+
+        // 加载爆仓数据的后一页
+        function loadLiquidationNextPage() {
+            if (liqCurrentPage <= 0) {
+                alert('⚠️ 已经是最新的数据了');
+                return;
+            }
+            liqCurrentPage--;
+            updateLiquidationChartForCurrentPage();
+        }
+
+
+        // 页面加载时初始化
+        window.addEventListener('load', () => {
+            initCharts();
+            refreshData();
+            
+            // 每30秒自动刷新
+            setInterval(refreshData, 30000);
+        });
+
+        // 窗口大小改变时重新调整图表
+        window.addEventListener('resize', () => {
+            profitStatsChart?.resize();
+            liquidation1hChart?.resize();
+        });
+
+        // 执行批量开仓（直接调用交易API）
+        async function executeBatchOrder(direction, percentPerCoin) {
+            const directionText = direction === 'long' ? '做多' : '做空';
+            const emoji = direction === 'long' ? '📈' : '📉';
+            const strategyName = direction === 'long' ? '多单' : '空单';
+            
+            // 从localStorage获取账户配置
+            let accounts = [];
+            try {
+                accounts = JSON.parse(localStorage.getItem('okx_accounts') || '[]');
+            } catch (e) {
+                console.error('无法读取账户配置:', e);
+            }
+            
+            if (accounts.length === 0 || !accounts[0].apiKey) {
+                if (confirm('⚠️ 未找到API配置\n\n需要先在OKX交易系统页面配置API密钥。\n\n是否现在前往配置？')) {
+                    window.open('https://5000-i4rq388xy9v1hw2uaz7ln-b9b802c4.sandbox.novita.ai/okx-trading', '_blank');
+                }
+                return;
+            }
+            
+            const account = accounts[0];  // 使用第一个账户
+            
+            const confirmMsg = `${emoji} 确认批量${strategyName}策略？\n\n` +
+                `【策略参数】\n` +
+                `  • 账户: ${account.name}\n` +
+                `  • 方向: ${directionText}\n` +
+                `  • 每个币保证金: ${percentPerCoin}%\n` +
+                `  • 杠杆: 10x\n` +
+                `  • 币种数: 6个（涨幅前6）\n\n` +
+                `此操作将立即执行实盘交易，确认继续？`;
+            
+            if (!confirm(confirmMsg)) {
+                console.log('[批量开仓] 用户取消');
+                return;
+            }
+            
+            try {
+                // 调用OKX交易系统的批量开仓API
+                const response = await fetch('/api/okx-trading/batch-order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        direction: direction,
+                        percentPerCoin: percentPerCoin,
+                        apiKey: account.apiKey,
+                        apiSecret: account.apiSecret,
+                        passphrase: account.passphrase
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`✅ 批量开仓成功！\n\n` +
+                        `成功: ${result.successCount}个\n` +
+                        `失败: ${result.failCount}个\n\n` +
+                        `详情:\n${result.results ? result.results.join('\n') : ''}`);
+                } else {
+                    alert(`❌ 批量开仓失败\n\n${result.error || '未知错误'}`);
+                }
+            } catch (error) {
+                console.error('[批量开仓] 异常:', error);
+                alert(`❌ 批量开仓异常\n\n${error.message}`);
+            }
+        }
+        
+        // 执行对冲开仓（1:1配对）
+        async function executeHedgeOrder(hedgeDirection) {
+            const hedgeText = hedgeDirection === 'short' ? '空单配多单' : '多单配空单';
+            const emoji = hedgeDirection === 'short' ? '🟣' : '🟠';
+            
+            // 从localStorage获取账户配置
+            let accounts = [];
+            try {
+                accounts = JSON.parse(localStorage.getItem('okx_accounts') || '[]');
+            } catch (e) {
+                console.error('无法读取账户配置:', e);
+            }
+            
+            if (accounts.length === 0 || !accounts[0].apiKey) {
+                if (confirm('⚠️ 未找到API配置\n\n需要先在OKX交易系统页面配置API密钥。\n\n是否现在前往配置？')) {
+                    window.open('https://5000-i4rq388xy9v1hw2uaz7ln-b9b802c4.sandbox.novita.ai/okx-trading', '_blank');
+                }
+                return;
+            }
+            
+            const account = accounts[0];  // 使用第一个账户
+            
+            const confirmMsg = `${emoji} 确认${hedgeText}对冲？\n\n` +
+                `【对冲说明】\n` +
+                `  • 账户: ${account.name}\n` +
+                `  • 根据现有${hedgeDirection === 'short' ? '空单' : '多单'}持仓\n` +
+                `  • 按1:1金额开${hedgeDirection === 'short' ? '多单' : '空单'}对冲\n` +
+                `  • 锁定当前盈亏，降低风险\n\n` +
+                `此操作将立即执行实盘交易，确认继续？`;
+            
+            if (!confirm(confirmMsg)) {
+                console.log('[对冲开仓] 用户取消');
+                return;
+            }
+            
+            try {
+                // 调用OKX交易系统的对冲开仓API
+                const response = await fetch('/api/okx-trading/hedge-order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        hedgeDirection: hedgeDirection,
+                        apiKey: account.apiKey,
+                        apiSecret: account.apiSecret,
+                        passphrase: account.passphrase
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`✅ 对冲开仓成功！\n\n` +
+                        `成功: ${result.successCount}个\n` +
+                        `失败: ${result.failCount}个\n\n` +
+                        `详情:\n${result.results ? result.results.join('\n') : ''}`);
+                } else {
+                    alert(`❌ 对冲开仓失败\n\n${result.error || '未知错误'}`);
+                }
+            } catch (error) {
+                console.error('[对冲开仓] 异常:', error);
+                alert(`❌ 对冲开仓异常\n\n${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>

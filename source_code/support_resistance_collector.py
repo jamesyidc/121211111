@@ -1,26 +1,23 @@
 #!/usr/bin/env python3
 """
-支撑压力线采集器
+支撑压力线采集器 v2.0 - 完全基于JSONL
 每30秒采集一次27个币种的支撑线和压力线
 同时采集当前价格、7天周期(1W)和48小时周期(2D)的最高最低价
+数据存储：JSONL按日期分片存储，不再使用数据库
 """
 
 import os
 import sys
 import time
-import sqlite3
 import requests
 import pytz
 import json
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
-# 数据库配置
-DB_PATH = '/home/user/webapp/databases/support_resistance.db'
-
-# JSONL文件配置
-JSONL_DIR = '/home/user/webapp/data/support_resistance_jsonl'
-JSONL_LEVELS_FILE = os.path.join(JSONL_DIR, 'support_resistance_levels.jsonl')
+# 导入按日期管理器
+sys.path.insert(0, os.path.dirname(__file__))
+from support_resistance_daily_manager import SupportResistanceDailyManager
 
 # 日志文件
 LOG_FILE = os.path.join(os.path.dirname(__file__), 'support_resistance.log')
@@ -111,39 +108,38 @@ def get_historical_klines(symbol: str, hours: int) -> List[Dict]:
 
 def get_or_create_baseline_price(symbol: str, current_price: float) -> dict:
     """
-    获取或创建今日基准价格（北京时间0点）
+    获取或创建今日基准价格（北京时间0点）- 从JSONL读取
     返回: {'baseline_price': float, 'price_change': float, 'change_percent': float}
     """
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
     # 获取北京时间当前日期
     beijing_now = datetime.now(BEIJING_TZ)
     today_date = beijing_now.date().isoformat()
     
-    # 查询今日基准价格
-    cursor.execute('''
-        SELECT baseline_price FROM daily_baseline_prices
-        WHERE symbol = ? AND baseline_date = ?
-    ''', (symbol, today_date))
+    # 基准价格存储文件
+    baseline_dir = '/home/user/webapp/data/baseline_prices'
+    os.makedirs(baseline_dir, exist_ok=True)
+    baseline_file = os.path.join(baseline_dir, f'baseline_{today_date}.json')
     
-    row = cursor.fetchone()
+    # 读取今日基准价格
+    baselines = {}
+    if os.path.exists(baseline_file):
+        try:
+            with open(baseline_file, 'r', encoding='utf-8') as f:
+                baselines = json.load(f)
+        except:
+            baselines = {}
     
-    if row:
+    if symbol in baselines:
         # 已有今日基准价格
-        baseline_price = row[0]
+        baseline_price = baselines[symbol]
     else:
         # 创建今日基准价格（使用当前价格）
         baseline_price = current_price
-        baseline_time = beijing_now.strftime('%Y-%m-%d 00:00:00')
+        baselines[symbol] = baseline_price
         
         try:
-            cursor.execute('''
-                INSERT OR REPLACE INTO daily_baseline_prices
-                (symbol, baseline_date, baseline_price, baseline_time)
-                VALUES (?, ?, ?, ?)
-            ''', (symbol, today_date, baseline_price, baseline_time))
-            conn.commit()
+            with open(baseline_file, 'w', encoding='utf-8') as f:
+                json.dump(baselines, f, ensure_ascii=False, indent=2)
             log(f"✅ 创建 {symbol} 今日基准价格: ${baseline_price:.2f}")
         except Exception as e:
             log(f"❌ 创建基准价格失败: {e}")
@@ -151,8 +147,6 @@ def get_or_create_baseline_price(symbol: str, current_price: float) -> dict:
     # 计算涨跌
     price_change = current_price - baseline_price
     change_percent = (price_change / baseline_price * 100) if baseline_price > 0 else 0
-    
-    conn.close()
     
     return {
         'baseline_price': baseline_price,
@@ -350,51 +344,14 @@ def calculate_support_resistance(symbol: str) -> Optional[Dict]:
         return None
 
 def save_to_database(data: Dict) -> bool:
-    """保存到数据库和JSONL文件"""
+    """保存到数据库和按日期JSONL文件"""
     try:
-        # 1. 保存到SQLite数据库
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            INSERT INTO support_resistance_levels (
-                symbol, current_price,
-                support_line_1, support_line_2,
-                resistance_line_1, resistance_line_2,
-                distance_to_support_1, distance_to_support_2,
-                distance_to_resistance_1, distance_to_resistance_2,
-                position_s2_r1, position_s1_r2, position_s1_r2_upper, position_s1_r1,
-                position_7d, position_48h,
-                alert_scenario_1, alert_scenario_2, alert_scenario_3, alert_scenario_4,
-                alert_7d_low, alert_7d_high, alert_48h_low, alert_48h_high,
-                alert_triggered,
-                baseline_price_24h, price_change_24h, change_percent_24h,
-                record_time
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'))
-        ''', (
-            data['symbol'], data['current_price'],
-            data['support_line_1'], data['support_line_2'],
-            data['resistance_line_1'], data['resistance_line_2'],
-            data['distance_to_support_1'], data['distance_to_support_2'],
-            data['distance_to_resistance_1'], data['distance_to_resistance_2'],
-            data['position_s2_r1'], data['position_s1_r2'], data['position_s1_r2_upper'], data['position_s1_r1'],
-            data['position_7d'], data['position_48h'],
-            int(data['alert_scenario_1']), int(data['alert_scenario_2']), 
-            int(data['alert_scenario_3']), int(data['alert_scenario_4']),
-            int(data['alert_7d_low']), int(data['alert_7d_high']),
-            int(data['alert_48h_low']), int(data['alert_48h_high']),
-            int(data['alert_triggered']),
-            data['baseline_price_24h'], data['price_change_24h'], data['change_percent_24h']
-        ))
-        
-        conn.commit()
-        conn.close()
-        
-        # 2. 同时写入JSONL文件（用于API快速读取）
+        # 保存数据到JSONL（按日期存储）
+        manager = SupportResistanceDailyManager()
         beijing_tz = pytz.timezone('Asia/Shanghai')
         record_time = datetime.now(beijing_tz).strftime('%Y-%m-%d %H:%M:%S')
         
-        jsonl_data = {
+        level_data = {
             'symbol': data['symbol'],
             'current_price': data['current_price'],
             'support_line_1': data['support_line_1'],
@@ -431,15 +388,15 @@ def save_to_database(data: Dict) -> bool:
             'record_time_beijing': record_time
         }
         
-        # 追加写入JSONL文件
-        os.makedirs(JSONL_DIR, exist_ok=True)
-        with open(JSONL_LEVELS_FILE, 'a', encoding='utf-8') as f:
-            f.write(json.dumps(jsonl_data, ensure_ascii=False) + '\n')
+        # 写入按日期JSONL
+        manager.write_level_record(level_data)
         
         return True
         
     except Exception as e:
-        log(f"❌ 保存数据库失败: {e}")
+        log(f"❌ 保存数据失败: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def collect_all_symbols():
@@ -474,17 +431,25 @@ def collect_all_symbols():
 
 def main():
     """主函数"""
-    log("🎯 支撑压力线采集器启动")
+    log("🎯 支撑压力线采集器启动 (JSONL模式 v2.0)")
     log(f"📊 监控币种数量: {len(SYMBOLS)}")
     log(f"⏰ 采集间隔: 30秒")
-    log(f"📁 数据库路径: {DB_PATH}")
+    log(f"📁 数据存储: JSONL 按日期存储 (/home/user/webapp/data/support_resistance_daily/)")
     log(f"📈 数据来源: OKX API (1W K线 + 2D K线 + 实时价格)")
+    log(f"⏰ 采集规则: 每30秒采集一次")
     
     while True:
         try:
+            # 获取当前北京时间
+            beijing_now = datetime.now(BEIJING_TZ)
+            log(f"⏰ 开始采集: {beijing_now.strftime('%Y-%m-%d %H:%M:%S')}")
+            
+            # 执行采集
             collect_all_symbols()
-            log("⏳ 等待30秒后进行下一次采集...")
-            time.sleep(30)  # 30秒
+            
+            # 等待30秒后进行下一次采集
+            log(f"⏳ 等待30秒后进行下一次采集...")
+            time.sleep(30)
             
         except KeyboardInterrupt:
             log("⚠️ 收到停止信号，正在退出...")

@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DOM Inspector</title>
+    <script>
+        fetch('https://5000-i4rq388xy9v1hw2uaz7ln-b9b802c4.sandbox.novita.ai/api/major-events/recent')
+            .then(r => r.json())
+            .then(data => {
+                console.log('API Response:', data);
+                console.log('First event action:', data[0].action);
+            });
+    </script>
+</head>
+<body>
+    <h1>DOM Inspector Test</h1>
+</body>
+</html>

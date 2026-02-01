@@ -9,6 +9,20 @@ import sqlite3
 from datetime import datetime, timedelta
 import json
 import os
+import sys
+
+# 添加项目路径
+sys.path.insert(0, '/home/user/webapp')
+sys.path.insert(0, '/home/user/webapp/source_code')
+
+# 导入支撑阻力API适配器
+try:
+    from support_resistance_api_adapter import SupportResistanceAPIAdapter
+    sr_adapter = SupportResistanceAPIAdapter()
+    print("✅ 支撑阻力API适配器已加载")
+except Exception as e:
+    print(f"⚠️ 支撑阻力API适配器加载失败: {e}")
+    sr_adapter = None
 
 app = Flask(__name__)
 Compress(app)  # 启用gzip压缩
@@ -1903,6 +1917,71 @@ def anchor_auto_monitor():
     """锚点单自动开仓监控"""
     with open('/home/user/webapp/templates/anchor_auto_monitor.html', 'r', encoding='utf-8') as f:
         return f.read()
+
+
+@app.route('/support-resistance')
+def support_resistance():
+    """支撑阻力分析页面"""
+    with open('/home/user/webapp/templates/support_resistance.html', 'r', encoding='utf-8') as f:
+        return f.read()
+
+
+@app.route('/api/support-resistance/latest')
+def api_support_resistance_latest():
+    """获取所有币种的最新支撑阻力数据"""
+    if sr_adapter is None:
+        return jsonify({
+            'success': False,
+            'error': '支撑阻力API适配器未加载',
+            'data': []
+        }), 500
+    
+    try:
+        result = sr_adapter.get_all_symbols_latest()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'data': []
+        }), 500
+
+
+@app.route('/api/support-resistance/latest-signal')
+def api_support_resistance_latest_signal():
+    """获取最新的支撑阻力信号"""
+    if sr_adapter is None:
+        return jsonify({
+            'success': False,
+            'error': '支撑阻力API适配器未加载',
+            'signals': []
+        }), 500
+    
+    try:
+        # 从最新数据中提取信号
+        result = sr_adapter.get_all_symbols_latest()
+        if result.get('success'):
+            signals = []
+            for item in result.get('data', []):
+                if item.get('current_price_status'):
+                    signals.append({
+                        'symbol': item['symbol'],
+                        'status': item['current_price_status'],
+                        'price': item.get('current_price', 0),
+                        'update_time': item.get('update_time', '')
+                    })
+            return jsonify({
+                'success': True,
+                'signals': signals,
+                'count': len(signals)
+            })
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'signals': []
+        }), 500
 
 
 if __name__ == '__main__':

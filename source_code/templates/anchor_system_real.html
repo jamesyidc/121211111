@@ -515,7 +515,7 @@
                     </div>
                 </div>
             </div>
-            <div class="chart-container" id="profitStatsChart" style="height: 400px; background: white; border-radius: 0 0 15px 15px;"></div>
+            <div class="chart-container" id="profitStatsChart" style="height: 500px; width: 100%; background: white; border-radius: 0 0 15px 15px;"></div>
         </div>
 
         <!-- 持仓摘要卡片 -->
@@ -1002,6 +1002,32 @@
             </div>
         </div>
 
+        <!-- 27币实时涨跌 -->
+        <div class="card" id="coinsDataCard" style="display: none;">
+            <div class="card-header">
+                <div class="card-title">
+                    <span>📊</span>
+                    27币实时涨跌
+                    <span id="coinsDataTime" style="margin-left: 15px; font-size: 14px; font-weight: normal; color: #718096;"></span>
+                </div>
+            </div>
+            
+            <!-- 总涨跌幅 -->
+            <div style="padding: 15px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: 0 20px 15px 20px; border-radius: 12px;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <span style="color: white; font-size: 16px; font-weight: 600;">27币总涨跌</span>
+                    <span id="coinsTotalChange" style="color: white; font-size: 24px; font-weight: 700;">--</span>
+                </div>
+            </div>
+            
+            <!-- 币种网格 -->
+            <div style="padding: 0 20px 20px 20px;">
+                <div id="coinsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;">
+                    <!-- 币种卡片将通过 JavaScript 动态生成 -->
+                </div>
+            </div>
+        </div>
+
         <!-- 历史极值记录 -->
         <div class="card">
             <div class="card-header">
@@ -1248,69 +1274,126 @@
     </div>
 
     <script>
-        // 初始化图表
-        const profitChart = echarts.init(document.getElementById('profitChart'));
-        const profitStatsChart = echarts.init(document.getElementById('profitStatsChart'));
+        // 图表实例（延迟初始化）
+        let profitChart = null;
+        let profitStatsChart = null;
 
         // 图表翻页相关变量
         let currentPage = 0; // 0表示今天，-1表示昨天，-2表示前天
         let allHistoryData = []; // 存储所有历史数据
         
-        // 加载空单盈利统计数据（加载全部数据）
+        // 初始化图表（确保DOM已加载）
+        function initCharts() {
+            if (!profitChart) {
+                const profitChartDom = document.getElementById('profitChart');
+                if (profitChartDom) {
+                    profitChart = echarts.init(profitChartDom);
+                    console.log('✅ profitChart 初始化成功');
+                } else {
+                    console.error('❌ profitChart 容器未找到');
+                }
+            }
+            
+            if (!profitStatsChart) {
+                const profitStatsChartDom = document.getElementById('profitStatsChart');
+                if (profitStatsChartDom) {
+                    profitStatsChart = echarts.init(profitStatsChartDom);
+                    console.log('✅ profitStatsChart 初始化成功');
+                } else {
+                    console.error('❌ profitStatsChart 容器未找到');
+                }
+            }
+        }
+        
+        // 加载空单盈利统计数据（按日期加载，默认加载今天）
         async function loadProfitStats() {
-            console.log('🚀 开始加载空单盈利统计数据...');
+            console.log('🚀 开始加载空单盈利统计数据（按日期加载）...');
+            
+            // 确保图表已初始化
+            initCharts();
+            
+            // 默认加载今天的数据
+            await loadProfitStatsByDate(0);
+        }
+        
+        // 按日期加载盈利统计数据
+        async function loadProfitStatsByDate(pageOffset) {
+            console.log(`📅 加载 ${pageOffset} 天前的数据...`);
+            
             try {
-                // 加载最近7天的数据（24小时×60分钟×7天 = 10080条）
-                const response = await fetch('/api/anchor-profit/history?limit=10080');
+                // 计算目标日期（YYYY-MM-DD格式）
+                const now = new Date();
+                const targetDate = new Date(now);
+                targetDate.setDate(targetDate.getDate() + pageOffset);
+                const dateStr = targetDate.toISOString().split('T')[0];
+                
+                console.log(`🔍 请求日期: ${dateStr}`);
+                
+                // 调用按日期查询的API
+                const response = await fetch(`/api/anchor-profit/by-date?date=${dateStr}&type=profit_stats`);
                 const result = await response.json();
                 
                 console.log('📊 API返回结果:', result);
                 
                 if (result.success && result.data && result.data.length > 0) {
+                    // 存储当前页数据
                     allHistoryData = result.data;
                     
-                    // 找到最新有数据的日期
-                    const latestData = result.data[result.data.length - 1];
-                    const latestDate = new Date(latestData.timestamp * 1000);
-                    const today = new Date();
-                    
-                    // 计算日期差（天数）- 使用新的Date对象避免修改原对象
-                    const todayMidnight = new Date(today);
-                    todayMidnight.setHours(0, 0, 0, 0);
-                    const latestMidnight = new Date(latestDate);
-                    latestMidnight.setHours(0, 0, 0, 0);
-                    const daysDiff = Math.floor((todayMidnight.getTime() - latestMidnight.getTime()) / (1000*60*60*24));
-                    
-                    console.log(`📅 最新数据日期: ${latestData.datetime.substring(0, 10)}, 与今天相差: ${daysDiff}天`);
-                    
-                    // 如果今天没数据，自动显示最新有数据的日期
-                    if (daysDiff > 0) {
-                        currentPage = -daysDiff;
-                        console.log(`⚠️ 今天暂无数据，自动显示 ${-daysDiff} 天前的数据`);
-                    }
-                    
-                    renderProfitStatsChart(currentPage);
+                    // 渲染图表
+                    renderProfitStatsChartByDate(result.data, dateStr);
                     
                     // 更新时间
+                    const latestData = result.data[result.data.length - 1];
                     document.getElementById('profitStatsUpdateTime').textContent = 
                         `最后更新: ${latestData.datetime}`;
-                    console.log('✅ 空单盈利统计加载成功，总数据条数:', result.data.length);
+                    console.log(`✅ ${dateStr} 的数据加载成功，共 ${result.data.length} 条记录`);
                 } else {
-                    console.warn('⚠️ 空单盈利统计暂无数据');
+                    console.warn(`⚠️ ${dateStr} 暂无数据，尝试加载前一天...`);
+                    
+                    // 如果今天没数据，自动尝试前一天
+                    if (pageOffset === 0) {
+                        await loadProfitStatsByDate(-1);
+                    } else {
+                        // 显示空白图表
+                        showEmptyChart(dateStr);
+                    }
                 }
             } catch (error) {
                 console.error('❌ 加载空单盈利统计失败:', error);
+                showEmptyChart('未知日期');
             }
         }
         
-        // 翻页函数
-        function changeProfitStatsPage(direction) {
+        // 显示空白图表
+        function showEmptyChart(dateStr) {
+            if (!profitStatsChart) {
+                initCharts();
+            }
+            
+            profitStatsChart.setOption({
+                title: {
+                    text: `⚠️ ${dateStr} 暂无数据`,
+                    left: 'center',
+                    top: 'middle',
+                    textStyle: {
+                        color: '#999',
+                        fontSize: 20
+                    }
+                },
+                xAxis: { data: [] },
+                yAxis: {},
+                series: []
+            });
+        }
+        
+        // 翻页函数（按日期加载）
+        async function changeProfitStatsPage(direction) {
             currentPage += direction;
             
-            // 限制翻页范围（最多往前翻7天）
-            if (currentPage < -6) {
-                currentPage = -6;
-                alert('⚠️ 最多只能查看7天内的数据');
+            // 限制翻页范围（最多往前翻30天）
+            if (currentPage < -30) {
+                currentPage = -30;
+                alert('⚠️ 最多只能查看30天内的数据');
                 return;
             }
             if (currentPage > 0) {
@@ -1319,52 +1402,27 @@
                 return;
             }
             
-            renderProfitStatsChart(currentPage);
+            // 按日期重新加载数据
+            await loadProfitStatsByDate(currentPage);
         }
 
-        // 渲染多空单盈利统计图表
-        function renderProfitStatsChart(pageOffset) {
-            console.log(`📈 渲染图表，页码偏移: ${pageOffset}天`);
+        // 渲染多空单盈利统计图表（按日期数据渲染）
+        function renderProfitStatsChartByDate(dataList, dateStr) {
+            console.log(`📈 渲染 ${dateStr} 的图表，数据条数: ${dataList.length}`);
             
-            // 计算日期范围（显示24小时数据）
-            const now = new Date();
-            const targetDate = new Date(now);
-            targetDate.setDate(targetDate.getDate() + pageOffset);
-            
-            // 设置为目标日期的00:00:00
-            const startOfDay = new Date(targetDate);
-            startOfDay.setHours(0, 0, 0, 0);
-            const startTimestamp = Math.floor(startOfDay.getTime() / 1000);
-            
-            // 设置为目标日期的23:59:59
-            const endOfDay = new Date(targetDate);
-            endOfDay.setHours(23, 59, 59, 999);
-            const endTimestamp = Math.floor(endOfDay.getTime() / 1000);
-            
-            // 过滤出24小时内的数据
-            const dataList = allHistoryData.filter(d => {
-                return d.timestamp >= startTimestamp && d.timestamp <= endTimestamp;
-            });
-            
-            console.log(`📊 ${targetDate.toLocaleDateString()} 的数据条数:`, dataList.length);
+            // 确保图表已初始化
+            if (!profitStatsChart) {
+                console.error('❌ profitStatsChart 未初始化，尝试重新初始化...');
+                initCharts();
+                if (!profitStatsChart) {
+                    console.error('❌ profitStatsChart 初始化失败，无法渲染图表');
+                    return;
+                }
+            }
             
             if (dataList.length === 0) {
                 console.warn('⚠️ 该日期暂无数据');
-                // 显示空白图表并提示
-                profitStatsChart.setOption({
-                    title: {
-                        text: `⚠️ ${targetDate.toLocaleDateString()} 暂无数据`,
-                        left: 'center',
-                        top: 'middle',
-                        textStyle: {
-                            color: '#999',
-                            fontSize: 20
-                        }
-                    },
-                    xAxis: { data: [] },
-                    yAxis: {},
-                    series: []
-                });
+                showEmptyChart(dateStr);
                 return;
             }
             
@@ -1388,20 +1446,21 @@
             // 2小时逃顶信号（橙色）
             const escape2hData = dataList.map(d => d.escape_signal_2h || 0);
             
-            console.log('📊 图表数据:', {
+            console.log('📊 图表数据长度:', {
+                times: times.length,
+                long_lte40: long_lte40Data.length,
+                long_loss: long_lossData.length,
+                long_gte80: long_gte80Data.length,
+                long_gte120: long_gte120Data.length,
+                short_lte40: short_lte40Data.length,
+                short_loss: short_lossData.length,
+                short_gte80: short_gte80Data.length,
+                short_gte120: short_gte120Data.length,
+                escape2h: escape2hData.length
+            });
+            console.log('📊 前3个数据样本:', {
                 times: times.slice(0, 3),
-                long: {
-                    lte40: long_lte40Data.slice(0, 3),
-                    loss: long_lossData.slice(0, 3),
-                    gte80: long_gte80Data.slice(0, 3),
-                    gte120: long_gte120Data.slice(0, 3)
-                },
-                short: {
-                    lte40: short_lte40Data.slice(0, 3),
-                    loss: short_lossData.slice(0, 3),
-                    gte80: short_gte80Data.slice(0, 3),
-                    gte120: short_gte120Data.slice(0, 3)
-                },
+                short_gte120: short_gte120Data.slice(0, 3),
                 escape2h: escape2hData.slice(0, 3)
             });
             
@@ -1415,13 +1474,17 @@
                 const dt = new Date(d.datetime);
                 const hour = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')} ${String(dt.getHours()).padStart(2,'0')}`;
                 
+                // 生成时间字符串（与 times 数组一致）
+                const timeStr = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+                
                 const shortProfit120 = d.stats?.short?.gte_120 || 0;
                 const shortLoss = d.stats?.short?.loss || 0;
                 
                 // 空单盈利≥120%数量≥3，每小时只标记一次
                 if (shortProfit120 >= 3 && hour !== lastShortProfitHour) {
                     shortProfitMarks.push({
-                        coord: [index, shortProfit120],
+                        xAxis: timeStr,  // 使用 X 轴的时间字符串
+                        yAxis: shortProfit120,  // 使用实际的数值
                         value: shortProfit120,
                         itemStyle: {
                             color: '#dc2626',  // 红色
@@ -1438,13 +1501,14 @@
                         }
                     });
                     lastShortProfitHour = hour;
-                    console.log(`🔴 标记空单盈利≥120%: ${d.datetime} - ${shortProfit120}个`);
+                    console.log(`🔴 标记空单盈利≥120%: ${d.datetime} (${timeStr}) - ${shortProfit120}个`);
                 }
                 
                 // 空单亏损数量≥3，每小时只标记一次
                 if (shortLoss >= 3 && hour !== lastShortLossHour) {
                     shortLossMarks.push({
-                        coord: [index, shortLoss],
+                        xAxis: timeStr,  // 使用 X 轴的时间字符串
+                        yAxis: shortLoss,  // 使用实际的数值
                         value: shortLoss,
                         itemStyle: {
                             color: '#10b981',  // 绿色
@@ -1461,26 +1525,35 @@
                         }
                     });
                     lastShortLossHour = hour;
-                    console.log(`🟢 标记空单亏损: ${d.datetime} - ${shortLoss}个`);
+                    console.log(`🟢 标记空单亏损: ${d.datetime} (${timeStr}) - ${shortLoss}个`);
                 }
             });
             
             console.log(`📍 空单盈利≥120%标记数: ${shortProfitMarks.length}, 空单亏损标记数: ${shortLossMarks.length}`);
             
-            // 格式化日期显示
-            const dateStr = targetDate.toLocaleDateString('zh-CN', {
+            // 格式化日期显示（使用传入的dateStr参数）
+            const displayDate = new Date(dateStr);
+            const formattedDate = displayDate.toLocaleDateString('zh-CN', {
                 year: 'numeric',
                 month: '2-digit',
                 day: '2-digit'
             });
-            const dayLabel = pageOffset === 0 ? '今天' : 
-                           pageOffset === -1 ? '昨天' : 
-                           pageOffset === -2 ? '前天' : 
-                           `${Math.abs(pageOffset)}天前`;
+            
+            // 计算是今天、昨天还是几天前
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const targetDay = new Date(dateStr);
+            targetDay.setHours(0, 0, 0, 0);
+            const daysDiff = Math.floor((today - targetDay) / (1000 * 60 * 60 * 24));
+            
+            const dayLabel = daysDiff === 0 ? '今天' : 
+                           daysDiff === 1 ? '昨天' : 
+                           daysDiff === 2 ? '前天' : 
+                           `${daysDiff}天前`;
             
             const option = {
                 title: {
-                    text: `多空单盈利分布趋势（${dateStr} ${dayLabel}）`,
+                    text: `多空单盈利分布趋势（${formattedDate} ${dayLabel}）`,
                     left: 'center',
                     textStyle: {
                         color: '#2d3748',
@@ -1658,10 +1731,13 @@
             
             profitStatsChart.setOption(option);
             
-            // 强制刷新图表尺寸
+            // 强制刷新图表尺寸并验证渲染
             setTimeout(() => {
                 profitStatsChart.resize();
                 console.log('🔄 图表尺寸已刷新');
+                console.log('📏 图表容器高度:', document.getElementById('profitStatsChart').offsetHeight);
+                console.log('📊 X轴数据点数:', times.length);
+                console.log('📊 空单盈利≥120%数据点数:', short_gte120Data.length);
             }, 100);
             
             console.log('✅ 多空单盈利统计图表渲染完成');
@@ -1836,8 +1912,8 @@
             
             // 并行加载逃顶信号数据和OKX数据
             Promise.all([
-                fetch('/api/escape-signal-stats?v=' + Date.now()).then(r => r.json()),
-                fetch('/api/okx-day-change/latest?limit=10080&v=' + Date.now()).then(r => r.json())
+                fetch('/api/escape-signal-stats?limit=10080&v=' + Date.now()).then(r => r.json()),
+                fetch('/api/okx-day-change/latest?limit=7200&v=' + Date.now()).then(r => r.json())
             ])
                 .then(([escapeResult, okxResult]) => {
                     console.log('📡 数据加载完成');
@@ -2416,7 +2492,7 @@
                             fetch('/api/latest'),
                             fetch('/api/anchor-system/monitors?limit=50'),
                             fetch('/api/anchor-system/alerts?limit=10'),
-                            fetch('/api/anchor-system/profit-records?trade_mode=real')
+                            fetch('/api/anchor-system/profit-records-with-coins?trade_mode=real&limit=100')  // 限制返回100条
                         ]);
                         
                         // 处理计次数据（从/api/latest获取）
@@ -2462,11 +2538,16 @@
                             }
                         }
                         
-                        // 处理历史极值记录
+                        // 处理历史极值记录 + 27币数据
                         if (recordsRes.status === 'fulfilled' && recordsRes.value.ok) {
                             const recordsData = await recordsRes.value.json();
                             if (recordsData.success) {
                                 renderRecordsTable(recordsData.records);
+                                
+                                // 渲染27币数据
+                                if (recordsData.coins_data) {
+                                    renderCoinsData(recordsData.coins_data);
+                                }
                             }
                         }
                         
@@ -2797,6 +2878,79 @@
             });
             return orderMap;
         })();
+        
+        // 渲染27币实时涨跌数据
+        function renderCoinsData(coinsData) {
+            if (!coinsData || !coinsData.coins || coinsData.coins.length === 0) {
+                document.getElementById('coinsDataCard').style.display = 'none';
+                return;
+            }
+            
+            // 显示卡片
+            document.getElementById('coinsDataCard').style.display = 'block';
+            
+            // 更新时间
+            if (coinsData.datetime) {
+                document.getElementById('coinsDataTime').textContent = `更新时间: ${coinsData.datetime}`;
+            }
+            
+            // 更新总涨跌
+            const totalChange = coinsData.total_change || 0;
+            const totalChangeColor = totalChange >= 0 ? '#48bb78' : '#f56565';
+            document.getElementById('coinsTotalChange').innerHTML = `
+                <span style="color: ${totalChangeColor}">
+                    ${totalChange >= 0 ? '+' : ''}${totalChange.toFixed(2)}%
+                </span>
+            `;
+            
+            // 渲染币种网格
+            const grid = document.getElementById('coinsGrid');
+            grid.innerHTML = '';
+            
+            coinsData.coins.forEach(coin => {
+                const changePercent = coin.day_change_percent || 0;
+                const changeColor = changePercent >= 0 ? '#48bb78' : '#f56565';
+                const changeBg = changePercent >= 0 ? 'rgba(72, 187, 120, 0.1)' : 'rgba(245, 101, 101, 0.1)';
+                
+                const card = document.createElement('div');
+                card.style.cssText = `
+                    padding: 12px;
+                    background: white;
+                    border-radius: 8px;
+                    border: 1px solid #e2e8f0;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                    transition: all 0.2s;
+                `;
+                
+                card.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                        <div style="font-weight: 700; color: #2d3748; font-size: 15px;">${coin.symbol}</div>
+                        <div style="background: ${changeBg}; padding: 4px 8px; border-radius: 6px;">
+                            <span style="color: ${changeColor}; font-weight: 600; font-size: 13px;">
+                                ${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%
+                            </span>
+                        </div>
+                    </div>
+                    <div style="color: #4a5568; font-size: 14px; font-weight: 600;">
+                        $${coin.current_price.toFixed(4)}
+                    </div>
+                `;
+                
+                // 鼠标悬停效果
+                card.addEventListener('mouseenter', () => {
+                    card.style.transform = 'translateY(-2px)';
+                    card.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                });
+                card.addEventListener('mouseleave', () => {
+                    card.style.transform = 'translateY(0)';
+                    card.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
+                });
+                
+                grid.appendChild(card);
+            });
+            
+            console.log('✅ 27币数据渲染完成:', coinsData.coins.length, '个币种');
+        }
         
         function renderRecordsTable(data, forceShowAll = false) {
             currentRecordsData = data; // 保存数据供持续时间更新使用
@@ -4772,6 +4926,15 @@
             initEscapeSignalChart();
             initLiquidation1hChart();  // 初始化1小时爆仓金额图表
             
+            // 添加超时保护：15秒后强制隐藏加载指示器
+            const loadingTimeout = setTimeout(() => {
+                console.warn('⚠️ 加载超时（15秒），强制隐藏加载指示器');
+                const indicator = document.getElementById('loading-indicator');
+                if (indicator) {
+                    indicator.style.display = 'none';  // 强制隐藏
+                }
+            }, 15000);
+            
             // 异步并行加载所有数据（不阻塞页面显示）
             Promise.all([
                 loadData(),
@@ -4780,12 +4943,22 @@
                 loadEscapeSignalData()
             ]).then(() => {
                 console.log('✅ 所有数据加载完成');
-                // 隐藏加载指示器
-                document.getElementById('loading-indicator').classList.add('hidden');
+                clearTimeout(loadingTimeout);
+                // 隐藏加载指示器（使用两种方式确保隐藏）
+                const indicator = document.getElementById('loading-indicator');
+                if (indicator) {
+                    indicator.classList.add('hidden');
+                    indicator.style.display = 'none';  // 强制隐藏
+                }
             }).catch(error => {
                 console.error('❌ 数据加载出错:', error);
+                clearTimeout(loadingTimeout);
                 // 即使出错也隐藏指示器
-                document.getElementById('loading-indicator').classList.add('hidden');
+                const indicator = document.getElementById('loading-indicator');
+                if (indicator) {
+                    indicator.classList.add('hidden');
+                    indicator.style.display = 'none';  // 强制隐藏
+                }
             });
             
             // 定期刷新空单盈利统计（每60秒）

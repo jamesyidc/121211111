@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECharts测试页面</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        #testChart {
+            width: 100%;
+            height: 400px;
+            background: white;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+        }
+        .info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            border-radius: 4px;
+        }
+        .success {
+            color: #4caf50;
+            font-weight: bold;
+        }
+        .error {
+            color: #f44336;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 ECharts测试页面</h1>
+        <div id="status" class="info">正在初始化...</div>
+        <div id="testChart"></div>
+    </div>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+        
+        // 检查ECharts是否加载
+        if (typeof echarts === 'undefined') {
+            statusDiv.innerHTML = '<span class="error">❌ ECharts库未加载</span>';
+            console.error('❌ ECharts库未加载');
+        } else {
+            statusDiv.innerHTML = '<span class="success">✅ ECharts库加载成功</span>';
+            console.log('✅ ECharts库加载成功，版本:', echarts.version);
+            
+            // 初始化图表
+            try {
+                const chartDom = document.getElementById('testChart');
+                const myChart = echarts.init(chartDom);
+                
+                const option = {
+                    title: {
+                        text: '测试图表',
+                        left: 'center'
+                    },
+                    tooltip: {
+                        trigger: 'axis'
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: ['00:00', '01:00', '02:00', '03:00', '04:00', '05:00']
+                    },
+                    yAxis: {
+                        type: 'value'
+                    },
+                    series: [
+                        {
+                            name: '测试数据',
+                            type: 'line',
+                            data: [10, 15, 12, 18, 14, 20],
+                            smooth: true,
+                            itemStyle: { color: '#2196f3' },
+                            lineStyle: { width: 3 }
+                        }
+                    ]
+                };
+                
+                myChart.setOption(option);
+                statusDiv.innerHTML += '<br><span class="success">✅ 图表初始化成功</span>';
+                console.log('✅ 图表初始化成功');
+                
+                // 调整图表大小
+                window.addEventListener('resize', () => {
+                    myChart.resize();
+                });
+                
+            } catch (error) {
+                statusDiv.innerHTML += '<br><span class="error">❌ 图表初始化失败: ' + error.message + '</span>';
+                console.error('❌ 图表初始化失败:', error);
+            }
+        }
+    </script>
+</body>
+</html>

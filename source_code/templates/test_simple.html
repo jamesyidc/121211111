@@ -1,43 +1,185 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>Simple Test</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>极简测试 - 图表显示</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        body {
+            margin: 20px;
+            font-family: Arial, sans-serif;
+        }
+        #status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.9);
+            color: #0f0;
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 400px;
+            font-size: 12px;
+            line-height: 1.6;
+            z-index: 9999;
+        }
+        #chart {
+            width: 100%;
+            height: 500px;
+            background: #f5f5f5;
+            border: 2px solid #ddd;
+            margin-top: 20px;
+        }
+        .step {
+            margin: 5px 0;
+        }
+        .success {
+            color: #0f0;
+        }
+        .error {
+            color: #f00;
+        }
+    </style>
 </head>
-<body style="background: #0e1117; color: white; padding: 20px;">
-    <h1>简单测试页面</h1>
-    <div id="chart" style="width: 800px; height: 400px; background: #1a1d29;"></div>
-    <div id="status"></div>
+<body>
+    <h1>🔍 极简图表测试页面</h1>
+    <p>这个页面只做3件事：</p>
+    <ol>
+        <li>加载ECharts库</li>
+        <li>请求API获取数据</li>
+        <li>渲染图表</li>
+    </ol>
     
+    <div id="status">
+        <div style="font-weight:bold;color:#ff0;">📊 执行状态:</div>
+        <div id="steps"></div>
+    </div>
+    
+    <div id="chart"></div>
+
     <script>
-        console.log('🔧 Script loaded at:', new Date().toLocaleString());
+        const statusDiv = document.getElementById('steps');
         
-        window.onload = function() {
-            console.log('✅ window.onload triggered');
-            document.getElementById('status').innerHTML += '<p>✅ window.onload triggered</p>';
-            
-            if (typeof echarts !== 'undefined') {
-                console.log('✅ ECharts available:', echarts.version);
-                document.getElementById('status').innerHTML += '<p>✅ ECharts version: ' + echarts.version + '</p>';
+        function addStep(msg, isError = false) {
+            const div = document.createElement('div');
+            div.className = 'step ' + (isError ? 'error' : 'success');
+            div.textContent = msg;
+            statusDiv.appendChild(div);
+            console.log(msg);
+        }
+        
+        // 步骤1: 检查ECharts
+        addStep('1️⃣ 检查ECharts...');
+        if (typeof echarts === 'undefined') {
+            addStep('❌ ECharts未加载！', true);
+        } else {
+            addStep('✅ ECharts已加载: ' + echarts.version);
+        }
+        
+        // 步骤2: 初始化图表
+        addStep('2️⃣ 初始化图表容器...');
+        const chartDom = document.getElementById('chart');
+        if (!chartDom) {
+            addStep('❌ 找不到图表容器！', true);
+        } else {
+            addStep('✅ 图表容器存在: ' + chartDom.offsetWidth + 'x' + chartDom.offsetHeight);
+        }
+        
+        let chart;
+        try {
+            chart = echarts.init(chartDom);
+            addStep('✅ 图表实例创建成功');
+        } catch (e) {
+            addStep('❌ 图表初始化失败: ' + e.message, true);
+        }
+        
+        // 步骤3: 请求数据
+        addStep('3️⃣ 请求API数据...');
+        const apiUrl = '/api/escape-signal-stats/keypoints?v=' + Date.now();
+        addStep('📡 API URL: ' + apiUrl);
+        
+        fetch(apiUrl)
+            .then(response => {
+                addStep('✅ API响应状态: ' + response.status);
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                addStep('✅ 数据解析成功');
+                addStep('📊 数据量: ' + (data.keypoints ? data.keypoints.length : 0) + ' 个点');
                 
-                const chart = echarts.init(document.getElementById('chart'));
+                if (!data.success || !data.keypoints || data.keypoints.length === 0) {
+                    throw new Error('数据无效');
+                }
+                
+                // 步骤4: 准备图表数据
+                addStep('4️⃣ 准备图表数据...');
+                const times = data.keypoints.map(d => d.stat_time.substring(5, 16));
+                const signal24h = data.keypoints.map(d => d.signal_24h_count);
+                const signal2h = data.keypoints.map(d => d.signal_2h_count);
+                
+                addStep('✅ times长度: ' + times.length);
+                addStep('✅ signal24h长度: ' + signal24h.length);
+                addStep('✅ signal2h长度: ' + signal2h.length);
+                
+                // 步骤5: 渲染图表
+                addStep('5️⃣ 渲染图表...');
                 const option = {
-                    title: { text: 'Test Chart', textStyle: { color: '#fff' } },
-                    xAxis: { type: 'category', data: ['Mon', 'Tue', 'Wed'] },
-                    yAxis: { type: 'value' },
-                    series: [{ data: [120, 200, 150], type: 'line' }]
+                    title: {
+                        text: '逃顶信号趋势图（极简版）',
+                        left: 'center'
+                    },
+                    tooltip: {
+                        trigger: 'axis'
+                    },
+                    legend: {
+                        data: ['24小时信号数', '2小时信号数'],
+                        top: 30
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: times,
+                        axisLabel: {
+                            rotate: 45
+                        }
+                    },
+                    yAxis: {
+                        type: 'value',
+                        name: '信号数量'
+                    },
+                    series: [
+                        {
+                            name: '24小时信号数',
+                            type: 'line',
+                            data: signal24h,
+                            smooth: true,
+                            lineStyle: { color: '#ef4444', width: 2 }
+                        },
+                        {
+                            name: '2小时信号数',
+                            type: 'line',
+                            data: signal2h,
+                            smooth: true,
+                            lineStyle: { color: '#f59e0b', width: 2 }
+                        }
+                    ]
                 };
+                
                 chart.setOption(option);
-                console.log('✅ Chart rendered');
-                document.getElementById('status').innerHTML += '<p>✅ Chart rendered successfully</p>';
-            } else {
-                console.error('❌ ECharts not loaded!');
-                document.getElementById('status').innerHTML += '<p>❌ ECharts not loaded!</p>';
-            }
-        };
-        
-        console.log('🔧 Script execution finished');
+                addStep('✅ setOption完成');
+                
+                setTimeout(() => {
+                    chart.resize();
+                    addStep('✅ resize完成');
+                    addStep('🎉 图表渲染成功！');
+                }, 100);
+            })
+            .catch(error => {
+                addStep('❌ 错误: ' + error.message, true);
+                addStep('💡 请检查: 1) API是否正常 2) 网络连接 3) 数据格式', true);
+            });
     </script>
 </body>
 </html>

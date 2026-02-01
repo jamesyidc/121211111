@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>页面诊断</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .check-item {
+            margin: 15px 0;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #ccc;
+        }
+        .loading {
+            border-left-color: #fbbf24;
+            background: #fef3c7;
+        }
+        .success {
+            border-left-color: #10b981;
+            background: #d1fae5;
+        }
+        .error {
+            border-left-color: #ef4444;
+            background: #fee2e2;
+        }
+        .icon {
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        pre {
+            background: #f3f4f6;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 页面资源加载诊断</h1>
+        
+        <div id="checks">
+            <div id="check-tailwind" class="check-item loading">
+                <span class="icon">⏳</span> 检测 Tailwind CSS...
+            </div>
+            <div id="check-fontawesome" class="check-item loading">
+                <span class="icon">⏳</span> 检测 Font Awesome...
+            </div>
+            <div id="check-echarts" class="check-item loading">
+                <span class="icon">⏳</span> 检测 ECharts...
+            </div>
+            <div id="check-api" class="check-item loading">
+                <span class="icon">⏳</span> 检测 API 连接...
+            </div>
+        </div>
+
+        <div style="margin-top: 30px; padding: 20px; background: #e0f2fe; border-radius: 8px;">
+            <h3 style="margin-top: 0;">💡 解决方案：</h3>
+            <ul id="solutions" style="line-height: 1.8;">
+                <li>请等待所有资源加载完成...</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 加载 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com" 
+            onload="checkTailwind()" 
+            onerror="failTailwind()"></script>
+    
+    <!-- 加载 Font Awesome -->
+    <link rel="stylesheet" 
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+          onload="checkFontAwesome()"
+          onerror="failFontAwesome()">
+    
+    <!-- 加载 ECharts -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"
+            onload="checkECharts()"
+            onerror="failECharts()"></script>
+
+    <script>
+        const solutions = [];
+
+        function updateSolutions() {
+            const solutionsEl = document.getElementById('solutions');
+            if (solutions.length === 0) {
+                solutionsEl.innerHTML = '<li style="color: #10b981; font-weight: bold;">✅ 所有资源加载正常！</li>';
+            } else {
+                solutionsEl.innerHTML = solutions.map(s => `<li>${s}</li>`).join('');
+            }
+        }
+
+        function checkTailwind() {
+            const el = document.getElementById('check-tailwind');
+            el.className = 'check-item success';
+            el.innerHTML = '<span class="icon">✅</span> Tailwind CSS 加载成功';
+        }
+
+        function failTailwind() {
+            const el = document.getElementById('check-tailwind');
+            el.className = 'check-item error';
+            el.innerHTML = '<span class="icon">❌</span> Tailwind CSS 加载失败<pre>URL: https://cdn.tailwindcss.com</pre>';
+            solutions.push('⚠️ Tailwind CSS 无法加载，可能是网络问题或CDN被墙');
+            solutions.push('建议：使用VPN或更换网络环境');
+            updateSolutions();
+        }
+
+        function checkFontAwesome() {
+            const el = document.getElementById('check-fontawesome');
+            el.className = 'check-item success';
+            el.innerHTML = '<span class="icon">✅</span> Font Awesome 加载成功';
+        }
+
+        function failFontAwesome() {
+            const el = document.getElementById('check-fontawesome');
+            el.className = 'check-item error';
+            el.innerHTML = '<span class="icon">❌</span> Font Awesome 加载失败<pre>URL: https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css</pre>';
+            solutions.push('⚠️ Font Awesome 无法加载（图标可能不显示）');
+            updateSolutions();
+        }
+
+        function checkECharts() {
+            const el = document.getElementById('check-echarts');
+            if (typeof echarts !== 'undefined') {
+                el.className = 'check-item success';
+                el.innerHTML = `<span class="icon">✅</span> ECharts 加载成功<pre>版本: ${echarts.version}</pre>`;
+            } else {
+                failECharts();
+            }
+        }
+
+        function failECharts() {
+            const el = document.getElementById('check-echarts');
+            el.className = 'check-item error';
+            el.innerHTML = '<span class="icon">❌</span> ECharts 加载失败<pre>URL: https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js</pre>';
+            solutions.push('⚠️ ECharts 无法加载，图表将无法显示');
+            solutions.push('这是导致页面空白的主要原因！');
+            updateSolutions();
+        }
+
+        // 检测API
+        async function checkAPI() {
+            const el = document.getElementById('check-api');
+            try {
+                const response = await fetch('/api/major-events/current-status');
+                const data = await response.json();
+                el.className = 'check-item success';
+                el.innerHTML = `<span class="icon">✅</span> API 连接正常<pre>响应: ${JSON.stringify(data, null, 2).substring(0, 200)}...</pre>`;
+            } catch (error) {
+                el.className = 'check-item error';
+                el.innerHTML = `<span class="icon">❌</span> API 连接失败<pre>错误: ${error.message}</pre>`;
+                solutions.push('⚠️ API 连接失败，请检查后端服务是否正常运行');
+                updateSolutions();
+            }
+        }
+
+        // 3秒后检查API
+        setTimeout(checkAPI, 3000);
+
+        // 5秒后更新最终结果
+        setTimeout(() => {
+            updateSolutions();
+            
+            // 如果所有资源都加载成功
+            if (solutions.length === 0) {
+                document.getElementById('solutions').innerHTML += `
+                    <li style="margin-top: 15px; padding-top: 15px; border-top: 2px solid #bfdbfe;">
+                        <strong>✨ 诊断结果：</strong><br>
+                        所有资源加载正常，但页面仍然空白？<br>
+                        <a href="/major-events" style="color: #2563eb; text-decoration: underline;">点击这里重新访问重大事件监控页面</a>
+                    </li>
+                `;
+            }
+        }, 5000);
+    </script>
+</body>
+</html>
